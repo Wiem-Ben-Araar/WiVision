@@ -1,0 +1,96 @@
+# -----------------
+# Node modules
+/frontend/node_modules/
+/backend/node_modules/
+
+# -----------------
+# Frontend (Next.js)
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+
+# -----------------
+# Backend (Express / Firebase)
+/backend/build/
+/backend/dist/
+
+# Firebase
+.firebase/
+/backend/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log*
+firebase-debug.*.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and test output
+/coverage/
+/backend/coverage/
+/frontend/coverage/
+/.nyc_output/
+
+# Grunt intermediate storage
+.grunt
+
+# Bower
+bower_components/
+
+# npm and yarn caches and lockfiles
+.npm
+.yarn-integrity
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# REPL history
+.node_repl_history
+
+# npm pack output
+*.tgz
+
+# Build output
+build/Release
+
+# eslint cache
+.eslintcache
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# dotenv files (env variables)
+.env
+/frontend/.env.local
+/backend/.env
+.env.local
+.env.*.local
+
+# IDE and system files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+.DS_Store
+Thumbs.db
+*.pem
+
+# Vercel config folder
+.vercel
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
