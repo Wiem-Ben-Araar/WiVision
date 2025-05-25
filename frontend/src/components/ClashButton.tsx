@@ -8,8 +8,8 @@ import ClashConfigModal from '@/components/ClashConfigModal';
 import { ClashReport } from '@/components/ClashReport';
 
 // URL de base du serveur Flask
-const API_BASE_URL = 'http://localhost:5001'; // IMPORTANT: Ajustez ce port à celui de votre serveur Flask
-
+const API_BASE_URL = 'http://localhost:5000'; // IMPORTANT: Ajustez ce port à celui de votre serveur Flask
+const API_FLASK_URL = 'http://localhost:5001';
 interface ClashResult {
   element_a: {
     name: string;
@@ -81,40 +81,52 @@ export default function ClashButton({ loadedModels }: { loadedModels: any[] }) {
     }
   };
 
-  const pollResults = async (sessionId: string): Promise<any> => {
-    const MAX_ATTEMPTS = 120; // 6 minutes maximum (à 3s par intervalle)
-    const DELAY = 3000;
-  
-    for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      try {
-        setPollingStatus(`Analyse en cours... ${Math.round((i/MAX_ATTEMPTS) * 100)}%`);
-        
-        // Utiliser l'URL correcte avec le port du serveur Flask
-        const { data } = await axios.get(`${API_BASE_URL}/api/status/${sessionId}`);
-        
-        if (data.status === 'failed') {
-          throw new Error(data.error || 'Erreur serveur');
-        }
-        
-        if (data.status === 'completed') {
-          setPollingStatus('Récupération du rapport...');
-          // Utiliser l'URL correcte pour le rapport
-          const reportRes = await axios.get(`${API_BASE_URL}/api/report/${sessionId}`);
-          return reportRes.data;
-        }
-        
+const pollResults = async (sessionId: string): Promise<any> => {
+  const MAX_ATTEMPTS = 120; // 6 minutes maximum (à 3s par intervalle)
+  const DELAY = 3000;
+
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    try {
+      setPollingStatus(`Analyse en cours... ${Math.round((i/MAX_ATTEMPTS) * 100)}%`);
+      
+      // Utiliser l'URL correcte avec le port du serveur Express (pas Flask)
+      const { data } = await axios.get(`${API_BASE_URL}/api/clash/status/${sessionId}`);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Vérifier si le rapport est prêt (statut 200 avec des données)
+      if (data.clashes) {
+        setPollingStatus('Récupération du rapport...');
+        return data; // Le rapport est déjà dans la réponse
+      }
+      
+      // Si statut = 'processing', continuer à attendre
+      if (data.status === 'processing') {
         await new Promise(resolve => setTimeout(resolve, DELAY));
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
-          // Si le rapport n'est pas encore prêt, continuez à attendre
+        continue;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, DELAY));
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 404) {
+          // Le rapport n'est pas encore prêt, continuer à attendre
           await new Promise(resolve => setTimeout(resolve, DELAY));
           continue;
         }
-        throw err;
+        if (err.response?.status === 202) {
+          // Status "processing", continuer à attendre
+          await new Promise(resolve => setTimeout(resolve, DELAY));
+          continue;
+        }
       }
+      throw err;
     }
-    throw new Error('Délai dépassé pour la détection des clashs');
-  };
+  }
+  throw new Error('Délai dépassé pour la détection des clashs');
+};
   
   const openHtmlReport = () => {
     if (sessionId) {
