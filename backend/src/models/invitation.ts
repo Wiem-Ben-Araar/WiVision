@@ -1,5 +1,6 @@
 // models/invitation.ts
 import mongoose from 'mongoose';
+import { noTrueLogging } from 'sequelize/lib/utils/deprecations';
 
 const InvitationSchema = new mongoose.Schema({
   projectId: {
@@ -21,12 +22,22 @@ const InvitationSchema = new mongoose.Schema({
     enum: ['pending', 'accepted', 'declined'],
     default: 'pending'
   },
+   role: {
+    type: String,
+    enum: ["BIM Manager", "BIM Coordinateur", "BIM Modeleur"],
+    required: false
+  },
   invitedBy: {
     id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true
     },
+     role: {
+    type: String,
+    enum: ["BIM Manager", "BIM Coordinateur", "BIM Modeleur"],
+    required: noTrueLogging
+  },
     name: {
       type: String,
       required: true

@@ -74,7 +74,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
               email,
               googleId: profile.id,
               image: profile.photos?.[0]?.value,
-              role: 'member',
+               role: undefined ,
             });
             console.log('Nouvel utilisateur créé via Google OAuth');
           } else if (!user.googleId) {
@@ -135,7 +135,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
               email,
               githubId: profile.id,
               image: profile.photos?.[0]?.value,
-              role: 'member',
+               role: undefined , 
             });
             console.log('Nouvel utilisateur créé via GitHub OAuth');
           } else if (!user.githubId) {

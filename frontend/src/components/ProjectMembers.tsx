@@ -33,7 +33,7 @@ interface Member {
 interface ProjectMembersProps {
   projectId: string
   projectName: string
-  userRole: "owner" | "member"
+  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur";
   onMemberInvite?: (email: string) => void
 }
 
@@ -47,16 +47,26 @@ export default function ProjectMembers({ projectId, projectName, userRole, onMem
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sendingInvites, setSendingInvites] = useState(false)
+const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
+  // Vérifier si l'utilisateur peut inviter des membres
+  // On vérifie aussi le rôle dans les membres du projet pour l'utilisateur actuel
+  const currentUserMember = members.find(member => member.email === user?.email);
+  const actualUserRole = currentUserMember?.role || userRole;
+  const canInviteMembers = actualUserRole === "BIM Manager" || userRole === "BIM Manager";
+  
+
 
   // Listen for external trigger to open invite dialog
   useEffect(() => {
+    if (!canInviteMembers) return;
+    
     const inviteTrigger = document.getElementById("invite-member-trigger")
     if (inviteTrigger) {
       const handleClick = () => setInviteDialogOpen(true)
       inviteTrigger.addEventListener("click", handleClick)
       return () => inviteTrigger.removeEventListener("click", handleClick)
     }
-  }, [])
+  }, [canInviteMembers])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -96,6 +106,7 @@ export default function ProjectMembers({ projectId, projectName, userRole, onMem
         emails: emailList,
         message,
         projectName,
+        role: selectedRole
       })
 
       setInvitations((prev) => [...prev, ...data.invitations])
@@ -139,75 +150,92 @@ export default function ProjectMembers({ projectId, projectName, userRole, onMem
           </p>
         </div>
 
-        <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2">
-              <UserPlus className="h-4 w-4" />
-              Inviter des membres
-            </Button>
-          </DialogTrigger>
+        {/* Bouton d'invitation - vérifie le rôle réel dans les membres */}
+        {canInviteMembers && (
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2">
+                <UserPlus className="h-4 w-4" />
+                Inviter des membres
+              </Button>
+            </DialogTrigger>
 
-          <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-semibold text-[#005CA9] dark:text-blue-400">
-                Inviter des collaborateurs
-              </DialogTitle>
-              <DialogDescription className="text-gray-600 dark:text-gray-300">
-                Envoyez des invitations par email
-              </DialogDescription>
-            </DialogHeader>
+            <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-[#005CA9] dark:text-blue-400">
+                  Inviter des collaborateurs
+                </DialogTitle>
+                <DialogDescription className="text-gray-600 dark:text-gray-300">
+                  Envoyez des invitations par email
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="space-y-4 mt-2">
-              <div className="space-y-2">
-                <Label htmlFor="emails" className="text-gray-700 dark:text-gray-300 font-medium">
-                  Emails des destinataires
-                </Label>
-                <Textarea
-                  id="emails"
-                  placeholder="exemple@entreprise.com, collaborateur@partenaire.com..."
-                  value={emails}
-                  onChange={(e) => setEmails(e.target.value)}
-                  className="min-h-[100px] resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                />
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Séparer les adresses par des virgules ou retours à la ligne
-                </p>
+              <div className="space-y-4 mt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="emails" className="text-gray-700 dark:text-gray-300 font-medium">
+                    Emails des destinataires
+                  </Label>
+                  <Textarea
+                    id="emails"
+                    placeholder="exemple@entreprise.com, collaborateur@partenaire.com..."
+                    value={emails}
+                    onChange={(e) => setEmails(e.target.value)}
+                    className="min-h-[100px] resize-none dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Séparer les adresses par des virgules ou retours à la ligne
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="message" className="text-gray-700 dark:text-gray-300 font-medium">
+                    Message personnalisé (optionnel)
+                  </Label>
+                  <Textarea
+                    id="message"
+                    placeholder="Bonjour, je vous invite à rejoindre notre projet..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    className="min-h-[80px] dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                  />
+                </div>
+<div className="space-y-2">
+  <Label htmlFor="role" className="text-gray-700 dark:text-gray-300 font-medium">
+    Rôle du membre
+  </Label>
+  <select
+    id="role"
+    value={selectedRole}
+    onChange={(e) => setSelectedRole(e.target.value)}
+    className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 dark:bg-gray-800"
+  > 
+    <option value="BIM Modeleur">BIM Modeleur (visualisation seule)</option>
+    <option value="BIM Coordinateur">BIM Coordinateur</option>
+    <option value="BIM Manager">BIM Manager</option>
+  </select>
+</div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setInviteDialogOpen(false)}
+                    disabled={sendingInvites}
+                    className="dark:border-gray-700 dark:text-gray-300"
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={handleInvite}
+                    disabled={sendingInvites || !emails.trim()}
+                    className="bg-[#005CA9] hover:bg-[#004A87] dark:bg-blue-600 dark:hover:bg-blue-700 gap-2"
+                  >
+                    {sendingInvites ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Envoyer
+                  </Button>
+                </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="message" className="text-gray-700 dark:text-gray-300 font-medium">
-                  Message personnalisé (optionnel)
-                </Label>
-                <Textarea
-                  id="message"
-                  placeholder="Bonjour, je vous invite à rejoindre notre projet..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="min-h-[80px] dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setInviteDialogOpen(false)}
-                  disabled={sendingInvites}
-                  className="dark:border-gray-700 dark:text-gray-300"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleInvite}
-                  disabled={sendingInvites || !emails.trim()}
-                  className="bg-[#005CA9] hover:bg-[#004A87] dark:bg-blue-600 dark:hover:bg-blue-700 gap-2"
-                >
-                  {sendingInvites ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                  Envoyer
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Contenu principal */}
@@ -274,7 +302,7 @@ export default function ProjectMembers({ projectId, projectName, userRole, onMem
             </Card>
           </motion.div>
 
-          {/* Section Invitations */}
+          {/* Section Invitations - visible pour tous mais avec contexte */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

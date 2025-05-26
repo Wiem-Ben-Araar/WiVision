@@ -13,6 +13,7 @@ import ProjectFiles from "@/components/ProjectFiles"
 import ProjectMembers from "@/components/ProjectMembers"
 import axios from "@/lib/axios-config"
 import { motion } from "framer-motion"
+import { useAuth } from "@/hooks/use-auth"
 
 interface Project {
   _id: string
@@ -55,7 +56,8 @@ export default function ProjectDetailsPage() {
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [userRole, setUserRole] = useState<"owner" | "member">("member")
+const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none">("none");
+  const { user } = useAuth()
 
   // Configuration Axios pour les cookies
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function ProjectDetailsPage() {
 
         // Determine user role
         const isOwner = projectResponse.data.createdBy?._id === projectResponse.data.currentUserId
-        setUserRole(isOwner ? "owner" : "member")
+        setUserRole(isOwner ? "BIM Manager" : "BIM Modeleur");
       } catch (error) {
         console.error("Error fetching project:", error)
         router.push("/projects")
@@ -331,7 +333,7 @@ export default function ProjectDetailsPage() {
           <TabsContent value="files">
             <Card className="border-0 shadow-md overflow-hidden dark:bg-gray-800 dark:border-gray-700">
               <div className="h-2 bg-gradient-to-r from-[#005CA9] to-[#0070CC] dark:from-[#3b82f6] dark:to-[#60a5fa]"></div>
-              <ProjectFiles projectId={projectId} files={files} userRole={userRole} />
+              <ProjectFiles projectId={projectId} files={files} userRole={user.role} />
             </Card>
           </TabsContent>
 

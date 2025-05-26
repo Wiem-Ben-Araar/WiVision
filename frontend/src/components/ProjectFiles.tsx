@@ -25,13 +25,17 @@ interface ProjectFile {
 interface ProjectFilesProps {
   projectId: string
   files: ProjectFile[]
-  userRole: "owner" | "member"
+  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur";
   onFileUpload?: (file: ProjectFile) => void
 }
 
 export default function ProjectFiles({ projectId, files = [], userRole, onFileUpload }: ProjectFilesProps) {
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
+   
+  const isBIMManager = userRole === "BIM Manager"
+const isBIMCoordinateur = userRole === "BIM Coordinateur"
+const isBIMModeleur = userRole === "BIM Modeleur"
   const currentUserEmail = user?.email
   const currentUserId = user?.id
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
@@ -41,6 +45,7 @@ export default function ProjectFiles({ projectId, files = [], userRole, onFileUp
   const [viewAllUrl, setViewAllUrl] = useState("#")
   const [hasValidFiles, setHasValidFiles] = useState(false)
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
+
 
   // Listen for external trigger to open upload dialog
   useEffect(() => {
@@ -99,7 +104,7 @@ export default function ProjectFiles({ projectId, files = [], userRole, onFileUp
 
   const canDeleteFile = (file: ProjectFile) => {
     // Allow owners to delete any file
-    if (userRole === "owner") return true
+    if (userRole === "BIM Manager") return true
 
     // Allow uploaders to delete their own files
     const isUploader = file.uploadedBy === currentUserId || file.uploadedByEmail === currentUserEmail
@@ -431,16 +436,16 @@ export default function ProjectFiles({ projectId, files = [], userRole, onFileUp
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 border-gray-300 dark:border-gray-700 dark:text-gray-300"
-                      onClick={() => window.open(file.file_url)}
-                      disabled={!validUrl}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      {validUrl ? "Télécharger" : "Téléchargement indisponible"}
-                    </Button>
+          <Button
+  variant="outline"
+  size="sm"
+  className="flex-1 border-gray-300 dark:border-gray-700 dark:text-gray-300"
+  onClick={() => window.open(file.file_url)}
+  disabled={!validUrl || isBIMModeleur} // ✅ Seul BIM Modeleur est désactivé
+>
+  <Download className="h-4 w-4 mr-2" />
+  {validUrl ? "Télécharger" : "Téléchargement indisponible"}
+</Button>
 
                     {canDelete && (
                       <Button

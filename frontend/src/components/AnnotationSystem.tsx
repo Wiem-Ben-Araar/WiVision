@@ -416,7 +416,10 @@ export function AnnotationSystem({
 
     const animate = () => {
       if (css2DRendererRef.current && camera) {
-        css2DRendererRef.current.render(getSafeScene(), camera)
+        const scene = getSafeScene()
+if (css2DRendererRef.current && camera && scene) {
+  css2DRendererRef.current.render(scene, camera)
+}
       }
       requestAnimationFrame(animate)
     }

@@ -90,10 +90,12 @@ export const acceptInvitation = async (
 
     project.members.push({
       userId: new mongoose.Types.ObjectId(user.userId),
-      role: "Member",
+      role: invitation.role,
       joinedAt: new Date(),
     });
-
+ await User.findByIdAndUpdate(user.userId, { 
+      role: invitation.role 
+    });
     await project.save();
     invitation.status = "accepted";
     await invitation.save();
@@ -154,7 +156,7 @@ export const inviteMembers = async (
 ) => {
   try {
     const { id } = req.params;
-    const { emails, message, projectName } = req.body;
+    const { emails, message, projectName, role} = req.body;
     const user = req.user;
 
     if (!user) {
@@ -179,6 +181,40 @@ export const inviteMembers = async (
 
     if (!isAllowed) {
       return res.status(403).json({ error: "Permissions insuffisantes" });
+    }
+
+    // **FIX 2: Récupérer le rôle de l'utilisateur depuis la base de données**
+    const currentUser = await User.findById(user.userId);
+    if (!currentUser) {
+      return res.status(404).json({ error: "Utilisateur non trouvé" });
+    }
+
+    // **FIX 3: Déterminer le rôle effectif de l'utilisateur**
+    let userRole = currentUser.role;
+    
+    // Si l'utilisateur est le créateur du projet, il est forcément BIM Manager
+    if (project.createdBy.toString() === user.userId.toString()) {
+      userRole = "BIM Manager";
+      
+      // Mettre à jour le rôle dans la base si nécessaire
+      if (currentUser.role !== "BIM Manager") {
+        await User.findByIdAndUpdate(user.userId, { role: "BIM Manager" });
+      }
+    } else {
+      // Sinon, récupérer le rôle depuis les membres du projet
+      const memberRole = project.members.find(
+        (m: { userId: mongoose.Types.ObjectId; role: string }) =>
+          m.userId.toString() === user.userId.toString()
+      )?.role;
+      
+      if (memberRole) {
+        userRole = memberRole as "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur";
+      }
+    }
+
+    // **FIX 4: Vérifier que le rôle est défini**
+    if (!userRole) {
+      return res.status(403).json({ error: "Rôle utilisateur non défini" });
     }
 
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -218,17 +254,21 @@ export const inviteMembers = async (
           email: email.toLowerCase(),
           token,
           status: "pending",
+          
           invitedBy: {
             id: user.userId,
             name: (user as any).name || "Inviteur",
+            role: userRole // **FIX 5: Utiliser le rôle récupéré**
           },
 
           userExists: !!existingUser,
           userId: existingUser?._id,
+          role: req.body.role
         });
 
         await newInvitation.save();
         invitations.push(newInvitation);
+        
         const signupUrl = `${baseUrl}/signup?invitationToken=${token}`;
         const acceptUrl = `${baseUrl}/invitation/${token}`;
 
@@ -276,7 +316,6 @@ export const inviteMembers = async (
     res.status(500).json({ message: "Erreur interne du serveur" });
   }
 };
-
 export const checkInvitation = async (req: Request, res: Response) => {
   try {
     const { token } = req.params;

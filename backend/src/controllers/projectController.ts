@@ -24,12 +24,22 @@ export const createProject = async (req: AuthenticatedRequest, res: Response) =>
     // Récupérer l'ID de l'utilisateur
     const userId = new mongoose.Types.ObjectId(req.user.userId);
     
+    // **FIX 1: Mettre à jour le rôle de l'utilisateur à "BIM Manager"**
+    await User.findByIdAndUpdate(
+      userId,
+      { role: "BIM Manager" },
+      { new: true }
+    );
+    
     // Créer l'objet projet avec des valeurs par défaut pour les champs optionnels
     const project = new Project({
       name: data.name.trim(),
       description: data.description ? data.description.trim() : "",
       createdBy: userId,
-      members: [userId]
+      members: [{
+        userId: userId,
+        role: "BIM Manager" // Le créateur devient BIM Manager
+      }]
     });
     
     console.log("Projet avant sauvegarde:", project);
@@ -53,9 +63,7 @@ export const createProject = async (req: AuthenticatedRequest, res: Response) =>
 
 export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Non autorisé" });
-    }
+    if (!req.user) return res.status(401).json({ error: "Non autorisé" });
 
     const projects = await Project.find({
       $or: [
@@ -64,8 +72,14 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response) => {
       ]
     })
     .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 })
-    .lean();
+    .lean()
+    .then(projects => 
+      // **FIX: Filtrer les projets corrompus**
+      projects.filter(p => 
+        p.createdBy && 
+        p.members.every(m => m.userId)
+      )
+    );
 
     return res.status(200).json(projects);
   } catch (error) {
@@ -178,10 +192,10 @@ export const getProjectMembers = async (req: AuthenticatedRequest, res: Response
       const creator = project.createdBy as any;
       members.push({
         id: creator._id.toString(),
-        name: creator.name || "Project Owner",
+        name: creator.name || "BIM Manager",
         email: creator.email || "",
         image: creator.image || "",
-        role: "Owner"
+        role: "BIM Manager"
       });
     }
 
@@ -267,18 +281,18 @@ export const getUserRole = async (req: AuthenticatedRequest, res: Response) => {
 
     // 4. Détermination du rôle
     const userEmail = req.user.email;
-    let role: 'owner' | 'member' | 'none' = 'none';
+   let role: 'BIM Manager' | 'BIM Coordinateur' | 'BIM Modeleur' | 'none' = 'none';
 
     // Vérification du propriétaire
     if (project.createdBy?.email === userEmail) {
-      role = 'owner';
+      role = 'BIM Manager'; 
     } 
     // Vérification des membres
     else {
       const member = project.members.find(m => 
         (m.userId as any)?.email === userEmail
       );
-      if (member) role = member.role as 'member';
+       if (member) role = member.role as 'BIM Coordinateur' | 'BIM Modeleur';
     }
 
     // 5. Réponse selon le rôle

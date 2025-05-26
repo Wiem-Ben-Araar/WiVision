@@ -79,7 +79,7 @@ function TodoPanel({
   onCreateNote: () => void
   projectMembers: any[]
 }) {
-  if (activeTool !== "todos") return null
+  if (activeTool !== "notes") return null
 
   return (
     <div className="absolute right-4 top-20 w-96 bg-white rounded-lg shadow-lg p-4 max-h-[80vh] overflow-auto z-10">

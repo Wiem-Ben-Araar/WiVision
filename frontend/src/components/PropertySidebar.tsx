@@ -1,9 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, ChevronDown, X, Copy, MessageCircle, Search, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Input } from '@/components/ui/input';
+import { ChevronRight, ChevronDown, X, Copy, Search, Download, Package, Layers, Hash, Info } from 'lucide-react';
 
 // Types
 interface PropertySidebarProps {
@@ -17,7 +13,8 @@ interface PropertyGroup {
   name: string;
   properties: Record<string, any>;
   expanded: boolean;
-  priority: number; // Pour ordonner les groupes
+  priority: number;
+  icon?: React.ReactNode;
 }
 
 export default function PropertySidebar({ viewer, selectedElement, modelID, onClose }: PropertySidebarProps) {
@@ -25,11 +22,13 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
   const [loading, setLoading] = useState<boolean>(false);
   const [propertyGroups, setPropertyGroups] = useState<PropertyGroup[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [copiedProperty, setCopiedProperty] = useState<string | null>(null);
   
-  // Copier une valeur dans le presse-papiers
-  const copyToClipboard = (text: string) => {
+  // Copier une valeur dans le presse-papiers avec feedback visuel
+  const copyToClipboard = (text: string, propertyKey: string) => {
     navigator.clipboard.writeText(text);
-    // Vous pourriez ajouter une notification toast ici
+    setCopiedProperty(propertyKey);
+    setTimeout(() => setCopiedProperty(null), 2000);
   };
 
   // Fonction pour extraire toutes les propriétés récursivement
@@ -62,7 +61,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     return result;
   };
 
-  // Organiser les propriétés en groupes façon Trimble/Tekla
+  // Organiser les propriétés en groupes avec icônes
   const organizeProperties = (props: any) => {
     if (!props) return [];
 
@@ -83,7 +82,8 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Informations générales',
         properties: basicProps,
         expanded: true,
-        priority: 100
+        priority: 100,
+        icon: <Info className="h-4 w-4" />
       });
     }
 
@@ -115,7 +115,8 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Géométrie',
         properties: geometryProps,
         expanded: true,
-        priority: 90
+        priority: 90,
+        icon: <Package className="h-4 w-4" />
       });
     }
 
@@ -131,7 +132,8 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Phase et statut',
         properties: phaseProps,
         expanded: false,
-        priority: 80
+        priority: 80,
+        icon: <Layers className="h-4 w-4" />
       });
     }
 
@@ -142,7 +144,6 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         const matName = material.name || `Matériau ${idx + 1}`;
         materialProps[matName] = material.color || material.value || 'Non spécifié';
         
-        // Extraction des propriétés des matériaux
         if (material.properties) {
           Object.entries(material.properties).forEach(([key, value]: [string, any]) => {
             materialProps[`${matName} - ${key}`] = value.value !== undefined ? value.value : value;
@@ -156,14 +157,14 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Matériaux',
         properties: materialProps,
         expanded: false,
-        priority: 70
+        priority: 70,
+        icon: <Hash className="h-4 w-4" />
       });
     }
 
     // Relations spatiales (priorité moyenne-basse)
     const relProps: Record<string, any> = {};
     
-    // Conteneurs
     if (props.ContainedInStructure) {
       const containers = Array.isArray(props.ContainedInStructure) 
         ? props.ContainedInStructure 
@@ -180,7 +181,6 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
       });
     }
     
-    // Autres relations
     if (props.FillsVoids) relProps['Remplit vides'] = 'Oui';
     if (props.IsDecomposedBy) relProps['Décomposé en'] = Array.isArray(props.IsDecomposedBy) ? `${props.IsDecomposedBy.length} éléments` : '1 élément';
     if (props.Decomposes) relProps['Fait partie de'] = props.Decomposes.RelatingObject?.expressID || 'Élément parent';
@@ -190,12 +190,12 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Relations spatiales',
         properties: relProps,
         expanded: false,
-        priority: 60
+        priority: 60,
+        icon: <Layers className="h-4 w-4" />
       });
     }
 
-    // Extraire tous les Property Sets et les organiser par type (priorité variable)
-    // PropertySets communs en IFC
+    // Property Sets
     const commonPsets = ['Pset_Common', 'Pset_Element', 'Pset_Component'];
     
     if (props.IsDefinedBy) {
@@ -205,7 +205,6 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         if (def.RelatingPropertyDefinition) {
           const propDef = def.RelatingPropertyDefinition;
           
-          // PropertySet standard
           if (propDef.HasProperties && Array.isArray(propDef.HasProperties)) {
             const setName = propDef.Name?.value || 'Property Set';
             const propObj: Record<string, any> = {};
@@ -217,45 +216,14 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
             });
             
             if (Object.keys(propObj).length) {
-              // Priorité plus élevée pour les property sets communs
               const isPriority = commonPsets.some(pset => setName.includes(pset));
               
               groups.push({
                 name: setName,
                 properties: propObj,
                 expanded: isPriority,
-                priority: isPriority ? 50 : 30
-              });
-            }
-          }
-          
-          // QuantitySets
-          if (propDef.Quantities && Array.isArray(propDef.Quantities)) {
-            const setName = propDef.Name?.value || 'Quantity Set';
-            const propObj: Record<string, any> = {};
-            
-            propDef.Quantities.forEach((qty: any) => {
-              if (qty.Name) {
-                let value;
-                if (qty.LengthValue) value = qty.LengthValue.value;
-                else if (qty.AreaValue) value = qty.AreaValue.value;
-                else if (qty.VolumeValue) value = qty.VolumeValue.value;
-                else if (qty.CountValue) value = qty.CountValue.value;
-                else if (qty.WeightValue) value = qty.WeightValue.value;
-                
-                if (value !== undefined) {
-                  propObj[qty.Name.value] = value;
-                }
-              }
-            });
-            
-            if (Object.keys(propObj).length) {
-              // Quantités sont considérées importantes
-              groups.push({
-                name: setName,
-                properties: propObj,
-                expanded: true,
-                priority: 40
+                priority: isPriority ? 50 : 30,
+                icon: <Hash className="h-4 w-4" />
               });
             }
           }
@@ -263,77 +231,17 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
       });
     }
 
-    // PropertySets directs (ancienne méthode)
-    if (props.PropertySets && Array.isArray(props.PropertySets)) {
-      props.PropertySets.forEach((propSet: any) => {
-        const setName = propSet.Name?.value || 'Property Set';
-        const propObj: Record<string, any> = {};
-        
-        if (propSet.HasProperties && Array.isArray(propSet.HasProperties)) {
-          propSet.HasProperties.forEach((prop: any) => {
-            if (prop.Name && prop.NominalValue) {
-              propObj[prop.Name.value] = prop.NominalValue.value;
-            }
-          });
-        }
-        
-        if (Object.keys(propObj).length) {
-          const isPriority = commonPsets.some(pset => setName.includes(pset));
-          
-          groups.push({
-            name: setName,
-            properties: propObj,
-            expanded: isPriority,
-            priority: isPriority ? 50 : 30
-          });
-        }
-      });
-    }
-
-    // Extraction des propriétés dans hasProperties
-    if (props.hasProperties) {
-      const propSets = Array.isArray(props.hasProperties) ? props.hasProperties : [props.hasProperties];
-      
-      propSets.forEach((propSet: any, index: number) => {
-        const setName = propSet.name || `Ensemble de propriétés ${index + 1}`;
-        const propObj: Record<string, any> = {};
-        
-        if (propSet.nominalValue) {
-          propObj[propSet.name || 'Valeur'] = propSet.nominalValue.value;
-        }
-        
-        if (propSet.properties) {
-          Object.entries(propSet.properties).forEach(([key, value]: [string, any]) => {
-            propObj[key] = value.value !== undefined ? value.value : value;
-          });
-        }
-        
-        if (Object.keys(propObj).length) {
-          const isPriority = commonPsets.some(pset => setName.includes(pset));
-          
-          groups.push({
-            name: setName,
-            properties: propObj,
-            expanded: isPriority,
-            priority: isPriority ? 50 : 30
-          });
-        }
-      });
-    }
-
-    // Ajouter une catégorie pour toutes les autres propriétés trouvées (priorité la plus basse)
+    // Ajouter les autres propriétés
     const allProps = extractAllProperties(props);
     const otherProps: Record<string, any> = {};
     const existingProps = new Set();
     
-    // Collecter toutes les propriétés déjà ajoutées
     groups.forEach(group => {
       Object.keys(group.properties).forEach(key => {
         existingProps.add(key);
       });
     });
     
-    // Ajouter les propriétés non classées
     Object.entries(allProps).forEach(([key, value]) => {
       if (!existingProps.has(key) && !key.startsWith('expressID') && 
           !key.includes('ObjectPlacement') && !key.includes('Representation')) {
@@ -346,51 +254,27 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
         name: 'Autres propriétés',
         properties: otherProps,
         expanded: false,
-        priority: 10
+        priority: 10,
+        icon: <Hash className="h-4 w-4" />
       });
     }
 
-    // Trier les groupes par priorité
     return groups.sort((a, b) => b.priority - a.priority);
   };
 
-  // Récupération des propriétés pour l'export Excel
-  const getAllProperties = () => {
-    const allProps: Record<string, any> = {};
-    propertyGroups.forEach(group => {
-      Object.entries(group.properties).forEach(([key, value]) => {
-        allProps[`${group.name} > ${key}`] = value;
-      });
-    });
-    return allProps;
-  };
-
-  // Exporter les propriétés au format Excel (XLSX)
+  // Exporter les propriétés
   const exportToExcel = () => {
-    // Créer les données au format Excel XML
     let excelXml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
-    excelXml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ';
-    excelXml += 'xmlns:o="urn:schemas-microsoft-com:office:office" ';
-    excelXml += 'xmlns:x="urn:schemas-microsoft-com:office:excel" ';
-    excelXml += 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" ';
-    excelXml += 'xmlns:html="http://www.w3.org/TR/REC-html40">';
-    
-    excelXml += '<Worksheet ss:Name="Propriétés">';
-    excelXml += '<Table>';
-    excelXml += '<Row>';
-    excelXml += '<Cell><Data ss:Type="String">Groupe</Data></Cell>';
+    excelXml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet">';
+    excelXml += '<Worksheet ss:Name="Propriétés"><Table>';
+    excelXml += '<Row><Cell><Data ss:Type="String">Groupe</Data></Cell>';
     excelXml += '<Cell><Data ss:Type="String">Propriété</Data></Cell>';
-    excelXml += '<Cell><Data ss:Type="String">Valeur</Data></Cell>';
-    excelXml += '</Row>';
+    excelXml += '<Cell><Data ss:Type="String">Valeur</Data></Cell></Row>';
     
     propertyGroups.forEach(group => {
       Object.entries(group.properties).forEach(([key, value]) => {
         const safeValue = typeof value === 'string' ? 
-          value.replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;') : value;
+          value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : value;
         
         excelXml += '<Row>';
         excelXml += `<Cell><Data ss:Type="String">${group.name}</Data></Cell>`;
@@ -402,7 +286,6 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     
     excelXml += '</Table></Worksheet></Workbook>';
     
-    // Convertir en Blob et télécharger
     const blob = new Blob([excelXml], { type: 'application/vnd.ms-excel' });
     const elementName = properties?.Name?.value || `element_${selectedElement}`;
     const link = document.createElement('a');
@@ -413,7 +296,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     document.body.removeChild(link);
   };
 
-  // Filtrer les propriétés selon la recherche
+  // Filtrer les propriétés
   const getFilteredProperties = () => {
     if (!searchQuery) return propertyGroups;
     
@@ -435,7 +318,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }).filter(group => Object.keys(group.properties).length > 0);
   };
 
-  // Fonction pour basculer l'expansion d'un groupe
+  // Basculer l'expansion d'un groupe
   const toggleGroup = (index: number) => {
     setPropertyGroups(prev => 
       prev.map((group, idx) => 
@@ -487,163 +370,169 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     fetchProperties();
   }, [viewer, selectedElement, modelID]);
 
-  // Vue filtrée des propriétés
   const filteredGroups = getFilteredProperties();
 
-  // Si aucun élément n'est sélectionné
   if (!selectedElement) {
     return (
-      <div className="property-sidebar bg-white h-full flex flex-col">
-        <div className="p-4 text-center text-gray-500">
-          <p>Aucun élément sélectionné</p>
-          <p className="text-sm mt-2">Cliquez sur un élément du modèle pour afficher ses propriétés</p>
+      <div className="w-80 bg-gradient-to-br from-slate-50 to-slate-100 h-full flex flex-col border-l border-slate-200 shadow-lg">
+        <div className="p-6 text-center flex flex-col items-center justify-center h-full">
+          <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-4">
+            <Package className="h-8 w-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-700 mb-2">Aucun élément sélectionné</h3>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Cliquez sur un élément du modèle pour afficher ses propriétés détaillées
+          </p>
         </div>
       </div>
     );
   }
 
-  // Affichage en cours de chargement
   if (loading) {
     return (
-      <div className="property-sidebar bg-white h-full">
-        <div className="p-4 flex flex-col items-center justify-center h-full text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700 mb-3"></div>
-          <p>Chargement des propriétés...</p>
+      <div className="w-80 bg-white h-full border-l border-slate-200 shadow-lg">
+        <div className="p-6 flex flex-col items-center justify-center h-full">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-blue-600"></div>
+            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-400 to-blue-600 opacity-20"></div>
+          </div>
+          <p className="mt-4 text-slate-600 font-medium">Chargement des propriétés...</p>
         </div>
       </div>
     );
   }
 
-  // Affichage principal
   return (
-    <div className="property-sidebar bg-white h-full flex flex-col shadow-lg">
-      {/* En-tête - Modifié: Suppression de l'ID */}
-      <div className="p-4 border-b flex items-center justify-between bg-gray-50">
-        <div>
-          <h3 className="font-medium text-gray-900">
-            {properties?.Name?.value || `Élément`}
-          </h3>
-          {properties?.type?.value && (
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-xs">
-                {properties.type.value}
-              </Badge>
-            </div>
+    <div className="w-80 bg-white h-full flex flex-col border-l border-slate-200 shadow-lg">
+      {/* En-tête moderne */}
+      <div className="bg-gradient-to-r bg-[#005CA9] text-white p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r bg-[#005CA9]"></div>
+        <div className="relative z-10 flex items-start justify-between">
+          <div className="flex-1 min-w-0 pr-3">
+            <h3 className="font-semibold text-lg leading-tight break-words">
+              {properties?.Name?.value || `Élément ${selectedElement}`}
+            </h3>
+            {properties?.type?.value && (
+              <div className="mt-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm">
+                  {properties.type.value}
+                </span>
+              </div>
+            )}
+          </div>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="flex-shrink-0 p-1.5 rounded-lg hover:bg-white/20 transition-colors duration-200"
+            >
+              <X className="h-5 w-5" />
+            </button>
           )}
         </div>
-        {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-            <X className="h-4 w-4" />
-          </Button>
-        )}
       </div>
 
-      {/* Barre de recherche et export */}
-      <div className="border-b p-3">
+      {/* Barre d'outils */}
+      <div className="bg-slate-50 border-b border-slate-200 p-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-            <Input
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
               placeholder="Rechercher des propriétés..."
-              className="pl-8"
+              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => exportToExcel()}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Exporter en Excel</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <button 
+            onClick={exportToExcel}
+            className="px-3 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors duration-200 group"
+            title="Exporter en Excel"
+          >
+            <Download className="h-4 w-4 text-slate-600 group-hover:text-slate-800" />
+          </button>
         </div>
       </div>
 
-      {/* Titre des propriétés */}
-      <div className="px-4 py-2 border-b bg-gray-50">
-        <h4 className="font-medium text-gray-800">Properties</h4>
+      {/* Titre de section */}
+      <div className="px-4 py-3 bg-slate-100 border-b border-slate-200">
+        <h4 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">Propriétés</h4>
       </div>
 
-      {/* Contenu principal - Vue groupée uniquement */}
+      {/* Contenu des propriétés */}
       <div className="flex-1 overflow-auto">
-        <div className="divide-y">
-          {filteredGroups.length > 0 ? (
-            filteredGroups.map((group, index) => (
+        {filteredGroups.length > 0 ? (
+          <div className="divide-y divide-slate-200">
+            {filteredGroups.map((group, index) => (
               <div key={index} className="property-group">
-                <div 
-                  className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                <button 
+                  className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors duration-200 text-left"
                   onClick={() => toggleGroup(index)}
                 >
                   <div className="flex items-center">
-                    {group.expanded ? (
-                      <ChevronDown className="h-4 w-4 text-gray-500 mr-2" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-gray-500 mr-2" />
-                    )}
-                    <h4 className="font-medium text-gray-800">{group.name}</h4>
-                    <Badge variant="outline" className="ml-2 text-xs">
-                      {Object.keys(group.properties).length}
-                    </Badge>
+                    <div className="mr-3 text-slate-500">
+                      {group.expanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="mr-3 text-blue-600">
+                      {group.icon}
+                    </div>
+                    <h4 className="font-medium text-slate-800">{group.name}</h4>
                   </div>
-                </div>
+                  <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-slate-100 text-slate-600 rounded-full">
+                    {Object.keys(group.properties).length}
+                  </span>
+                </button>
                 
                 {group.expanded && (
-                  <div className="p-0 bg-white">
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {Object.entries(group.properties).map(([key, value], propIdx) => (
-                          <tr 
-                            key={propIdx} 
-                            className={propIdx % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                          >
-                            <td className="p-2 border-r border-gray-100 font-medium text-gray-700 w-1/3 truncate">
+                  <div className="bg-slate-50">
+                    {Object.entries(group.properties).map(([key, value], propIdx) => (
+                      <div 
+                        key={propIdx} 
+                        className="flex items-center py-3 px-4 border-t border-slate-200 hover:bg-white transition-colors duration-150 group"
+                      >
+                        <div className="flex-1 min-w-0 grid grid-cols-5 gap-3">
+                          <div className="col-span-2">
+                            <span className="text-sm font-medium text-slate-700 truncate block">
                               {key}
-                            </td>
-                            <td className="p-2 text-gray-900 w-2/3 group relative">
-                              <div className="flex justify-between items-center">
-                                <div className="truncate flex-1">
-                                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                </div>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    copyToClipboard(typeof value === 'object' ? JSON.stringify(value) : String(value));
-                                  }}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </span>
+                          </div>
+                          <div className="col-span-3">
+                            <span className="text-sm text-slate-900 break-words">
+                              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                            </span>
+                          </div>
+                        </div>
+                        <button 
+                          className="ml-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-slate-200 transition-all duration-200"
+                          onClick={() => copyToClipboard(
+                            typeof value === 'object' ? JSON.stringify(value) : String(value),
+                            `${group.name}-${key}`
+                          )}
+                          title="Copier la valeur"
+                        >
+                          <Copy className={`h-3 w-3 ${copiedProperty === `${group.name}-${key}` ? 'text-green-600' : 'text-slate-500'}`} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
-            ))
-          ) : (
-            <div className="p-4 text-center text-gray-500">
-              <p>Aucune propriété ne correspond à votre recherche</p>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6 text-center">
+            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Search className="h-6 w-6 text-slate-400" />
             </div>
-          )}
-        </div>
+            <p className="text-slate-600 font-medium">Aucune propriété trouvée</p>
+            <p className="text-sm text-slate-500 mt-1">Essayez de modifier votre recherche</p>
+          </div>
+        )}
       </div>
-
-     
     </div>
   );
 }

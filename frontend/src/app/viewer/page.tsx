@@ -58,15 +58,23 @@ interface LoadedModel {
   bbox?: THREE.Box3
 }
 
-export default function ViewerPage() {
+export default function ViewerPage(){
   ///////////details property
   const [selectedElement, setSelectedElement] = useState<number | null>(null)
   const [selectedModelID, setSelectedModelID] = useState<number | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+
   ///////////details property
 const [activeTool, setActiveTool] = useState<string | null>(null);
 const activeToolRef = useRef(activeTool);
   const { user } = useAuth()
+  const userRole = user?.role 
+  const isBIMManager = userRole === "BIM Manager"
+const isBIMCoordinateur = userRole === "BIM Coordinateur"
+const isBIMModeleur = userRole === "BIM Modeleur"
+   console.log("User object:", user)
+  console.log("User role:", userRole)
+  console.log("Is BIM Modeleur:", isBIMModeleur)
   const [activeStyle, setActiveStyle] = useState<ViewStyle | null>(null)
   const [loadedModels, setLoadedModels] = useState<LoadedModel[]>([])
 
@@ -253,6 +261,7 @@ useEffect(() => {
     
 
         containerRef.current.onclick = async () => {
+          if (isBIMModeleur) return;
  if (activeToolRef.current === "section" || activeToolRef.current === "hide" || activeToolRef.current === "comment" || activeToolRef.current === "notes") return;
           try {
       
@@ -942,30 +951,39 @@ useEffect(() => {
           variant="ghost"
           size="sm"
           onClick={handleGoBack}
+
           className="w-full flex items-center justify-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="sr-only">Retour</span>
         </Button>
+<Button
+  variant={activeTool === "section" ? "default" : "ghost"}
+  size="icon"
+  disabled={isBIMModeleur} // Désactive le bouton
+  onClick={() => {
+    if (!isBIMModeleur) { // Vérification supplémentaire
+      setActiveTool(activeTool === "section" ? null : "section");
+    }
+  }}
+  title={
 
-        <Button
-          variant={activeTool === "section" ? "default" : "ghost"}
-          size="icon"
-          onClick={() => {
-            setActiveTool(activeTool === "section" ? null : "section")
-          }}
-          title="Plan de coupe"
-          className={
-            activeTool === "section"
-              ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
-              : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
-          }
-        >
-          <Scissors className="h-5 w-5" />
-        </Button>
+      "Plan de coupe"
+  }
+  className={
+    isBIMModeleur
+      ? "text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50"
+      : activeTool === "section"
+      ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
+      : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
+  }
+>
+  <Scissors className="h-5 w-5" />
+</Button>
         <Button
           variant={activeTool === "measure" ? "default" : "ghost"}
           size="icon"
+      
           onClick={() => {
             if (activeTool === "measure") {
               // Si déjà actif, désactiver
@@ -1003,6 +1021,7 @@ useEffect(() => {
 <Button
   variant={activeTool =="notes" ? "default" : "ghost"}
   size="icon"
+  disabled={isBIMModeleur}
    onClick={() => toggleTool("notes")}
   title="Notes"
   className={`relative ${
@@ -1012,7 +1031,7 @@ useEffect(() => {
   }`}
 >
   <ClipboardList className="h-5 w-5" />
-  {todosCount > 0 && (
+  {!isBIMModeleur && todosCount > 0 &&  (
     <span className="absolute -top-1 -right-1 bg-[#005CA9] dark:bg-[#3b82f6] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
       {todosCount}
     </span>
@@ -1022,6 +1041,7 @@ useEffect(() => {
       <Button
   variant={activeTool === "comment" ? "default" : "ghost"}
   size="icon"
+ 
  onClick={() => toggleTool("comment")}
   title="Commentaire"
    className={`relative ${
@@ -1076,6 +1096,7 @@ useEffect(() => {
         <Button
           variant="outline"
           size="icon"
+          disabled={isBIMModeleur}
           onClick={() => {
             if (typeof window.todoManager?.exportBCF === "function") {
               window.todoManager.exportBCF()
@@ -1088,11 +1109,13 @@ useEffect(() => {
         >
           <Download className="h-4 w-4" />
         </Button>
+        
         <ClashButton loadedModels={loadedModels} />
         {isIsolationActive && (
           <Button
             variant="destructive"
             size="icon"
+            disabled={isBIMModeleur}
             onClick={resetIsolation}
             title="Réinitialiser l'isolation"
             className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
@@ -1137,17 +1160,16 @@ useEffect(() => {
         )}
 
         {/* Panneau Section */}
-        {viewerRef.current && (
-          <SectionTool
-            viewer={viewerRef.current}
-            containerRef={containerRef}
-            isActive={activeTool === "section"}
-            onSectionCreated={(plane) => {
-              console.log("Nouveau plan de coupe créé:", plane)
-              // Vous pouvez faire des actions supplémentaires ici
-            }}
-          />
-        )}
+{userRole !== "BIM Modeleur" && viewerRef.current && (
+  <SectionTool
+    viewer={viewerRef.current}
+    containerRef={containerRef}
+    isActive={activeTool === "section"}
+    onSectionCreated={(plane) => {
+      console.log("Nouveau plan de coupe créé:", plane)
+    }}
+  />
+)}
 
         {/* Panneau Mesure */}
         {activeTool === "measure" && (

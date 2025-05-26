@@ -9,8 +9,9 @@ import Invitation from '../models/invitation';
 // Configuration des cookies standardisée
 const cookieOptions = (isProduction = process.env.NODE_ENV === 'production') => ({
   httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? 'none' : 'lax' as 'none' | 'lax',
+  secure: false, // Désactivé en local
+  sameSite: 'lax' as const, // 'lax' au lieu de 'none'
+  domain: 'localhost' // Spécifier explicitement le domaine
 });
 
 // Fonction pour définir les cookies d'authentification
@@ -23,7 +24,7 @@ const setTokenCookies = (res: Response, tokens: { accessToken: string; refreshTo
   res.cookie('refreshToken', tokens.refreshToken, {
     ...cookieOptions(),
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
-    path: '/api/auth/refresh', // Toujours définir ce chemin pour tous les cookies de rafraîchissement
+   
   });
 };
 
@@ -50,7 +51,7 @@ export const signup = async (req: Request, res: Response) => {
         name,
         email,
         password: hashedPassword,
-        role: 'member',
+      
       });
       
       // Gérer l'invitation si token présent
@@ -73,7 +74,7 @@ export const signup = async (req: Request, res: Response) => {
             $push: {
               members: {
                 userId: user._id,
-                role: 'Member',
+                role: invitation.role,
                 joinedAt: new Date()
               }
             }
@@ -174,7 +175,7 @@ export const refreshToken = async (req: Request, res: Response) => {
       res.clearCookie('accessToken', cookieOptions());
       res.clearCookie('refreshToken', { 
         ...cookieOptions(),
-        path: '/api/auth/refresh'
+        path: '/auth/refresh'
       });
       
       return res.status(401).json({ message: 'Refresh token invalide ou expiré' });
@@ -224,7 +225,7 @@ export const logout = (req: Request, res: Response) => {
   
   // Supprimer les cookies d'authentification
   res.clearCookie('accessToken', options);
-  res.clearCookie('refreshToken', { ...options, path: '/api/auth/refresh' });
+  res.clearCookie('refreshToken', { ...options, path: '/auth/refresh' });
   
   res.status(200).json({ message: 'Déconnexion réussie' });
 };
@@ -295,7 +296,7 @@ export const oauthSuccess = async (req: AuthenticatedRequest, res: Response) => 
       const tokens = generateTokens({
         userId,
         email, 
-        role: role || 'member',
+      role: role || 'BIM Modeleur', 
         name,
         image
       });
@@ -313,7 +314,7 @@ export const oauthSuccess = async (req: AuthenticatedRequest, res: Response) => 
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
-        path: '/api/auth/refresh', // Limiter le cookie au chemin de rafraîchissement
+        
       });
       
       // Rediriger vers le client (important: utiliser la variable d'environnement correcte)
