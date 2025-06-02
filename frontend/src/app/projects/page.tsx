@@ -19,6 +19,7 @@ import {
   Filter,
   ArrowUpDown,
   CuboidIcon as Cube,
+  AlertTriangle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -30,8 +31,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogClose,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
@@ -59,6 +59,9 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const router = useRouter()
 
   const fetchProjects = () => {
@@ -94,7 +97,7 @@ export default function ProjectsPage() {
     } else if (!loading && !user) {
       router.push("/sign-in")
     }
-  }, [loading, user]) // Suppression de router des dépendances
+  }, [loading, user])
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -109,18 +112,30 @@ export default function ProjectsPage() {
     }
   }, [searchQuery, projects])
 
-  const handleDeleteProject = async (projectId: string) => {
+  const openDeleteDialog = (project: Project) => {
+    setProjectToDelete(project)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return
+
+    setDeleting(true)
     try {
-      await axios.delete(`/api/projects/${projectId}`, { withCredentials: true })
-      setProjects((prev) => prev.filter((p) => p._id !== projectId))
-      setFilteredProjects((prev) => prev.filter((p) => p._id !== projectId))
+      await axios.delete(`/api/projects/${projectToDelete._id}`, { withCredentials: true })
+      setProjects((prev) => prev.filter((p) => p._id !== projectToDelete._id))
+      setFilteredProjects((prev) => prev.filter((p) => p._id !== projectToDelete._id))
       toast.success("Projet supprimé avec succès")
+      setDeleteDialogOpen(false)
+      setProjectToDelete(null)
     } catch (error) {
       if (axios.isAxiosError(error)) {
         toast.error(error.response?.data?.error || "Échec de la suppression")
       } else {
         toast.error("Une erreur inconnue s'est produite")
       }
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -136,7 +151,7 @@ export default function ProjectsPage() {
       sorted.sort((a, b) => {
         const dateA = new Date(a.createdAt.split("/").reverse().join("-"))
         const dateB = new Date(b.createdAt.split("/").reverse().join("-"))
-        return dateB.getTime() - dateA.getTime() // Plus récent d'abord
+        return dateB.getTime() - dateA.getTime()
       })
     }
     setFilteredProjects(sorted)
@@ -155,7 +170,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 pt-24 pb-12">
-      {/* Ajout d'un padding-top plus important (pt-24) pour éviter que la navbar ne cache le contenu */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {/* Header avec gradient et effet visuel */}
         <motion.div
@@ -235,6 +249,53 @@ export default function ProjectsPage() {
           </div>
         </div>
 
+        {/* Boîte de dialogue de confirmation de suppression */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Confirmer la suppression
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-300 pt-2">
+                Êtes-vous sûr de vouloir supprimer le projet{" "}
+                <span className="font-medium text-gray-900 dark:text-gray-100">"{projectToDelete?.name}"</span> ?
+                <span className="block mt-2 text-red-500 dark:text-red-400 text-sm font-medium">
+                  Cette action est irréversible et supprimera tous les fichiers associés.
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteDialogOpen(false)}
+                disabled={deleting}
+                className="dark:border-gray-700 dark:text-gray-300"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleDeleteProject}
+                variant="destructive"
+                disabled={deleting}
+                className="bg-red-500 hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
+              >
+                {deleting ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>Suppression...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Supprimer définitivement
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {isLoading ? (
           <div className="flex items-center justify-center h-40">
             <Loader2 className="h-8 w-8 animate-spin text-[#005CA9] dark:text-[#3b82f6]" />
@@ -284,13 +345,11 @@ export default function ProjectsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.4 }}
-                className="h-full" // Assure que le conteneur prend toute la hauteur disponible
+                className="h-full"
               >
                 <Card className="overflow-hidden border-0 bg-white dark:bg-gray-800 shadow-md hover:shadow-lg transition-all duration-300 h-full flex flex-col">
                   <div className="h-3 bg-gradient-to-r from-[#005CA9] to-[#0070CC] dark:from-[#3b82f6] dark:to-[#60a5fa]"></div>
                   <div className="p-5 flex-grow flex flex-col">
-                    {" "}
-                    {/* flex-grow et flex flex-col pour que le contenu s'étire */}
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 hover:text-[#005CA9] dark:hover:text-[#3b82f6] transition-colors">
@@ -306,11 +365,14 @@ export default function ProjectsPage() {
                         </div>
                       )}
                     </div>
+
                     <div className="flex items-center mt-2 text-sm text-gray-500 dark:text-gray-400">
                       <Calendar className="h-4 w-4 mr-1.5 text-[#005CA9] dark:text-[#3b82f6]" />
                       <span>Créé le {project.createdAt}</span>
                     </div>
-                    <div className="flex-grow"></div> {/* Cet élément pousse le footer vers le bas */}
+
+                    <div className="flex-grow"></div>
+
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <Users className="h-4 w-4 mr-1.5 text-[#005CA9] dark:text-[#3b82f6]" />
@@ -328,15 +390,17 @@ export default function ProjectsPage() {
                   </div>
 
                   <CardFooter className="flex gap-2 p-5 pt-0 mt-auto">
-                    {" "}
-                    {/* mt-auto pour coller le footer en bas */}
                     <Button
                       asChild
                       variant="default"
                       className="flex-1 bg-[#005CA9] hover:bg-[#004A87] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb] text-white"
                     >
-                      <Link href={`/projects/${project._id}`}>Ouvrir</Link>
+                      <Link href={`/projects/${project._id}`}>
+                      
+                        Ouvrir
+                      </Link>
                     </Button>
+
                     {canModifyProject(project) && (
                       <>
                         <Button
@@ -348,39 +412,14 @@ export default function ProjectsPage() {
                           <Pencil className="h-4 w-4 text-[#005CA9] dark:text-[#3b82f6]" />
                         </Button>
 
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="border-red-200 dark:border-red-900/50 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 hover:border-red-300 dark:hover:border-red-800"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                              <DialogTitle>Confirmer la suppression</DialogTitle>
-                              <DialogDescription>
-                                Êtes-vous sûr de vouloir supprimer "{project.name}" ? Cette action est irréversible.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex justify-end gap-2 mt-4">
-                              <DialogClose asChild>
-                                <Button variant="outline" className="border-gray-300 dark:border-gray-600">
-                                  Annuler
-                                </Button>
-                              </DialogClose>
-                              <Button
-                                variant="destructive"
-                                className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
-                                onClick={() => handleDeleteProject(project._id)}
-                              >
-                                Confirmer la suppression
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="border-red-200 dark:border-red-900/50 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 hover:border-red-300 dark:hover:border-red-800"
+                          onClick={() => openDeleteDialog(project)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </>
                     )}
                   </CardFooter>

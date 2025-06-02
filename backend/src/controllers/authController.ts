@@ -225,7 +225,7 @@ export const logout = (req: Request, res: Response) => {
   
   // Supprimer les cookies d'authentification
   res.clearCookie('accessToken', options);
-  res.clearCookie('refreshToken', { ...options, path: '/auth/refresh' });
+  res.clearCookie('refreshToken', options);
   
   res.status(200).json({ message: 'Déconnexion réussie' });
 };

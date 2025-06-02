@@ -3,9 +3,17 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { FileBox, Download, Trash2, Upload, AlertCircle, Loader2, CuboidIcon } from "lucide-react"
+import { FileBox, Download, Trash2, Upload, AlertCircle, Loader2, CuboidIcon, AlertTriangle } from "lucide-react"
 import Link from "next/link"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/use-auth"
@@ -25,17 +33,28 @@ interface ProjectFile {
 interface ProjectFilesProps {
   projectId: string
   files: ProjectFile[]
-  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur";
+  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur"
   onFileUpload?: (file: ProjectFile) => void
+  setFiles?: (files: ProjectFile[]) => void
 }
 
-export default function ProjectFiles({ projectId, files = [], userRole, onFileUpload }: ProjectFilesProps) {
+export default function ProjectFiles({
+  projectId,
+  files = [],
+  userRole,
+  onFileUpload,
+  setFiles: setParentFiles,
+}: ProjectFilesProps) {
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
-   
+  const [fileToDelete, setFileToDelete] = useState<ProjectFile | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [visualizerLoading, setVisualizerLoading] = useState(false) // Nouveau state pour le loading du visualiser
+
   const isBIMManager = userRole === "BIM Manager"
-const isBIMCoordinateur = userRole === "BIM Coordinateur"
-const isBIMModeleur = userRole === "BIM Modeleur"
+  const isBIMCoordinateur = userRole === "BIM Coordinateur"
+  const isBIMModeleur = userRole === "BIM Modeleur"
+
   const currentUserEmail = user?.email
   const currentUserId = user?.id
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
@@ -45,7 +64,6 @@ const isBIMModeleur = userRole === "BIM Modeleur"
   const [viewAllUrl, setViewAllUrl] = useState("#")
   const [hasValidFiles, setHasValidFiles] = useState(false)
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
-
 
   // Listen for external trigger to open upload dialog
   useEffect(() => {
@@ -102,6 +120,18 @@ const isBIMModeleur = userRole === "BIM Modeleur"
     }
   }
 
+  // Fonction pour gérer le clic sur Visualiser avec loading
+  const handleVisualizerClick = (e: React.MouseEvent) => {
+    if (!hasValidFiles) return
+    
+    setVisualizerLoading(true)
+    
+    // Simuler un délai de redirection réaliste
+    setTimeout(() => {
+      window.location.href = viewAllUrl
+    }, 500) // 500ms de délai pour montrer le loading
+  }
+
   const canDeleteFile = (file: ProjectFile) => {
     // Allow owners to delete any file
     if (userRole === "BIM Manager") return true
@@ -111,19 +141,30 @@ const isBIMModeleur = userRole === "BIM Modeleur"
     return isUploader
   }
 
-  const handleDelete = async (fileId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce fichier ?")) return
+  const openDeleteDialog = (file: ProjectFile) => {
+    setFileToDelete(file)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!fileToDelete) return
 
     setLoading(true)
     try {
       await axios.delete(`/api/files`, {
-        data: { fileId, projectId },
+        data: { fileId: fileToDelete.id, projectId },
         withCredentials: true,
       })
-      fetchFiles()
-      const updatedFiles = projectFiles.filter((file) => file.id !== fileId)
+
+      const updatedFiles = projectFiles.filter((file) => file.id !== fileToDelete.id)
       setProjectFiles(updatedFiles)
+      if (setParentFiles) {
+        setParentFiles(updatedFiles)
+      }
+
       updateViewAllUrl()
+      setDeleteDialogOpen(false)
+      setFileToDelete(null)
     } catch (error) {
       console.error("Error during deletion:", error)
       setError("Échec de la suppression du fichier")
@@ -224,7 +265,11 @@ const isBIMModeleur = userRole === "BIM Modeleur"
       const { data } = await axios.get(`/api/projects/${projectId}/files`, {
         withCredentials: true,
       })
-      setProjectFiles(adaptFiles(data))
+      const adaptedFiles = adaptFiles(data)
+      setProjectFiles(adaptedFiles)
+      if (setParentFiles) {
+        setParentFiles(adaptedFiles)
+      }
       return data
     } catch (error) {
       console.error("Loading error:", error)
@@ -275,16 +320,17 @@ const isBIMModeleur = userRole === "BIM Modeleur"
           <Button
             variant="outline"
             className="flex items-center gap-2 border-gray-300 dark:border-gray-700 dark:text-gray-300"
-            asChild={hasValidFiles}
-            disabled={!hasValidFiles}
+            onClick={handleVisualizerClick}
+            disabled={!hasValidFiles || visualizerLoading}
           >
-            {hasValidFiles ? (
-              <Link href={viewAllUrl}>
-                <CuboidIcon className="h-4 w-4 text-[#005CA9] dark:text-blue-400" /> Visualiser
-              </Link>
+            {visualizerLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-[#005CA9] dark:text-blue-400" />
+                Chargement...
+              </>
             ) : (
               <>
-                <CuboidIcon className="h-4 w-4" />
+                <CuboidIcon className="h-4 w-4 text-[#005CA9] dark:text-blue-400" />
                 Visualiser
               </>
             )}
@@ -293,14 +339,14 @@ const isBIMModeleur = userRole === "BIM Modeleur"
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2">
-                <Upload className="h-4 w-4" />
-                Téléverser
+                <Download className="h-4 w-4" />
+                Importer
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold text-[#005CA9] dark:text-blue-400">
-                  Téléverser des fichiers IFC
+                  Importer des fichiers IFC
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
@@ -362,10 +408,10 @@ const isBIMModeleur = userRole === "BIM Modeleur"
                     {uploading ? (
                       <div className="flex items-center">
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        <span>Téléversement...</span>
+                        <span>Importation...</span>
                       </div>
                     ) : (
-                      "Téléverser"
+                      "Importer"
                     )}
                   </Button>
                 </div>
@@ -375,18 +421,62 @@ const isBIMModeleur = userRole === "BIM Modeleur"
         </div>
       </div>
 
+      {/* Boîte de dialogue de confirmation de suppression */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Confirmer la suppression
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 dark:text-gray-300 pt-2">
+              Êtes-vous sûr de vouloir supprimer le fichier <span className="font-medium">{fileToDelete?.name}</span> ?
+              <span className="block mt-2 text-red-500 dark:text-red-400 text-sm">Cette action est irréversible.</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={loading}
+              className="dark:border-gray-700 dark:text-gray-300"
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleDelete}
+              variant="destructive"
+              disabled={loading}
+              className="bg-red-500 hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <span>Suppression...</span>
+                </div>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Supprimer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {projectFiles.length === 0 ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <Card className="p-8 text-center border-gray-200 dark:border-gray-800 dark:bg-gray-900">
             <FileBox className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
-            <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-gray-200">Aucun fichier téléversé</h3>
-            <div className="text-gray-500 dark:text-gray-400 mb-4">Téléversez un fichier IFC pour commencer</div>
+            <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-gray-200">Aucun fichier importé</h3>
+            <div className="text-gray-500 dark:text-gray-400 mb-4">Importez un fichier IFC pour commencer</div>
             <Button
               onClick={() => setUploadDialogOpen(true)}
               className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2"
             >
               <Upload className="h-4 w-4" />
-              Téléverser un fichier
+              Importer un fichier
             </Button>
           </Card>
         </motion.div>
@@ -436,26 +526,25 @@ const isBIMModeleur = userRole === "BIM Modeleur"
                   </div>
 
                   <div className="flex gap-2">
-          <Button
-  variant="outline"
-  size="sm"
-  className="flex-1 border-gray-300 dark:border-gray-700 dark:text-gray-300"
-  onClick={() => window.open(file.file_url)}
-  disabled={!validUrl || isBIMModeleur} // ✅ Seul BIM Modeleur est désactivé
->
-  <Download className="h-4 w-4 mr-2" />
-  {validUrl ? "Télécharger" : "Téléchargement indisponible"}
-</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-gray-300 dark:border-gray-700 dark:text-gray-300"
+                      onClick={() => window.open(file.file_url)}
+                      disabled={!validUrl || isBIMModeleur}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      {validUrl ? "Télécharger" : "Téléchargement indisponible"}
+                    </Button>
 
                     {canDelete && (
                       <Button
-                        onClick={() => handleDelete(file.id)}
+                        onClick={() => openDeleteDialog(file)}
                         variant="destructive"
                         size="sm"
-                        disabled={loading}
                         className="ml-2 bg-red-500 hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
                       >
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

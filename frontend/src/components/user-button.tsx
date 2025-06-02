@@ -64,7 +64,7 @@ export const UserButton = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="cursor-pointer">
-          {/* Vérifier si user.image existe avant de l'utiliser */}
+          
           {user.image ? (
            <img src={user.image} alt="test" className="w-10 h-10 rounded-full" />
 
