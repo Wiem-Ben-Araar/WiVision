@@ -3,20 +3,20 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 60,
+  images: {
+    domains: ["lh3.googleusercontent.com"], 
+  },
   async rewrites() {
     return [
-      // Réécriture existante pour Web-IFC
       {
-        source: '/_next/static/chunks/wasm/web-ifc.wasm',
-        destination: '/wasm/web-ifc.wasm',
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
       },
-      // Nouvelle réécriture pour votre API backend
       {
-        source: '/api/:path*', 
-        destination: 'http://localhost:5000/api/:path*',
-      }
+        source: "/api/:path*",
+        destination: "https://wivision.onrender.com/api/:path*",
+      },
     ];
-    
   },
 };
 

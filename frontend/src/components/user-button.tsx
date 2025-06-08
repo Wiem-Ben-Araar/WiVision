@@ -63,14 +63,11 @@ export const UserButton = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar className="cursor-pointer">
-          
-          {user.image ? (
-           <img src={user.image} alt="test" className="w-10 h-10 rounded-full" />
+   <Avatar className="cursor-pointer">
+  <AvatarImage src={user.image} alt={user.name} className="object-cover" />
+  <AvatarFallback>{userInitials}</AvatarFallback>
+</Avatar>
 
-          ) : null}
-          <AvatarFallback>{userInitials}</AvatarFallback>
-        </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <div className="flex flex-col space-y-1 p-2">
