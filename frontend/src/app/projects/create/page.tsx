@@ -5,7 +5,7 @@ import type React from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { ArrowLeft, Plus, Loader2, CuboidIcon as Cube, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Plus, Loader2, CuboidIcon as Cube, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +13,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import axios from "axios"
 import { toast } from "sonner"
+import { getProjectNameError, getProjectDescriptionError } from "@/lib/validators"
 
 type FormData = {
   name: string
@@ -33,9 +34,12 @@ export default function CreateProjectPage() {
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [touched, setTouched] = useState<{ name: boolean; description: boolean }>({
+    name: false,
+    description: false,
+  })
 
-  // Configuration de l'URL API
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,17 +47,40 @@ export default function CreateProjectPage() {
     }
   }, [user, loading, router])
 
+  // Validation en temps réel
+  useEffect(() => {
+    const newErrors: FormErrors = {}
+
+    // Validation du nom seulement si le champ a été touché
+    if (touched.name) {
+      const nameError = getProjectNameError(formData.name)
+      if (nameError) {
+        newErrors.name = nameError
+      }
+    }
+
+    // Validation de la description seulement si le champ a été touché
+    if (touched.description) {
+      const descriptionError = getProjectDescriptionError(formData.description)
+      if (descriptionError) {
+        newErrors.description = descriptionError
+      }
+    }
+
+    setErrors(newErrors)
+  }, [formData, touched])
+
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Le nom du projet est obligatoire"
-    } else if (formData.name.length > 40) {
-      newErrors.name = "Le nom ne doit pas dépasser 40 caractères"
+    const nameError = getProjectNameError(formData.name)
+    if (nameError) {
+      newErrors.name = nameError
     }
 
-    if (formData.description.length > 200) {
-      newErrors.description = "La description ne doit pas dépasser 200 caractères"
+    const descriptionError = getProjectDescriptionError(formData.description)
+    if (descriptionError) {
+      newErrors.description = descriptionError
     }
 
     setErrors(newErrors)
@@ -62,16 +89,19 @@ export default function CreateProjectPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
+
+    // Marquer tous les champs comme touchés
+    setTouched({ name: true, description: true })
+
+    if (!validateForm()) {
+      toast.error("Veuillez corriger les erreurs dans le formulaire")
+      return
+    }
 
     setIsSubmitting(true)
 
     try {
-      // Construction de l'URL complète pour l'API
       const projectsUrl = `${apiUrl}/projects`
-      
-      console.log('Tentative de création du projet sur:', projectsUrl)
-      console.log('Données envoyées:', formData)
 
       const response = await axios.post(projectsUrl, formData, {
         withCredentials: true,
@@ -88,7 +118,6 @@ export default function CreateProjectPage() {
       }
     } catch (error) {
       console.error("Erreur création projet:", error)
-      console.error("URL utilisée:", `${apiUrl}/projects`)
 
       if (axios.isAxiosError(error)) {
         const serverError = error.response?.data
@@ -97,10 +126,8 @@ export default function CreateProjectPage() {
           toast.error("Session expirée", {
             description: "Veuillez vous reconnecter",
           })
-          // Rediriger vers la page de connexion après un délai
           setTimeout(() => router.push("/sign-in"), 2000)
         } else if (error.response?.status === 400) {
-          // Gestion des erreurs de validation du serveur
           setErrors(serverError.errors || {})
           toast.error("Validation échouée", {
             description: "Veuillez vérifier les champs du formulaire",
@@ -124,11 +151,25 @@ export default function CreateProjectPage() {
       ...prev,
       [name]: value,
     }))
+  }
 
-    // Reset l'erreur quand l'utilisateur modifie le champ
-    if (errors[name as keyof FormErrors]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }))
+  const handleBlur = (field: keyof FormData) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+  }
+
+  const getInputClassName = (field: keyof FormData) => {
+    const baseClass =
+      "w-full border rounded-md focus:outline-none focus:ring-2 transition-colors dark:bg-gray-800 dark:text-gray-100"
+
+    if (errors[field]) {
+      return `${baseClass} border-red-300 dark:border-red-600 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-400 dark:focus:ring-red-400`
     }
+
+    if (touched[field] && !errors[field] && formData[field].trim()) {
+      return `${baseClass} border-green-300 dark:border-green-600 focus:border-green-500 focus:ring-green-500 dark:focus:border-green-400 dark:focus:ring-green-400`
+    }
+
+    return `${baseClass} border-gray-300 dark:border-gray-700 focus:border-[#005CA9] focus:ring-[#005CA9] dark:focus:border-[#3b82f6] dark:focus:ring-[#3b82f6]`
   }
 
   if (loading) {
@@ -144,11 +185,14 @@ export default function CreateProjectPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 pt-24 pb-12">
-      {/* Ajout d'un padding-top plus important (pt-24) pour éviter que la navbar ne cache le contenu */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="mb-6">
-         
-        </div>
+        <Link
+          href="/projects"
+          className="inline-flex items-center text-gray-600 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6] mb-8 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          <span className="text-sm font-medium">Retour aux projets</span>
+        </Link>
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -173,24 +217,37 @@ export default function CreateProjectPage() {
                       <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
                         Nom du projet <span className="text-red-500">*</span>
                       </Label>
-                      <Input
-                        id="name"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        placeholder="Ex: Tour Résidentielle Phase 2"
-                        className="w-full border-gray-300 dark:border-gray-700 focus:border-[#005CA9] focus:ring-[#005CA9] dark:focus:border-[#3b82f6] dark:focus:ring-[#3b82f6] transition-colors dark:bg-gray-800 dark:text-gray-100"
-                        disabled={isSubmitting}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="name"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          onBlur={() => handleBlur("name")}
+                          placeholder="Ex: Tour Résidentielle Phase 2"
+                          className={getInputClassName("name")}
+                          disabled={isSubmitting}
+                        />
+                        {touched.name && !errors.name && formData.name.trim() && (
+                          <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-green-500" />
+                        )}
+                        {errors.name && (
+                          <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500" />
+                        )}
+                      </div>
                       {errors.name && (
                         <motion.p
                           initial={{ opacity: 0, y: -5 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="text-sm text-red-500 dark:text-red-400 mt-1"
+                          className="text-sm text-red-500 dark:text-red-400 mt-1 flex items-center gap-1"
                         >
+                          <AlertCircle className="h-4 w-4" />
                           {errors.name}
                         </motion.p>
                       )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        2-50 caractères, lettres, chiffres, espaces, tirets et underscores autorisés
+                      </p>
                     </div>
 
                     <div>
@@ -200,34 +257,44 @@ export default function CreateProjectPage() {
                       >
                         Description du projet
                       </Label>
-                      <textarea
-                        id="description"
-                        name="description"
-                        value={formData.description}
-                        onChange={handleInputChange}
-                        placeholder="Décrivez votre projet, ses objectifs et ses caractéristiques principales..."
-                        rows={5}
-                        className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#005CA9] dark:focus:ring-[#3b82f6] focus:border-transparent transition-colors resize-none dark:bg-gray-800 dark:text-gray-100"
-                        disabled={isSubmitting}
-                      />
+                      <div className="relative">
+                        <textarea
+                          id="description"
+                          name="description"
+                          value={formData.description}
+                          onChange={handleInputChange}
+                          onBlur={() => handleBlur("description")}
+                          placeholder="Décrivez votre projet, ses objectifs et ses caractéristiques principales..."
+                          rows={5}
+                          className={`${getInputClassName("description")} p-3 resize-none`}
+                          disabled={isSubmitting}
+                        />
+                        {touched.description && !errors.description && (
+                          <CheckCircle2 className="absolute right-3 top-3 h-5 w-5 text-green-500" />
+                        )}
+                        {errors.description && <AlertCircle className="absolute right-3 top-3 h-5 w-5 text-red-500" />}
+                      </div>
                       <div className="flex justify-between items-center mt-1">
                         {errors.description && (
                           <motion.p
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="text-sm text-red-500 dark:text-red-400"
+                            className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1"
                           >
+                            <AlertCircle className="h-4 w-4" />
                             {errors.description}
                           </motion.p>
                         )}
                         <span
                           className={`text-sm ml-auto ${
-                            formData.description.length > 200
+                            formData.description.length > 500
                               ? "text-red-500 dark:text-red-400"
-                              : "text-gray-500 dark:text-gray-400"
+                              : formData.description.length > 400
+                                ? "text-orange-500 dark:text-orange-400"
+                                : "text-gray-500 dark:text-gray-400"
                           }`}
                         >
-                          {formData.description.length}/200
+                          {formData.description.length}/500
                         </span>
                       </div>
                     </div>
@@ -236,8 +303,8 @@ export default function CreateProjectPage() {
                   <div className="pt-4">
                     <Button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="w-full bg-gradient-to-r from-[#005CA9] to-[#0070CC] hover:from-[#004A87] hover:to-[#005CA9] dark:from-[#3b82f6] dark:to-[#60a5fa] dark:hover:from-[#2563eb] dark:hover:to-[#3b82f6] text-white py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                      disabled={isSubmitting || Object.keys(errors).length > 0}
+                      className="w-full bg-gradient-to-r from-[#005CA9] to-[#0070CC] hover:from-[#004A87] hover:to-[#005CA9] dark:from-[#3b82f6] dark:to-[#60a5fa] dark:hover:from-[#2563eb] dark:hover:to-[#3b82f6] text-white py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? (
                         <div className="flex items-center justify-center">

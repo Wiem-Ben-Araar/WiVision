@@ -9,22 +9,24 @@ import Project from '../models/project';
 // Configuration des cookies standardisée
 const cookieOptions = (isProduction = process.env.NODE_ENV === 'production') => ({
   httpOnly: true,
-  secure: false, // Désactivé en local
-  sameSite: 'lax' as const, // 'lax' au lieu de 'none'
-  domain: 'localhost' // Spécifier explicitement le domaine
+  secure: isProduction, // Sécurisé seulement en production
+  sameSite: isProduction ? 'none' as const : 'lax' as const,
+  // Supprimez la propriété domain pour le développement local
+  ...(isProduction && { domain: process.env.COOKIE_DOMAIN })
 });
 
 // Fonction pour définir les cookies d'authentification
 const setTokenCookies = (res: Response, tokens: { accessToken: string; refreshToken: string }) => {
+  const options = cookieOptions();
+  
   res.cookie('accessToken', tokens.accessToken, {
-    ...cookieOptions(),
-    maxAge: 24 * 60 * 60 * 1000 
+    ...options,
+    maxAge: 24 * 60 * 60 * 1000 // 24 heures
   });
   
   res.cookie('refreshToken', tokens.refreshToken, {
-    ...cookieOptions(),
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
-   
+    ...options,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 jours
   });
 };
 
@@ -240,8 +242,7 @@ export const logout = (req: Request, res: Response) => {
 
 export const getCurrentUser = async (req: Request, res: Response) => {
   try {
-    
-    const userId = (req.user as any)?._id;
+    const userId = req.user?.userId;
     
     if (!userId) {
       return res.status(401).json({ message: 'Non authentifié' });

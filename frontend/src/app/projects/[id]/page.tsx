@@ -370,14 +370,22 @@ export default function ProjectDetailsPage() {
           <TabsContent value="files">
             <Card className="border-0 shadow-md overflow-hidden dark:bg-gray-800 dark:border-gray-700">
               <div className="h-2 bg-gradient-to-r from-[#005CA9] to-[#0070CC] dark:from-[#3b82f6] dark:to-[#60a5fa]"></div>
-              <ProjectFiles projectId={projectId} files={files} userRole={user?.role || "BIM Modeleur"} />
+              {userRole !== "none" && (
+                <ProjectFiles projectId={projectId} files={files} userRole={userRole} />
+              )}
             </Card>
           </TabsContent>
 
           <TabsContent value="members">
             <Card className="border-0 shadow-md overflow-hidden dark:bg-gray-800 dark:border-gray-700">
               <div className="h-2 bg-gradient-to-r from-[#005CA9] to-[#0070CC] dark:from-[#3b82f6] dark:to-[#60a5fa]"></div>
-              <ProjectMembers projectId={projectId} projectName={project.name} userRole={userRole} />
+              {userRole !== "none" && (
+                <ProjectMembers
+                  projectId={projectId}
+                  projectName={project.name}
+                  userRole={userRole as "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur"}
+                />
+              )}
             </Card>
           </TabsContent>
         </Tabs>

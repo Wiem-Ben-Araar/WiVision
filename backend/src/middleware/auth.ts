@@ -3,7 +3,7 @@ import {validateAccessToken } from '../utils/jwt';
 
 // Define User type with 'role' property
 export interface User {
-  id: string;
+  userId : string;
   role: string;
   // add other properties as needed
 }

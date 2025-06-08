@@ -63,7 +63,8 @@ export default function ProjectsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
-const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
   const fetchProjects = () => {
     setIsLoading(true)
     axios
@@ -122,7 +123,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
     setDeleting(true)
     try {
-      await axios.delete(`/api/projects/${projectToDelete._id}`, { withCredentials: true })
+      await axios.delete(`${apiUrl}/projects/${projectToDelete._id}`, { withCredentials: true })
       setProjects((prev) => prev.filter((p) => p._id !== projectToDelete._id))
       setFilteredProjects((prev) => prev.filter((p) => p._id !== projectToDelete._id))
       toast.success("Projet supprimé avec succès")
@@ -396,7 +397,6 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
                       className="flex-1 bg-[#005CA9] hover:bg-[#004A87] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb] text-white"
                     >
                       <Link href={`/projects/${project._id}`}>
-                      
                         Ouvrir
                       </Link>
                     </Button>

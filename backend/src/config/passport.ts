@@ -5,15 +5,7 @@ import { Strategy as GitHubStrategy } from "passport-github2";
 import User from "../models/user";
 import bcrypt from "bcryptjs";
 
-// Define the user type for serialization
-interface SerializedUser {
-  _id?: string;
-  id?: string;
-  name: string;
-  email: string;
-  role?: string;
-  image?: string;
-}
+
 
 // Stratégie locale (email/mot de passe)
 passport.use(
