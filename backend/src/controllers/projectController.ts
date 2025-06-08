@@ -6,11 +6,24 @@ import File from "../models/file";
 import Invitation from "../models/invitation";
 import User from "../models/user";
 
+// Fonction utilitaire pour extraire l'ID utilisateur de manière sécurisée
+const getUserId = (user: any): string => {
+  // Essayer différentes propriétés possibles
+  const id = user._id || user.id || user.userId;
+  
+  if (!id) {
+    throw new Error("ID utilisateur introuvable");
+  }
+  
+  // Convertir en string si c'est un ObjectId
+  return id.toString();
+};
+
 export const createProject = async (req: Request, res: Response) => {
   try {
-    // Vérifier si l'utilisateur est authentifié (middleware auth déjà appliqué)
+    // Vérifier si l'utilisateur est authentifié
     if (!req.user) {
-      res.status(401).json({ error: "Non autorisé" });
+      return res.status(401).json({ error: "Non autorisé" });
     }
 
     // Extraire les données de la requête
@@ -18,20 +31,30 @@ export const createProject = async (req: Request, res: Response) => {
 
     // Valider les données
     if (!data.name || data.name.trim() === "") {
-      res.status(400).json({ error: "Le nom du projet est requis" });
+      return res.status(400).json({ error: "Le nom du projet est requis" });
     }
 
-    // Récupérer l'ID de l'utilisateur
-    const userId = new mongoose.Types.ObjectId((req.user as any)._id);
+    // Récupérer l'ID de l'utilisateur de manière sécurisée
+    const userIdString = getUserId(req.user);
+    const userId = new mongoose.Types.ObjectId(userIdString);
 
-    // **FIX 1: Mettre à jour le rôle de l'utilisateur à "BIM Manager"**
+    // Vérifier que l'utilisateur existe réellement dans la base
+    const existingUser = await User.findById(userId);
+    if (!existingUser) {
+      console.error(`Utilisateur avec l'ID ${userId} introuvable dans la base`);
+      return res.status(404).json({ error: "Utilisateur introuvable" });
+    }
+
+    console.log(`Création de projet par l'utilisateur: ${existingUser.email} (ID: ${userId})`);
+
+    // Mettre à jour le rôle de l'utilisateur à "BIM Manager"
     await User.findByIdAndUpdate(
       userId,
       { role: "BIM Manager" },
       { new: true }
     );
 
-    // Créer l'objet projet avec des valeurs par défaut pour les champs optionnels
+    // Créer l'objet projet
     const project = new Project({
       name: data.name.trim(),
       description: data.description ? data.description.trim() : "",
@@ -44,19 +67,20 @@ export const createProject = async (req: Request, res: Response) => {
       ],
     });
 
-    console.log("Projet avant sauvegarde:", project);
+    console.log("Projet avant sauvegarde:", {
+      name: project.name,
+      createdBy: project.createdBy,
+      createdByString: project.createdBy.toString()
+    });
 
     // Sauvegarder le projet dans la base de données
     const savedProject = await project.save();
-    console.log("Projet sauvegardé:", savedProject);
+    console.log("Projet sauvegardé avec succès:", savedProject._id);
 
-    res.status(201).json(savedProject);
+    return res.status(201).json(savedProject);
   } catch (error) {
-    // Log détaillé de l'erreur
     console.error("Erreur création projet (détaillée):", error);
-
-    // Retourner un message d'erreur plus descriptif
-    res.status(500).json({
+    return res.status(500).json({
       error: "Erreur création projet",
       details: error instanceof Error ? error.message : String(error),
     });
@@ -66,39 +90,54 @@ export const createProject = async (req: Request, res: Response) => {
 export const getProjects = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-       res.status(401).json({ error: "Non autorisé" });
+      return res.status(401).json({ error: "Non autorisé" });
     }
+
+    const userIdString = getUserId(req.user);
+    const userId = new mongoose.Types.ObjectId(userIdString);
+
+    console.log(`Récupération des projets pour l'utilisateur: ${userId}`);
 
     const projects = await Project.find({
       $or: [
-        { createdBy: (req.user as any)._id || (req.user as any).userId },
-        { "members.userId": (req.user as any)._id || (req.user as any).userId },
+        { createdBy: userId },
+        { "members.userId": userId },
       ],
     })
       .populate("createdBy", "name email")
-      .lean()
-      .then((projects) =>
-        // **FIX: Filtrer les projets corrompus**
-        projects.filter(
-          (p) => p.createdBy && p.members.every((m: any) => m.userId)
-        )
-      );
+      .lean();
 
-    res.status(200).json(projects);
+    // Filtrer les projets corrompus
+    const validProjects = projects.filter((p) => {
+      if (!p.createdBy) {
+        console.warn(`Projet ${p._id} a un createdBy manquant`);
+        return false;
+      }
+      if (!p.members.every((m: any) => m.userId)) {
+        console.warn(`Projet ${p._id} a des membres corrompus`);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`Projets valides trouvés: ${validProjects.length}/${projects.length}`);
+
+    return res.status(200).json(validProjects);
   } catch (error) {
     console.error("Erreur récupération projets:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Erreur serveur",
       details: error instanceof Error ? error.message : String(error),
     });
   }
 };
+
 export const getProjectById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ error: "ID de projet invalide" });
+      return res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const project = await Project.findById(id).populate(
@@ -107,48 +146,46 @@ export const getProjectById = async (req: Request, res: Response) => {
     );
 
     if (!project) {
-      res.status(404).json({ error: "Projet non trouvé" });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
 
-    res.json(project);
+    return res.json(project);
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
 
-// Supprimer un projet
 export const deleteProject = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ error: "ID de projet invalide" });
+      return res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const deletedProject = await Project.findByIdAndDelete(id);
 
     if (!deletedProject) {
-      res.status(404).json({ error: "Projet non trouvé" });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
 
-    res.json({ message: "Projet supprimé avec succès" });
+    return res.json({ message: "Projet supprimé avec succès" });
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
 
-// Mettre à jour un projet
 export const updateProject = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ error: "ID de projet invalide" });
+      return res.status(400).json({ error: "ID de projet invalide" });
     }
 
     if (!name?.trim()) {
-      res.status(400).json({ error: "Le nom du projet est requis" });
+      return res.status(400).json({ error: "Le nom du projet est requis" });
     }
 
     const updatedProject = await Project.findByIdAndUpdate(
@@ -162,24 +199,25 @@ export const updateProject = async (req: Request, res: Response) => {
     );
 
     if (!updatedProject) {
-      res.status(404).json({ error: "Projet non trouvé" });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
 
-    res.json(updatedProject);
+    return res.json(updatedProject);
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
+
 export const getProjectMembers = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      res.status(401).json({ error: "Non autorisé" });
+      return res.status(401).json({ error: "Non autorisé" });
     }
 
     const projectId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      res.status(400).json({ error: "ID de projet invalide" });
+      return res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const project = await Project.findById(projectId)
@@ -188,19 +226,17 @@ export const getProjectMembers = async (req: Request, res: Response) => {
       .lean();
 
     if (!project) {
-      res.status(404).json({ error: "Projet non trouvé" });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
+
+    // Type assertion to inform TypeScript about the members property
+    const typedProject = project as typeof project & { members: any[]; createdBy?: any };
 
     const members = [];
 
     // Ajout du créateur
-    if (
-      project &&
-      typeof project === "object" &&
-      !Array.isArray(project) &&
-      project.createdBy
-    ) {
-      const creator = project.createdBy as any;
+    if (typedProject.createdBy) {
+      const creator = typedProject.createdBy;
       members.push({
         id: creator._id.toString(),
         name: creator.name || "BIM Manager",
@@ -211,9 +247,8 @@ export const getProjectMembers = async (req: Request, res: Response) => {
     }
 
     // Ajout des autres membres
-    if (project && !Array.isArray(project) && project.members) {
-      for (const member of project.members) {
-        // Vérification renforcée
+    if (typedProject.members) {
+      for (const member of typedProject.members) {
         if (!member || !member.userId) {
           console.error(
             `Membre corrompu dans le projet ${projectId}:`,
@@ -224,7 +259,6 @@ export const getProjectMembers = async (req: Request, res: Response) => {
 
         const user = member.userId as any;
 
-        // Vérification de la structure des données
         if (!user?._id || typeof user !== "object") {
           console.error(
             `Structure utilisateur invalide pour le membre:`,
@@ -233,8 +267,7 @@ export const getProjectMembers = async (req: Request, res: Response) => {
           continue;
         }
 
-        // Conversion sécurisée de l'ID
-        const userId = user?._id?.toString();
+        const userId = user._id.toString();
         if (!userId) {
           console.error(
             `ID utilisateur manquant pour le membre:`,
@@ -260,53 +293,44 @@ export const getProjectMembers = async (req: Request, res: Response) => {
     console.log(
       `Membres trouvés pour le projet ${projectId}: ${members.length}`
     );
-    res.status(200).json({ members });
+    return res.status(200).json({ members });
   } catch (error) {
     console.error("Erreur récupération membres:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Erreur récupération membres",
       details: error instanceof Error ? error.message : String(error),
     });
   }
 };
+
 export const getUserRole = async (req: Request, res: Response) => {
   try {
-    // 1. Vérification d'authentification via middleware
     if (!req.user) {
-      res.status(401).json({
+      return res.status(401).json({
         error: "Non autorisé",
         details: "Utilisateur non authentifié",
       });
     }
 
-    // 2. Validation de l'ID du projet
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "ID de projet invalide",
         details: "Le format de l'ID est incorrect",
       });
     }
 
-    // 3. Récupération du projet
     const project = await Project.findById(id)
       .populate("createdBy", "email")
       .populate("members.userId", "email");
 
     if (!project) {
-      res.status(404).json({
+      return res.status(404).json({
         error: "Projet non trouvé",
         details: "Aucun projet correspondant à cet ID",
       });
     }
 
-    // 4. Détermination du rôle
-    if (!req.user) {
-       res.status(401).json({
-        error: "Non autorisé",
-        details: "Utilisateur non authentifié",
-      });
-    }
     const userEmail = ((req.user as unknown) as { email: string }).email;
     let role: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none" =
       "none";
@@ -323,33 +347,31 @@ export const getUserRole = async (req: Request, res: Response) => {
       if (member) role = member.role as "BIM Coordinateur" | "BIM Modeleur";
     }
 
-    // 5. Réponse selon le rôle
     if (role === "none") {
-      res.status(403).json({
+      return res.status(403).json({
         error: "Accès refusé",
         details: "Vous n'avez pas accès à ce projet",
       });
     }
 
-    res.json({ role });
+    return res.json({ role });
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
+
 export const getProjectFiles = async (req: Request, res: Response) => {
   try {
-    // 1. Vérification de l'authentification
     if (!req.user) {
-      res.status(401).json({
+      return res.status(401).json({
         error: "Non autorisé",
         details: "Utilisateur non authentifié",
       });
     }
 
-    // 2. Validation de l'ID du projet
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "ID de projet invalide",
         details: "Format d'ID non reconnu",
       });
@@ -357,24 +379,21 @@ export const getProjectFiles = async (req: Request, res: Response) => {
 
     const projectId = new mongoose.Types.ObjectId(id);
 
-    // 3. Vérification de l'existence du projet
     const projectExists = await Project.exists({ _id: projectId });
     if (!projectExists) {
-      res.status(404).json({
+      return res.status(404).json({
         error: "Projet introuvable",
         details: "Ce projet n'existe pas dans la base de données",
       });
     }
 
-    // 4. Récupération des fichiers avec population optimisée
     const files = await File.find({ project: projectId })
-      .populate("uploadedBy", "email") // Population directe
+      .populate("uploadedBy", "email")
       .sort({ uploadedAt: -1 })
       .lean();
 
     console.log(`Fichiers récupérés pour le projet ${id}: ${files.length}`);
 
-    // 5. Formatage sécurisé des résultats
     const formattedFiles = files.map((file) => ({
       ...file,
       _id: (file._id as mongoose.Types.ObjectId | string).toString(),
@@ -385,42 +404,40 @@ export const getProjectFiles = async (req: Request, res: Response) => {
         : new Date().toISOString(),
     }));
 
-    res.json(formattedFiles);
+    return res.json(formattedFiles);
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
+
 export const getProjectInvitations = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // 1. Vérification d'authentification
     if (!req.user) {
-      res.status(401).json({ error: "Non autorisé" });
+      return res.status(401).json({ error: "Non autorisé" });
     }
 
-    // 2. Validation de l'ID du projet
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ error: "ID de projet invalide" });
+      return res.status(400).json({ error: "ID de projet invalide" });
     }
 
-    // 3. Vérification de l'existence du projet
     const project = await Project.findById(id);
     if (!project) {
-      res.status(404).json({ error: "Projet non trouvé" });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
 
-    // 4. Récupération des invitations en attente
     const invitations = await Invitation.find({
       projectId: id,
       status: "pending",
     }).sort({ createdAt: -1 });
 
-    res.status(200).json({ invitations });
+    return res.status(200).json({ invitations });
   } catch (error) {
-    handleDBError(res, error as Error);
+    return handleDBError(res, error as Error);
   }
 };
+
 const handleDBError = (res: Response, error: Error) => {
   console.error("Erreur base de données:", error);
   res.status(500).json({

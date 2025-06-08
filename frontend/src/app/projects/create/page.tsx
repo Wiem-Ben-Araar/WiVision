@@ -34,6 +34,9 @@ export default function CreateProjectPage() {
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Configuration de l'URL API
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/sign-in")
@@ -64,7 +67,13 @@ export default function CreateProjectPage() {
     setIsSubmitting(true)
 
     try {
-      const response = await axios.post("/api/projects", formData, {
+      // Construction de l'URL complète pour l'API
+      const projectsUrl = `${apiUrl}/projects`
+      
+      console.log('Tentative de création du projet sur:', projectsUrl)
+      console.log('Données envoyées:', formData)
+
+      const response = await axios.post(projectsUrl, formData, {
         withCredentials: true,
         headers: {
           "Content-Type": "application/json",
@@ -79,11 +88,18 @@ export default function CreateProjectPage() {
       }
     } catch (error) {
       console.error("Erreur création projet:", error)
+      console.error("URL utilisée:", `${apiUrl}/projects`)
 
       if (axios.isAxiosError(error)) {
         const serverError = error.response?.data
 
-        if (error.response?.status === 400) {
+        if (error.response?.status === 401) {
+          toast.error("Session expirée", {
+            description: "Veuillez vous reconnecter",
+          })
+          // Rediriger vers la page de connexion après un délai
+          setTimeout(() => router.push("/sign-in"), 2000)
+        } else if (error.response?.status === 400) {
           // Gestion des erreurs de validation du serveur
           setErrors(serverError.errors || {})
           toast.error("Validation échouée", {
@@ -93,8 +109,8 @@ export default function CreateProjectPage() {
           toast.error(`Erreur serveur: ${serverError?.error || "Erreur inconnue"}`)
         }
       } else {
-        toast.error("Erreur inattendue", {
-          description: "Veuillez réessayer plus tard",
+        toast.error("Erreur de connexion", {
+          description: "Impossible de joindre le serveur. Vérifiez votre connexion.",
         })
       }
     } finally {

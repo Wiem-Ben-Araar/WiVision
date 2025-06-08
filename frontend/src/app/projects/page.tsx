@@ -63,11 +63,11 @@ export default function ProjectsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const fetchProjects = () => {
     setIsLoading(true)
     axios
-      .get("/api/projects", {
+      .get(`${apiUrl}/projects`, {
         withCredentials: true,
       })
       .then((response) => {

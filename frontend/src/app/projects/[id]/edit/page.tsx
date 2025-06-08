@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Loader2, Save, CuboidIcon } from "lucide-react"
-import Link from "next/link"
+
 import axios from "axios"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
@@ -24,7 +24,7 @@ export default function EditProjectPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const projectId = params.id
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const [project, setProject] = useState<Project>({
     name: "",
     description: "",
@@ -40,7 +40,9 @@ export default function EditProjectPage() {
           throw new Error("ID de projet invalide")
         }
 
-        const { data } = await axios.get(`/api/projects/${projectId}`)
+        const { data } = await axios.get(`${apiUrl}/projects/${projectId}`, {
+      withCredentials: true,
+    })
         setProject(data)
       } catch (error) {
         console.error("Erreur de chargement:", error)
@@ -70,8 +72,9 @@ export default function EditProjectPage() {
     setIsSubmitting(true)
 
     try {
-      await axios.put(`/api/projects/${projectId}`, project, {
+      await axios.put(`${apiUrl}/projects/${projectId}`, project, {
         headers: { "Content-Type": "application/json" },
+        withCredentials: true 
       })
 
       toast.success("Projet mis à jour avec succès")

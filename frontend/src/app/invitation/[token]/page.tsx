@@ -17,11 +17,13 @@ export default function InvitationPage() {
   const [error, setError] = useState<string | null>(null);
   const [invitationDetails, setInvitationDetails] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
   useEffect(() => {
     const verifyInvitation = async () => {
       try {
-        const { data } = await axios.get(`/api/invitations/${token}/verify`);
+        const { data } = await axios.get(`${apiUrl}/invitations/${token}/verify`, {
+  withCredentials: true
+});
         setInvitationDetails(data.invitation);
         
         if (user) {
@@ -46,7 +48,9 @@ export default function InvitationPage() {
       const pendingToken = sessionStorage.getItem("pendingInvitation");
       if (user && pendingToken) {
         try {
-          const { data } = await axios.post(`/api/invitations/${pendingToken}/accept`);
+          const { data } = await axios.post(`${apiUrl}/invitations/${pendingToken}/accept`, {
+  withCredentials: true
+});
           sessionStorage.removeItem("pendingInvitation");
           router.push(`/projects/${data.projectId}`);
         } catch (error) {
@@ -66,7 +70,9 @@ export default function InvitationPage() {
 
     setIsProcessing(true);
     try {
-      const { data } = await axios.post(`/api/invitations/${token}/${action}`);
+      const { data } = await axios.post(`${apiUrl}/invitations/${token}/${action}`, {
+  withCredentials: true
+});
       
       if (action === 'accept') {
         toast.success("Invitation acceptée avec succès");

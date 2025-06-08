@@ -11,7 +11,7 @@ import { Users, FileBox, ArrowLeft, Loader2, Calendar, User, CuboidIcon } from "
 import Link from "next/link"
 import ProjectFiles from "@/components/ProjectFiles"
 import ProjectMembers from "@/components/ProjectMembers"
-import axios from "@/lib/axios-config"
+import axios from "axios"
 import { motion } from "framer-motion"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -56,18 +56,19 @@ export default function ProjectDetailsPage() {
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [loading, setLoading] = useState(true)
-const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none">("none");
+  const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none">("none");
   const { user } = useAuth()
 
-  // Configuration Axios pour les cookies
-  useEffect(() => {
-    axios.defaults.withCredentials = true
+  // Configuration de l'URL API
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
-    // Intercepteur pour les erreurs 401
+  // Configuration Axios avec intercepteur pour les erreurs 401
+  useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
+          console.log("Session expirée, redirection vers la page de connexion")
           document.cookie = "token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
           router.push("/sign-in")
         }
@@ -87,7 +88,16 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
         setLoading(true)
 
         // Fetch project data
-        const projectResponse = await axios.get(`/projects/${projectId}`)
+        const projectUrl = `${apiUrl}/projects/${projectId}`
+        console.log('Fetching project from:', projectUrl)
+        
+        const projectResponse = await axios.get(projectUrl, {
+          withCredentials: true,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        
         setProject(projectResponse.data)
 
         // Determine user role
@@ -95,6 +105,15 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
         setUserRole(isOwner ? "BIM Manager" : "BIM Modeleur");
       } catch (error) {
         console.error("Error fetching project:", error)
+        if (axios.isAxiosError(error)) {
+          if (error.response?.status === 404) {
+            console.log("Projet non trouvé")
+          } else if (error.response?.status === 401) {
+            console.log("Non autorisé - redirection vers connexion")
+            router.push("/sign-in")
+            return
+          }
+        }
         router.push("/projects")
       } finally {
         setLoading(false)
@@ -102,13 +121,22 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
     }
 
     fetchData()
-  }, [projectId, router])
+  }, [projectId, router, apiUrl])
 
   // Fetch project files
   useEffect(() => {
     const fetchFiles = async () => {
       try {
-        const response = await axios.get(`/projects/${projectId}/files`)
+        const filesUrl = `${apiUrl}/projects/${projectId}/files`
+        console.log('Fetching files from:', filesUrl)
+        
+        const response = await axios.get(filesUrl, {
+          withCredentials: true,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        
         setFiles(
           response.data.map((file: any) => ({
             id: file._id,
@@ -124,13 +152,22 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
     }
 
     if (projectId) fetchFiles()
-  }, [projectId])
+  }, [projectId, apiUrl])
 
   // Fetch project members
   useEffect(() => {
     const fetchMembers = async () => {
       try {
-        const response = await axios.get(`/projects/${projectId}/members`)
+        const membersUrl = `${apiUrl}/projects/${projectId}/members`
+        console.log('Fetching members from:', membersUrl)
+        
+        const response = await axios.get(membersUrl, {
+          withCredentials: true,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+        
         setMembers(response.data.members || [])
       } catch (error) {
         console.error("Error fetching members:", error)
@@ -138,7 +175,7 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
     }
 
     if (projectId) fetchMembers()
-  }, [projectId])
+  }, [projectId, apiUrl])
 
   // Format date
   const formattedDate = project
@@ -333,7 +370,7 @@ const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "B
           <TabsContent value="files">
             <Card className="border-0 shadow-md overflow-hidden dark:bg-gray-800 dark:border-gray-700">
               <div className="h-2 bg-gradient-to-r from-[#005CA9] to-[#0070CC] dark:from-[#3b82f6] dark:to-[#60a5fa]"></div>
-              <ProjectFiles projectId={projectId} files={files} userRole={user.role} />
+              <ProjectFiles projectId={projectId} files={files} userRole={user?.role || "BIM Modeleur"} />
             </Card>
           </TabsContent>
 
