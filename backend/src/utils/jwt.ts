@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 export interface TokenPayload {
   userId: string;
   email: string;
-  role: string;
+  role?: string;
   name?: string;
   image?: string;
 }

@@ -8,6 +8,7 @@ import {
 } from '../controllers/annotationController';
 import { authenticate } from '../middleware/auth';
 
+
 const router = Router();
 
 router.get('/', authenticate, getAnnotations);

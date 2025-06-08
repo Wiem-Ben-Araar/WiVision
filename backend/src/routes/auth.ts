@@ -1,9 +1,8 @@
-// routes/authRoutes.ts - Routes d'authentification corrigées
-import { Router } from 'express';
+import { Router, Request, Response} from 'express';
 import { signup, login, refreshToken, logout, getCurrentUser, oauthSuccess } from '../controllers/authController';
-import { authenticate } from '../middleware/auth';
 import passport from 'passport';
 import { validateAccessToken } from '../utils/jwt';
+
 
 const router = Router();
 
@@ -14,11 +13,11 @@ router.use((req, res, next) => {
 });
 
 // Routes d'authentification par identifiants
-router.post('/auth/signup', signup);
-router.post('/auth/login', login);
-router.post('/auth/refresh', refreshToken);
+router.post('/auth/signup', signup );
+router.post('/auth/login', login );
+router.post('/auth/refresh', refreshToken)  ;
 router.post('/auth/logout', logout);
-router.get('/auth/me', authenticate, getCurrentUser);
+//router.get('/auth/me', authenticate, getCurrentUser);
 
 // Routes OAuth Google
 router.get('/auth/google', (req, res, next) => {
@@ -29,13 +28,13 @@ router.get('/auth/google', (req, res, next) => {
   })(req, res, next);
 });
 
-router.get('/auth/google/callback', (req, res, next) => {
+router.get('/auth/google/callback', (req: Request, res: Response, next: Function) => {
   console.log('Google OAuth callback reçu');
   passport.authenticate('google', { 
     session: false,
     failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=google_auth_failed`
   })(req, res, next);
-}, oauthSuccess);
+}, oauthSuccess as any);
 
 // Routes OAuth GitHub
 router.get('/auth/github', (req, res, next) => {
@@ -46,44 +45,45 @@ router.get('/auth/github', (req, res, next) => {
   })(req, res, next);
 });
 
-router.get('/auth/github/callback', (req, res, next) => {
+router.get('/auth/github/callback', (req: Request, res: Response, next: import('express').NextFunction) => {
   console.log('GitHub OAuth callback reçu');
   passport.authenticate('github', { 
     session: false,
     failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=github_auth_failed`
   })(req, res, next);
-}, oauthSuccess);
+}, oauthSuccess as any);
+router.get('/auth/status', (req: Request, res: Response) => {
+  const token = req.cookies.accessToken;
 
-router.get('/auth/status', (req, res) => {
-    const token = req.cookies.accessToken;
-    
-    if (!token) {
-      return res.json({ authenticated: false });
+  if (!token) {
+    res.json({ authenticated: false });
+    return;
+  }
+
+  try {
+    const userData = validateAccessToken(token);
+
+    if (!userData) {
+      res.json({ authenticated: false });
+      return;
     }
-    
-    try {
-      // Extraire les données du token
-      const userData = validateAccessToken(token);
-      
-      if (!userData) {
-        return res.json({ authenticated: false });
+
+    res.json({
+      authenticated: true,
+      user: {
+        userId: userData.userId,
+        email: userData.email,
+        role: userData.role,
+        name: userData.name,
+        image: userData.image
       }
-      
-      // Renvoyer toutes les données disponibles dans le token
-      return res.json({ 
-        authenticated: true, 
-        user: {
-          userId: userData.userId,
-          email: userData.email,
-          role: userData.role,
-          name: userData.name,         
-          image: userData.image  
-        }
-      });
-    } catch (error) {
-      console.error('Erreur dans /auth/status:', error);
-      return res.json({ authenticated: false });
-    }
-  });
+    });
+  } catch (error) {
+    console.error('Erreur dans /auth/status:', error);
+    res.json({ authenticated: false });
+  }
+});
+
+
 
 export default router;

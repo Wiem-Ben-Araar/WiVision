@@ -1,6 +1,5 @@
-// models/invitation.ts
 import mongoose from 'mongoose';
-import { noTrueLogging } from 'sequelize/lib/utils/deprecations';
+
 
 const InvitationSchema = new mongoose.Schema({
   projectId: {
@@ -36,7 +35,7 @@ const InvitationSchema = new mongoose.Schema({
      role: {
     type: String,
     enum: ["BIM Manager", "BIM Coordinateur", "BIM Modeleur"],
-    required: noTrueLogging
+    required: false
   },
     name: {
       type: String,

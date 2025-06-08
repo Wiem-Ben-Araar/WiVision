@@ -1,4 +1,4 @@
-// server.ts or index.ts
+
 import 'dotenv/config';
 import express from "express";
 import mongoose from "mongoose";
@@ -12,9 +12,8 @@ import todoRoutes from "./routes/todoRoutes";
 import annotationRoutes from "./routes/annotationRoutes";
 import invitationRoutes from "./routes/invitationRoutes";
 import clashRoutes from './routes/clash';
-// Import Passport configuration
 import './config/passport';
-import Todo from './models/todo';
+
 
 // Log environment variables for debugging
 console.log('SERVER DEBUG - Environment variables:');
@@ -69,7 +68,9 @@ app.use('/api/annotations', annotationRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/clash', clashRoutes);
 // Error handling middleware
-app.use((err, req, res, next) => {
+import { Request, Response, NextFunction } from "express";
+
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ 
     error: 'Server error', 

@@ -4,7 +4,7 @@ import Project from "../models/project";
 import User from "../models/user";
 import Invitation from "../models/invitation";
 import { v4 as uuidv4 } from "uuid";
-import { AuthenticatedRequest } from "../middleware/auth";
+
 import { sendEmail } from "../config/email";
 
 export const verifyInvitation = async (req: Request, res: Response) => {
@@ -19,14 +19,14 @@ export const verifyInvitation = async (req: Request, res: Response) => {
       .populate("invitedBy.id", "name email");
 
     if (!invitation) {
-      return res
+       res
         .status(404)
         .json({ message: "Invitation non valide ou expirée" });
     }
 
     const project = await Project.findById(invitation.projectId);
     if (!project) {
-      return res.status(404).json({ message: "Projet non trouvé" });
+       res.status(404).json({ message: "Projet non trouvé" });
     }
 
     res.json({
@@ -38,62 +38,62 @@ export const verifyInvitation = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Erreur lors de la vérification de l'invitation:", error);
-    return res.status(500).json({ error: "Erreur interne du serveur" });
+     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
 export const acceptInvitation = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
 ) => {
   try {
     const { token } = req.params;
     const user = req.user;
 
-    if (!user) return res.status(401).json({ message: "Non autorisé" });
+    if (!user)  res.status(401).json({ message: "Non autorisé" });
 
     const invitation = await Invitation.findOne({ token }).populate(
       "projectId"
     );
 
     if (!invitation)
-      return res.status(404).json({ message: "Invitation non trouvée" });
+       res.status(404).json({ message: "Invitation non trouvée" });
 
     const invitationEmail = invitation.email.toLowerCase().trim();
-    const userEmail = user.email.toLowerCase().trim();
+    const userEmail = (user as any).email.toLowerCase().trim();
 
     if (userEmail !== invitationEmail) {
-      return res.status(403).json({
+       res.status(403).json({
         message: `Cette invitation est destinée à ${invitationEmail}`,
       });
     }
 
     if (invitation.status !== "pending") {
-      return res.status(400).json({
+       res.status(400).json({
         message: `Invitation déjà ${invitation.status}`,
       });
     }
 
     const project = await Project.findById(invitation.projectId);
-    if (!project) return res.status(404).json({ message: "Projet non trouvé" });
+    if (!project)  res.status(404).json({ message: "Projet non trouvé" });
 
     const isMember = project.members.some(
       (m: { userId?: Types.ObjectId }) =>
-        m.userId?.toString() === user.userId.toString()
+        m.userId?.toString() === user?.userId.toString()
     );
 
     if (isMember) {
       invitation.status = "accepted";
       await invitation.save();
-      return res.json({ projectId: project._id });
+       res.json({ projectId: project._id });
     }
 
     project.members.push({
-      userId: new mongoose.Types.ObjectId(user.userId),
+      userId: new mongoose.Types.ObjectId(user?.userId),
       role: invitation.role,
       joinedAt: new Date(),
     });
- await User.findByIdAndUpdate(user.userId, { 
+ await User.findByIdAndUpdate(user?.userId, { 
       role: invitation.role 
     });
     await project.save();
@@ -108,7 +108,7 @@ export const acceptInvitation = async (
 };
 
 export const declineInvitation = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
 ) => {
   try {
@@ -116,24 +116,24 @@ export const declineInvitation = async (
     const user = req.user;
 
     if (!user) {
-      return res.status(401).json({ message: "Non autorisé" });
+       res.status(401).json({ message: "Non autorisé" });
     }
 
     const invitation = await Invitation.findOne({ token });
     if (!invitation) {
-      return res
+       res
         .status(404)
         .json({ message: "Invitation non valide ou expirée" });
     }
 
     if (invitation.status !== "pending") {
-      return res
+       res
         .status(400)
         .json({ message: `Invitation déjà ${invitation.status}` });
     }
 
-    if (user.email !== invitation.email) {
-      return res
+    if ((user as any).email !== invitation.email) {
+       res
         .status(403)
         .json({ message: "Cette invitation est pour un autre email" });
     }
@@ -151,7 +151,7 @@ export const declineInvitation = async (
 };
 
 export const inviteMembers = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
 ) => {
   try {
@@ -160,33 +160,36 @@ export const inviteMembers = async (
     const user = req.user;
 
     if (!user) {
-      return res.status(401).json({ error: "Non autorisé" });
+       res.status(401).json({ error: "Non autorisé" });
+       return;
     }
 
     if (!emails?.length) {
-      return res.status(400).json({ error: "Au moins un email requis" });
+       res.status(400).json({ error: "Au moins un email requis" });
     }
 
     const project = await Project.findById(id);
     if (!project) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+       res.status(404).json({ error: "Projet non trouvé" });
     }
 
     const isAllowed =
-      project.createdBy.toString() === user.userId.toString() ||
-      project.members.some(
-        (m: { userId: mongoose.Types.ObjectId }) =>
-          m.userId.toString() === user.userId.toString()
-      );
+      user &&
+      (project.createdBy.toString() === user.userId.toString() ||
+        project.members.some(
+          (m: { userId: mongoose.Types.ObjectId }) =>
+            m.userId.toString() === user.userId.toString()
+        ));
 
     if (!isAllowed) {
-      return res.status(403).json({ error: "Permissions insuffisantes" });
+       res.status(403).json({ error: "Permissions insuffisantes" });
     }
 
     // **FIX 2: Récupérer le rôle de l'utilisateur depuis la base de données**
     const currentUser = await User.findById(user.userId);
     if (!currentUser) {
-      return res.status(404).json({ error: "Utilisateur non trouvé" });
+       res.status(404).json({ error: "Utilisateur non trouvé" });
+       return;
     }
 
     // **FIX 3: Déterminer le rôle effectif de l'utilisateur**
@@ -214,7 +217,7 @@ export const inviteMembers = async (
 
     // **FIX 4: Vérifier que le rôle est défini**
     if (!userRole) {
-      return res.status(403).json({ error: "Rôle utilisateur non défini" });
+       res.status(403).json({ error: "Rôle utilisateur non défini" });
     }
 
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -327,7 +330,7 @@ export const checkInvitation = async (req: Request, res: Response) => {
     }).populate("projectId", "name");
 
     if (!invitation) {
-      return res.status(404).json({
+       res.status(404).json({
         valid: false,
         message: "Invitation invalide ou expirée",
       });

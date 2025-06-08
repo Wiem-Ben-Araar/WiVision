@@ -1,10 +1,10 @@
 
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import User from '../models/user';
 import bcrypt from 'bcryptjs';
 import { generateTokens, validateRefreshToken } from '../utils/jwt';
-import { AuthenticatedRequest } from '../middleware/auth';
 import Invitation from '../models/invitation';
+import Project from '../models/project';
 
 // Configuration des cookies standardisée
 const cookieOptions = (isProduction = process.env.NODE_ENV === 'production') => ({
@@ -28,19 +28,21 @@ const setTokenCookies = (res: Response, tokens: { accessToken: string; refreshTo
   });
 };
 
-export const signup = async (req: Request, res: Response) => {
+export const signup = async (req: Request, res: Response, next: NextFunction) : Promise<void> => {
     try {
       const { name, email, password, confirmPassword, invitationToken } = req.body;
       
       // Vérifier les mots de passe
       if (confirmPassword && password !== confirmPassword) {
-        return res.status(400).json({ message: 'Les mots de passe ne correspondent pas' });
+       res.status(400).json({ message: 'Les mots de passe ne correspondent pas' })
+        return;
       }
       
       // Vérifier l'existence de l'utilisateur
       const userExists = await User.findOne({ email });
       if (userExists) {
-        return res.status(400).json({ message: 'Cet email est déjà utilisé' });
+         res.status(400).json({ message: 'Cet email est déjà utilisé' })
+         return;
       }
       
       // Créer l'utilisateur
@@ -113,20 +115,22 @@ export const signup = async (req: Request, res: Response) => {
     }
   };
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response, next: NextFunction) : Promise<void> => {
   try {
     const { email, password } = req.body;
     
     // Vérifier si l'utilisateur existe
     const user = await User.findOne({ email });
     if (!user || !user.password) {
-      return res.status(401).json({ message: 'Identifiants incorrects' });
+       res.status(401).json({ message: 'Identifiants incorrects' })
+       return;
     }
     
     // Vérifier le mot de passe
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Identifiants incorrects' });
+       res.status(401).json({ message: 'Identifiants incorrects' })
+       return;
     }
     
     // Générer les tokens
@@ -143,7 +147,7 @@ export const login = async (req: Request, res: Response) => {
     
     // Renvoyer les informations utilisateur (sans le mot de passe)
     const userWithoutPassword = {
-        userId: user._id.toString(),
+        userId: user._id,
         email: user.email,
         role: user.role,
         name: user.name,
@@ -157,13 +161,13 @@ export const login = async (req: Request, res: Response) => {
 };
 
 // Fonction de rafraîchissement du token améliorée
-export const refreshToken = async (req: Request, res: Response) => {
+export const refreshToken = async (req: Request, res: Response, next: NextFunction) : Promise<void> =>  {
   try {
     const refreshToken = req.cookies.refreshToken;
     
     if (!refreshToken) {
-      console.log('Rafraîchissement échoué : token manquant');
-      return res.status(401).json({ message: 'Refresh token manquant' });
+      res.status(401).json({ message: 'Refresh token manquant' });
+      return;
     }
     
     // Valider le refresh token
@@ -178,14 +182,16 @@ export const refreshToken = async (req: Request, res: Response) => {
         path: '/auth/refresh'
       });
       
-      return res.status(401).json({ message: 'Refresh token invalide ou expiré' });
+       res.status(401).json({ message: 'Refresh token invalide ou expiré' })
+       return;
     }
     
     // Vérifier que l'utilisateur existe toujours
     const user = await User.findById(userData.userId);
     if (!user) {
       console.log(`Rafraîchissement échoué : utilisateur ${userData.userId} non trouvé`);
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+       res.status(404).json({ message: 'Utilisateur non trouvé' })
+       return;
     }
     
     console.log(`Rafraîchissement réussi pour l'utilisateur ${user._id} (${user.email})`);
@@ -203,10 +209,10 @@ export const refreshToken = async (req: Request, res: Response) => {
     setTokenCookies(res, tokens);
     
     // Renvoyer également les données utilisateur pour plus de commodité
-    return res.status(200).json({ 
+    res.status(200).json({ 
       message: 'Tokens rafraîchis avec succès',
       user: {
-        userId: user._id.toString(),
+        userId: user._id,
         email: user.email,
         role: user.role,
         name: user.name,
@@ -215,7 +221,9 @@ export const refreshToken = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Erreur lors du rafraîchissement des tokens:', error);
-    return res.status(500).json({ message: 'Erreur lors du rafraîchissement des tokens', error: error.message });
+    res.status(500).json({ 
+      message: 'Erreur lors du rafraîchissement des tokens', 
+      error: error.message   });
   }
 };
 
@@ -230,9 +238,10 @@ export const logout = (req: Request, res: Response) => {
   res.status(200).json({ message: 'Déconnexion réussie' });
 };
 
-export const getCurrentUser = async (req: AuthenticatedRequest, res: Response) => {
+export const getCurrentUser = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    
+    const userId = (req.user as any)?._id;
     
     if (!userId) {
       return res.status(401).json({ message: 'Non authentifié' });
@@ -249,7 +258,18 @@ export const getCurrentUser = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-export const oauthSuccess = async (req: AuthenticatedRequest, res: Response) => {
+type OAuthUser = {
+  id?: string;
+  userId?: string;
+  _id?: string;
+  email?: string;
+  role?: string;
+  name?: string;
+  image?: string;
+  [key: string]: any;
+};
+
+export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Response, next: NextFunction) : Promise<void> =>  {
     try {
       // Vérifier que nous avons bien un utilisateur de Passport (local ou OAuth)
       if (!req.user || typeof req.user !== 'object') {
@@ -261,25 +281,28 @@ export const oauthSuccess = async (req: AuthenticatedRequest, res: Response) => 
       
       if ('id' in req.user) {
         // Format utilisé par les stratégies OAuth dans notre config
-        userId = req.user.id;
-        email = req.user.email;
-        role = req.user.role;
-        name = req.user.name;
-        image = req.user.image;
+        const user = req.user as OAuthUser;
+        userId = user.id;
+        email = user.email;
+        role = user.role;
+        name = user.name;
+        image = user.image;
       } else if ('userId' in req.user) {
         // Format utilisé par notre middleware JWT
-        userId = req.user.userId;
-        email = req.user.email;
-        role = req.user.role;
-        name = req.user.name;
-        image = req.user.image;
+        const user = req.user as OAuthUser;
+        userId = user.userId;
+        email = user.email;
+        role = user.role;
+        name = user.name;
+        image = user.image;
       } else if ('_id' in req.user) {
         // Format possible si req.user est un document Mongoose
-        userId = req.user._id.toString();
-        email = req.user.email;
-        role = req.user.role;
-        name = req.user.name;
-        image = req.user.image;
+        const user = req.user as OAuthUser;
+        userId = user._id;
+        email = user.email;
+        role = user.role;
+        name = user.name;
+        image = user.image;
       } else {
         console.error('OAuth callback: Format utilisateur non reconnu', req.user);
         return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=invalid_user_format`);

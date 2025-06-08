@@ -1,11 +1,27 @@
-import { Request, Response, NextFunction } from 'express';
-import { validateAccessToken, TokenPayload } from '../utils/jwt';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
+import {validateAccessToken } from '../utils/jwt';
 
-export interface AuthenticatedRequest extends Request {
-  user?: TokenPayload;
+// Define User type with 'role' property
+export interface User {
+  id: string;
+  role: string;
+  // add other properties as needed
 }
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+// Extend Express Request interface to include 'user'
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
+
+
+
+
+
+export const authenticate: RequestHandler = (req, res, next) => {
   try {
     // 1. Vérifie d'abord les cookies
     let accessToken = req.cookies.accessToken;
@@ -15,30 +31,33 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
       accessToken = req.headers.authorization.split(' ')[1];
     }
     
-    if (!accessToken) {
-      return res.status(401).json({ message: 'Non authentifié' });
+   if (!accessToken) {
+      res.status(401).json({ message: 'Non authentifié' });
+      return;
     }
     
     const userData = validateAccessToken(accessToken);
     if (!userData) {
-      return res.status(401).json({ message: 'Token invalide ou expiré' });
+       res.status(401).json({ message: 'Token invalide ou expiré' })
+       return;
     }
     
     req.user = userData;
     next();
   } catch (error) {
     console.error('Authentication error:', error);
-    return res.status(500).json({ message: 'Erreur d\'authentification' });
+    res.status(500).json({ message: 'Erreur d\'authentification' });
   }
 };
 
 export const requireRole = (roles: string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Non authentifié' });
     }
     
-    if (!roles.includes(req.user.role)) {
+    const user = req.user as unknown as User;
+    if (!user.role || !roles.includes(user.role)) {
       return res.status(403).json({ message: 'Permission refusée' });
     }
     

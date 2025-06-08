@@ -1,5 +1,5 @@
 // src/routes/clash.ts
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
@@ -14,17 +14,18 @@ const upload = multer({
   router.post(
     '/detect',
     upload.array('models'),
-    async (req, res) => {
+    async (req, res): Promise<void> => {
       try {
         const tolerance = req.body.tolerance || 0.01;
         const files = req.files as Express.Multer.File[];
   
         // Validation
         if (!files || files.length < 2) {
-          return res.status(400).json({ 
+          res.status(400).json({ 
             error: "Au moins 2 fichiers IFC requis",
             received: files?.length || 0
           });
+          return;
         }
   
         // Préparation pour Flask
@@ -46,7 +47,7 @@ const upload = multer({
   
         res.json(response.data);
   
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erreur complète:', error);
         res.status(500).json({
           error: 'Échec de la détection',
@@ -55,7 +56,7 @@ const upload = multer({
       }
     }
   );
-router.get('/status/:sessionId', async (req, res) => {
+router.get('/status/:sessionId', async (req: Request, res: Response) => {
   const sessionId = req.params.sessionId;
   // CORRECTION: Utiliser le chemin absolu vers le dossier Flask
   const reportsFolder = 'C:\\Users\\wiemb\\Desktop\\flask-ifc-clashdetection\\app\\static\\reports';
@@ -67,17 +68,17 @@ router.get('/status/:sessionId', async (req, res) => {
       // Le rapport est prêt, le retourner directement
       const data = fs.readFileSync(reportPath, 'utf-8');
       const report = JSON.parse(data);
-      return res.json(report); // Retourne directement le rapport avec les clashes
+      res.json(report); // Retourne directement le rapport avec les clashes
     } else if (fs.existsSync(errorPath)) {
       const data = fs.readFileSync(errorPath, 'utf-8');
-      return res.status(500).json(JSON.parse(data));
+      res.status(500).json(JSON.parse(data));
     } else {
       // Le traitement est en cours
-      return res.status(202).json({ status: 'processing' });
+      res.status(202).json({ status: 'processing' });
     }
   } catch (err) {
     console.error("Erreur de lecture de statut:", err);
-    return res.status(500).json({ error: 'Erreur de lecture du statut' });
+    res.status(500).json({ error: 'Erreur de lecture du statut' });
   }
 });
 router.get('/report/:sessionId', async (req, res) => {
