@@ -70,14 +70,23 @@ export default function SignInForm() {
     setLoading(true)
 
     try {
+      console.log("Tentative de connexion pour:", email); // Debug
+      
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`,
-        { email, password },
-        { withCredentials: true },
+        { email, password }
       )
 
-      setUser(response.data.user)
+      console.log("Réponse de connexion:", response.data); // Debug
+
+      // ✅ CORRECTION : Attendre un peu avant de rafraîchir l'auth
+      setTimeout(async () => {
+        await refreshAuth()
+        console.log("Auth refresh terminé"); // Debug
+      }, 100);
+      
       toast.success("Connexion réussie !")
+      
       const pendingInvitation = sessionStorage.getItem("pendingInvitation")
       if (pendingInvitation) {
         router.push(`/invitation/${pendingInvitation}`)
@@ -85,6 +94,7 @@ export default function SignInForm() {
         router.push("/")
       }
     } catch (error: any) {
+      console.error("Erreur de connexion:", error); // Debug
       const errorMessage = error.response?.data?.message || "Échec de la connexion. Vérifiez vos identifiants."
       toast.error(errorMessage)
     } finally {
