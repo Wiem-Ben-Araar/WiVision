@@ -5,7 +5,8 @@ import { Strategy as GitHubStrategy } from "passport-github2";
 import User from "../models/user";
 import bcrypt from "bcryptjs";
 
-
+// Define the callback type for consistency
+type DoneCallback = (error: any, user?: any, info?: any) => void;
 
 // Stratégie locale (email/mot de passe)
 passport.use(
@@ -14,7 +15,7 @@ passport.use(
       usernameField: "email",
       passwordField: "password",
     },
-    async (email, password, done) => {
+    async (email: string, password: string, done: DoneCallback) => {
       try {
         // Rechercher l'utilisateur par email
         const user = await User.findOne({ email });
@@ -61,7 +62,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         accessToken: string,
         refreshToken: string,
         profile: any,
-        done: (error: any, user?: any, info?: any) => void
+        done: DoneCallback
       ) => {
         try {
           const email = profile.emails?.[0]?.value;
@@ -128,7 +129,7 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
         accessToken: string,
         refreshToken: string,
         profile: any,
-        done: (error: any, user?: any, info?: any) => void
+        done: DoneCallback
       ) => {
         try {
           // Récupérer l'email principal depuis GitHub
@@ -183,13 +184,13 @@ if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
 }
 
 // Sérialisation/désérialisation pour maintenir la compatibilité (si jamais vous utilisez des sessions)
-passport.serializeUser((user: any, done) => {
+passport.serializeUser((user: any, done: DoneCallback) => {
   // Use _id if available, otherwise use id
   const userId = user._id || user.id;
   done(null, userId);
 });
 
-passport.deserializeUser(async (id: string, done) => {
+passport.deserializeUser(async (id: string, done: DoneCallback) => {
   try {
     const user = await User.findById(id).select("-password");
     
