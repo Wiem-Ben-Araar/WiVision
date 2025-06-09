@@ -38,8 +38,8 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
-    "@types/cookie-parser": "^1.4.8",
-    "@types/cors": "^2.8.17",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.1",
     "@types/form-data": "^2.5.2",
     "@types/jsonwebtoken": "^9.0.9",
