@@ -54,7 +54,7 @@ export default function ProjectFiles({
   const isBIMManager = userRole === "BIM Manager"
   const isBIMCoordinateur = userRole === "BIM Coordinateur"
   const isBIMModeleur = userRole === "BIM Modeleur"
-
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const currentUserEmail = user?.email
   const currentUserId = user?.id
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
@@ -151,7 +151,7 @@ export default function ProjectFiles({
 
     setLoading(true)
     try {
-      await axios.delete(`/api/files`, {
+      await axios.delete(`${apiUrl}/files`, {
         data: { fileId: fileToDelete.id, projectId },
         withCredentials: true,
       })
@@ -189,7 +189,7 @@ export default function ProjectFiles({
       selectedFiles.forEach((file) => formData.append("file", file))
       formData.append("projectId", projectId)
 
-      const { data } = await axios.post(`/api/files/upload`, formData, {
+      const { data } = await axios.post(`${apiUrl}/files/upload`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -262,7 +262,7 @@ export default function ProjectFiles({
 
   const fetchFiles = async () => {
     try {
-      const { data } = await axios.get(`/api/projects/${projectId}/files`, {
+      const { data } = await axios.get(`${apiUrl}/projects/${projectId}/files`, {
         withCredentials: true,
       })
       const adaptedFiles = adaptFiles(data)

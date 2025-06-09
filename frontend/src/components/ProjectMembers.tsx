@@ -53,7 +53,7 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
   const currentUserMember = members.find(member => member.email === user?.email);
   const actualUserRole = currentUserMember?.role || userRole;
   const canInviteMembers = actualUserRole === "BIM Manager" || userRole === "BIM Manager";
-  
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
 
   // Listen for external trigger to open invite dialog
@@ -72,8 +72,8 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
     const fetchData = async () => {
       try {
         const [membersRes, invitationsRes] = await Promise.all([
-          axios.get(`/api/projects/${projectId}/members`),
-          axios.get(`/api/projects/${projectId}/invitations`),
+          axios.get(`${apiUrl}/projects/${projectId}/members`),
+          axios.get(`${apiUrl}/projects/${projectId}/invitations`),
         ])
 
         setMembers(membersRes.data.members)
@@ -102,7 +102,7 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
     }
 
     try {
-      const { data } = await axios.post(`/api/projects/${projectId}/invite`, {
+      const { data } = await axios.post(`${apiUrl}/projects/${projectId}/invite`, {
         emails: emailList,
         message,
         projectName,

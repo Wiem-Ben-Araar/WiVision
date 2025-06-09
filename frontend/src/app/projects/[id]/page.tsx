@@ -60,7 +60,7 @@ export default function ProjectDetailsPage() {
   const { user } = useAuth()
 
   // Configuration de l'URL API
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL 
 
   // Configuration Axios avec intercepteur pour les erreurs 401
   useEffect(() => {
