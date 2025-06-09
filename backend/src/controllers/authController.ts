@@ -240,17 +240,17 @@ export const logout = (req: Request, res: Response) => {
   res.status(200).json({ message: 'Déconnexion réussie' });
 };
 
-export const getCurrentUser = async (req: Request, res: Response) => {
+export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) : Promise<void> => {
   try {
     const userId = req.user?.userId;
     
     if (!userId) {
-      return res.status(401).json({ message: 'Non authentifié' });
+       res.status(401).json({ message: 'Non authentifié' });
     }
     
     const user = await User.findById(userId).select('-password');
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+       res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
     
     res.status(200).json({ user });
