@@ -4,8 +4,8 @@ import { getStorage, connectStorageEmulator } from "firebase/storage";
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NODE_ENV === "production" 
-    ? "plateforme-bim-c779e.firebaseapp.com" // Production
-    : "localhost", // Développement
+    ? "plateforme-bim-c779e.firebaseapp.com" 
+    : "localhost",
   projectId: "plateforme-bim-c779e",
   storageBucket: "plateforme-bim-c779e.appspot.com",
 };
@@ -13,8 +13,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
-// Connexion émulateur SEULEMENT en développement
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
   connectStorageEmulator(storage, "127.0.0.1", 4001);
   console.log('🔥 Firebase Storage Emulator: ACTIF');
 }

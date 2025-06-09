@@ -72,8 +72,12 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
     const fetchData = async () => {
       try {
         const [membersRes, invitationsRes] = await Promise.all([
-          axios.get(`${apiUrl}/projects/${projectId}/members`),
-          axios.get(`${apiUrl}/projects/${projectId}/invitations`),
+          axios.get(`${apiUrl}/projects/${projectId}/members`, {
+            withCredentials: true
+          }),
+          axios.get(`${apiUrl}/projects/${projectId}/invitations`, {
+            withCredentials: true
+          }),
         ])
 
         setMembers(membersRes.data.members)
@@ -107,6 +111,8 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
         message,
         projectName,
         role: selectedRole
+      }, {
+        withCredentials: true
       })
 
       setInvitations((prev) => [...prev, ...data.invitations])

@@ -204,8 +204,9 @@ export const getProjectMembers = async (req: Request, res: Response) => {
     }
 
     const members = [];
+    const seenUserIds = new Set<string>(); // Pour éviter les doublons
 
-    // Ajout du créateur
+    // Ajout du créateur en premier
     if (
       project &&
       typeof project === "object" &&
@@ -213,16 +214,20 @@ export const getProjectMembers = async (req: Request, res: Response) => {
       project.createdBy
     ) {
       const creator = project.createdBy as any;
+      const creatorId = creator._id.toString();
+      
       members.push({
-        id: creator._id.toString(),
+        id: creatorId,
         name: creator.name || "BIM Manager",
         email: creator.email || "",
         image: creator.image || "",
         role: "BIM Manager",
       });
+      
+      seenUserIds.add(creatorId); // Marquer comme vu
     }
 
-    // Ajout des autres membres
+    // Ajout des autres membres (en évitant les doublons)
     if (project && !Array.isArray(project) && project.members) {
       for (const member of project.members) {
         // Vérification renforcée
@@ -245,8 +250,8 @@ export const getProjectMembers = async (req: Request, res: Response) => {
           continue;
         }
 
-      const userIdString = getUserId(req.user);
-    const userId = new mongoose.Types.ObjectId(userIdString);
+        const userId = user._id.toString();
+
         if (!userId) {
           console.error(
             `ID utilisateur manquant pour le membre:`,
@@ -255,9 +260,8 @@ export const getProjectMembers = async (req: Request, res: Response) => {
           continue;
         }
 
-        // Vérification des doublons
-        const exists = members.some((m) => m.id === userId);
-        if (!exists) {
+        // Vérification des doublons avec Set
+        if (!seenUserIds.has(userId)) {
           members.push({
             id: userId,
             name: user.name || "Team Member",
@@ -265,12 +269,14 @@ export const getProjectMembers = async (req: Request, res: Response) => {
             image: user.image || "",
             role: member.role || "Member",
           });
+          
+          seenUserIds.add(userId); // Marquer comme vu
         }
       }
     }
 
     console.log(
-      `Membres trouvés pour le projet ${projectId}: ${members.length}`
+      `Membres uniques trouvés pour le projet ${projectId}: ${members.length}`
     );
     res.status(200).json({ members });
   } catch (error) {

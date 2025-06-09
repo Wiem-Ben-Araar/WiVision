@@ -32,13 +32,17 @@ export const authenticate: RequestHandler = (req, res, next) => {
     }
     
    if (!accessToken) {
-      res.status(401).json({ message: 'Non authentifié' });
+      res.status(401).json({ message: 'Non authentifié',
+        needsRefresh: true
+       });
       return;
     }
     
     const userData = validateAccessToken(accessToken);
     if (!userData) {
-       res.status(401).json({ message: 'Token invalide ou expiré' })
+       res.status(401).json({ message: 'Token invalide ou expiré' ,
+        needsRefresh: true
+       })
        return;
     }
     
