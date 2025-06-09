@@ -37,7 +37,7 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
       ref: 'Annotation',
     }],
     required: false,
-    default: [] // Utiliser un tableau vide au lieu de undefined
+    default: [] 
   },
   image: {
     type: String,
