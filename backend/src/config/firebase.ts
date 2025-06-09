@@ -7,7 +7,7 @@ const firebaseConfig = {
     ? "wivision-1b106.firebaseapp.com" 
     : "localhost",
   projectId: "wivision-1b106",
-  storageBucket: "wivision-1b106.appspot.com",
+ // storageBucket: "wivision-1b106.appspot.com",
 };
 
 const app = initializeApp(firebaseConfig);
