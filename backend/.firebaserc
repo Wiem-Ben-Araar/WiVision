@@ -1,15 +1,5 @@
 {
   "projects": {
-    "default": "plateforme-bim-c779e"
-  },
-  "targets": {
-    "plateforme-bim-c779e": {
-      "storage": {
-        "plateforme-bim-c779e": [
-          "plateforme-bim-c779e.appspot.com"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "wivision-1b106"
+  }
 }
