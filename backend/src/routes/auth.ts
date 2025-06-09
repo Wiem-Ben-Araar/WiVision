@@ -2,7 +2,6 @@ import { Router, Request, Response} from 'express';
 import { signup, login, refreshToken, logout, getCurrentUser, oauthSuccess } from '../controllers/authController';
 import passport from 'passport';
 import { validateAccessToken } from '../utils/jwt';
-import { authenticate } from '../middleware/auth';
 
 
 const router = Router();
@@ -18,7 +17,7 @@ router.post('/auth/signup', signup );
 router.post('/auth/login', login );
 router.post('/auth/refresh', refreshToken)  ;
 router.post('/auth/logout', logout);
-router.get('/auth/me', authenticate, getCurrentUser);
+//router.get('/auth/me', authenticate, getCurrentUser);
 
 // Routes OAuth Google
 router.get('/auth/google', (req, res, next) => {
