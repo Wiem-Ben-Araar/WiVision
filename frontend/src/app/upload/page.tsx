@@ -19,7 +19,7 @@ const UploadPage = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectId = searchParams.get('projectId');
-  
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
   // Use the auth hook to get current user information
   const { user } = useAuth();
 
@@ -40,7 +40,7 @@ const UploadPage = () => {
       }
 
       // Send the request with credentials
-      const response = await axios.post('/api/files/upload', formData, {
+      const response = await axios.post(`${apiUrl}/files/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true // Include cookies with the request
       });
