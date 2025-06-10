@@ -11,6 +11,7 @@ import File from "../models/file";
 import Project from "../models/project";
 import User from "../models/user";
 import { v4 as uuidv4 } from "uuid";
+
 /**
  * Upload a file or multiple files to a project
  */
@@ -90,15 +91,13 @@ export const uploadFiles = async (req: Request, res: Response) => {
 
         try {
           // Create storage reference
-          // In your uploadFiles function, modify the Firebase upload section
           const storageRef = ref(storage, `projects/${projectId}/${fileName}`);
 
-          // Metadata CRUCIALE pour l'émulateur
+          // Standard metadata for Firebase Storage
           const metadata = {
             contentType: "application/octet-stream",
             customMetadata: {
               firebaseStorageDownloadTokens: uuidv4(),
-              emulator: "true", // Force le mode émulateur
             },
           };
 
@@ -111,7 +110,8 @@ export const uploadFiles = async (req: Request, res: Response) => {
               );
             }),
           ]);
-          // Get download URL - no need for manual URL construction
+
+          // Get download URL
           const downloadURL = await getDownloadURL(
             (snapshot as import("firebase/storage").UploadResult).ref
           );
