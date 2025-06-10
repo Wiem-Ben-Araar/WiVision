@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import React, { useEffect, useState, useCallback, createContext, useContext } from "react";
 
 export interface User {
@@ -32,24 +33,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshAuth = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
+     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`,
-        { credentials: "include" }
+        { withCredentials: true } // Important
       );
 
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.authenticated) {
-        setUser(data.user);
+if (response.data.authenticated) {
+        setUser(response.data.user);
       } else {
         setUser(null);
       }
     } catch (error) {
-      console.error("Erreur de vérification d'authentification:", error);
       setUser(null);
     } finally {
       setLoading(false);
