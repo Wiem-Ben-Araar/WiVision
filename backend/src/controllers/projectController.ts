@@ -18,23 +18,22 @@ const getUserId = (user: any): string => {
   // Convertir en string si c'est un ObjectId
   return id.toString();
 };
-
 export const createProject = async (req: Request, res: Response) => {
   try {
-    // ✅ AJOUTER RETURN
+    // Vérifier si l'utilisateur est authentifié (middleware auth déjà appliqué)
     if (!req.user) {
-      return res.status(401).json({ error: "Non autorisé" });
+      res.status(401).json({ error: "Non autorisé" });
     }
 
     // Extraire les données de la requête
     const data = req.body;
 
-    // Valider les données - ✅ AJOUTER RETURN
+    // Valider les données
     if (!data.name || data.name.trim() === "") {
-      return res.status(400).json({ error: "Le nom du projet est requis" });
+      res.status(400).json({ error: "Le nom du projet est requis" });
     }
 
-    const userIdString = getUserId(req.user);
+  const userIdString = getUserId(req.user);
     const userId = new mongoose.Types.ObjectId(userIdString);
 
     // **FIX 1: Mettre à jour le rôle de l'utilisateur à "BIM Manager"**
@@ -78,9 +77,8 @@ export const createProject = async (req: Request, res: Response) => {
 
 export const getProjects = async (req: Request, res: Response) => {
   try {
-    // ✅ AJOUTER RETURN
     if (!req.user) {
-      return res.status(401).json({ error: "Non autorisé" });
+       res.status(401).json({ error: "Non autorisé" });
     }
 
     const projects = await Project.find({
@@ -107,14 +105,12 @@ export const getProjects = async (req: Request, res: Response) => {
     });
   }
 };
-
 export const getProjectById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // ✅ AJOUTER RETURN
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "ID de projet invalide" });
+      res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const project = await Project.findById(id).populate(
@@ -122,9 +118,8 @@ export const getProjectById = async (req: Request, res: Response) => {
       "name email"
     );
 
-    // ✅ AJOUTER RETURN
     if (!project) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+      res.status(404).json({ error: "Projet non trouvé" });
     }
 
     res.json(project);
@@ -138,16 +133,14 @@ export const deleteProject = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // ✅ AJOUTER RETURN
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "ID de projet invalide" });
+      res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const deletedProject = await Project.findByIdAndDelete(id);
 
-    // ✅ AJOUTER RETURN
     if (!deletedProject) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+      res.status(404).json({ error: "Projet non trouvé" });
     }
 
     res.json({ message: "Projet supprimé avec succès" });
@@ -162,14 +155,12 @@ export const updateProject = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    // ✅ AJOUTER RETURN
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "ID de projet invalide" });
+      res.status(400).json({ error: "ID de projet invalide" });
     }
 
-    // ✅ AJOUTER RETURN
     if (!name?.trim()) {
-      return res.status(400).json({ error: "Le nom du projet est requis" });
+      res.status(400).json({ error: "Le nom du projet est requis" });
     }
 
     const updatedProject = await Project.findByIdAndUpdate(
@@ -182,9 +173,8 @@ export const updateProject = async (req: Request, res: Response) => {
       { new: true, runValidators: true }
     );
 
-    // ✅ AJOUTER RETURN
     if (!updatedProject) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+      res.status(404).json({ error: "Projet non trouvé" });
     }
 
     res.json(updatedProject);
@@ -192,19 +182,16 @@ export const updateProject = async (req: Request, res: Response) => {
     handleDBError(res, error as Error);
   }
 };
-
 export const getProjectMembers = async (req: Request, res: Response) => {
   try {
-    // ✅ AJOUTER RETURN
     if (!req.user) {
-      return res.status(401).json({ error: "Non autorisé" });
+      res.status(401).json({ error: "Non autorisé" });
     }
 
     const projectId = req.params.id;
 
-    // ✅ AJOUTER RETURN
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      return res.status(400).json({ error: "ID de projet invalide" });
+      res.status(400).json({ error: "ID de projet invalide" });
     }
 
     const project = await Project.findById(projectId)
@@ -212,9 +199,8 @@ export const getProjectMembers = async (req: Request, res: Response) => {
       .populate("members.userId", "name email image")
       .lean();
 
-    // ✅ AJOUTER RETURN
     if (!project) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+      res.status(404).json({ error: "Projet non trouvé" });
     }
 
     const members = [];
@@ -301,21 +287,20 @@ export const getProjectMembers = async (req: Request, res: Response) => {
     });
   }
 };
-
 export const getUserRole = async (req: Request, res: Response) => {
   try {
-    // 1. Vérification d'authentification via middleware - ✅ AJOUTER RETURN
+    // 1. Vérification d'authentification via middleware
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: "Non autorisé",
         details: "Utilisateur non authentifié",
       });
     }
 
-    // 2. Validation de l'ID du projet - ✅ AJOUTER RETURN
+    // 2. Validation de l'ID du projet
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      res.status(400).json({
         error: "ID de projet invalide",
         details: "Le format de l'ID est incorrect",
       });
@@ -326,15 +311,20 @@ export const getUserRole = async (req: Request, res: Response) => {
       .populate("createdBy", "email")
       .populate("members.userId", "email");
 
-    // ✅ AJOUTER RETURN
     if (!project) {
-      return res.status(404).json({
+      res.status(404).json({
         error: "Projet non trouvé",
         details: "Aucun projet correspondant à cet ID",
       });
     }
 
-    // 4. Détermination du rôle - ✅ SUPPRIMER LA VÉRIFICATION DUPLIQUÉE
+    // 4. Détermination du rôle
+    if (!req.user) {
+       res.status(401).json({
+        error: "Non autorisé",
+        details: "Utilisateur non authentifié",
+      });
+    }
     const userEmail = ((req.user as unknown) as { email: string }).email;
     let role: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none" =
       "none";
@@ -351,9 +341,9 @@ export const getUserRole = async (req: Request, res: Response) => {
       if (member) role = member.role as "BIM Coordinateur" | "BIM Modeleur";
     }
 
-    // 5. Réponse selon le rôle - ✅ AJOUTER RETURN
+    // 5. Réponse selon le rôle
     if (role === "none") {
-      return res.status(403).json({
+      res.status(403).json({
         error: "Accès refusé",
         details: "Vous n'avez pas accès à ce projet",
       });
@@ -364,21 +354,21 @@ export const getUserRole = async (req: Request, res: Response) => {
     handleDBError(res, error as Error);
   }
 };
-
 export const getProjectFiles = async (req: Request, res: Response) => {
   try {
-    // 1. Vérification de l'authentification - ✅ AJOUTER RETURN
+    // 1. Vérification de l'authentification
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: "Non autorisé",
         details: "Utilisateur non authentifié",
-      });
+      })
+       return;
     }
 
-    // 2. Validation de l'ID du projet - ✅ AJOUTER RETURN
+    // 2. Validation de l'ID du projet
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
+      res.status(400).json({
         error: "ID de projet invalide",
         details: "Format d'ID non reconnu",
       });
@@ -386,10 +376,10 @@ export const getProjectFiles = async (req: Request, res: Response) => {
 
     const projectId = new mongoose.Types.ObjectId(id);
 
-    // 3. Vérification de l'existence du projet - ✅ AJOUTER RETURN
+    // 3. Vérification de l'existence du projet
     const projectExists = await Project.exists({ _id: projectId });
     if (!projectExists) {
-      return res.status(404).json({
+      res.status(404).json({
         error: "Projet introuvable",
         details: "Ce projet n'existe pas dans la base de données",
       });
@@ -419,25 +409,24 @@ export const getProjectFiles = async (req: Request, res: Response) => {
     handleDBError(res, error as Error);
   }
 };
-
 export const getProjectInvitations = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // 1. Vérification d'authentification - ✅ AJOUTER RETURN
+    // 1. Vérification d'authentification
     if (!req.user) {
-      return res.status(401).json({ error: "Non autorisé" });
+      res.status(401).json({ error: "Non autorisé" });
     }
 
-    // 2. Validation de l'ID du projet - ✅ AJOUTER RETURN
+    // 2. Validation de l'ID du projet
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "ID de projet invalide" });
+      res.status(400).json({ error: "ID de projet invalide" });
     }
 
-    // 3. Vérification de l'existence du projet - ✅ AJOUTER RETURN
+    // 3. Vérification de l'existence du projet
     const project = await Project.findById(id);
     if (!project) {
-      return res.status(404).json({ error: "Projet non trouvé" });
+      res.status(404).json({ error: "Projet non trouvé" });
     }
 
     // 4. Récupération des invitations en attente
@@ -451,7 +440,6 @@ export const getProjectInvitations = async (req: Request, res: Response) => {
     handleDBError(res, error as Error);
   }
 };
-
 const handleDBError = (res: Response, error: Error) => {
   console.error("Erreur base de données:", error);
   res.status(500).json({
