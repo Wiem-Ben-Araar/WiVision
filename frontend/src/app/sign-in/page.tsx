@@ -70,31 +70,53 @@ export default function SignInForm() {
     setLoading(true)
 
     try {
-      console.log("Tentative de connexion pour:", email); // Debug
+      console.log("🚀 Tentative de connexion pour:", email); // Debug
       
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`,
         { email, password }
       )
 
-      console.log("Réponse de connexion:", response.data); // Debug
+      console.log("✅ Réponse de connexion reçue:", response.data); // Debug
 
-      // ✅ CORRECTION : Attendre un peu avant de rafraîchir l'auth
-      setTimeout(async () => {
-        await refreshAuth()
-        console.log("Auth refresh terminé"); // Debug
-      }, 100);
-      
-      toast.success("Connexion réussie !")
-      
-      const pendingInvitation = sessionStorage.getItem("pendingInvitation")
-      if (pendingInvitation) {
-        router.push(`/invitation/${pendingInvitation}`)
+      if (response.data.user) {
+        console.log("👤 Utilisateur reçu:", response.data.user); // Debug
+        
+        // Mettre à jour l'utilisateur immédiatement
+        setUser(response.data.user);
+        
+        toast.success("Connexion réussie !")
+        
+        // Attendre un court délai puis rafraîchir l'auth pour s'assurer que tout est synchronisé
+        setTimeout(async () => {
+          try {
+            await refreshAuth()
+            console.log("🔄 Auth refresh terminé"); // Debug
+            
+            // Redirection après rafraîchissement
+            const pendingInvitation = sessionStorage.getItem("pendingInvitation")
+            if (pendingInvitation) {
+              router.push(`/invitation/${pendingInvitation}`)
+            } else {
+              router.push("/")
+            }
+          } catch (refreshError) {
+            console.error("❌ Erreur lors du refresh:", refreshError);
+            // Même si le refresh échoue, on peut continuer car on a déjà l'utilisateur
+            const pendingInvitation = sessionStorage.getItem("pendingInvitation")
+            if (pendingInvitation) {
+              router.push(`/invitation/${pendingInvitation}`)
+            } else {
+              router.push("/")
+            }
+          }
+        }, 500); // Délai plus long pour laisser le temps aux cookies de se propager
       } else {
-        router.push("/")
+        console.error("❌ Pas d'utilisateur dans la réponse");
+        toast.error("Erreur lors de la connexion - données utilisateur manquantes")
       }
     } catch (error: any) {
-      console.error("Erreur de connexion:", error); // Debug
+      console.error("❌ Erreur de connexion:", error); // Debug
       const errorMessage = error.response?.data?.message || "Échec de la connexion. Vérifiez vos identifiants."
       toast.error(errorMessage)
     } finally {
@@ -133,7 +155,7 @@ export default function SignInForm() {
       >
         <div className="text-center">
           <div className="flex justify-center mb-4">
-    
+            {/* Logo here */}
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-[#005CA9] to-[#0070CC] bg-clip-text text-transparent">
             Connexion

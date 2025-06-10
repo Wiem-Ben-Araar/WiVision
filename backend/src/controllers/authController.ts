@@ -1,4 +1,3 @@
-
 import { NextFunction, Request, Response } from 'express';
 import User from '../models/user';
 import bcrypt from 'bcryptjs';
@@ -9,22 +8,20 @@ import Project from '../models/project';
 // Configuration des cookies standardisée
 const cookieOptions = (isProduction = process.env.NODE_ENV === 'production') => ({
   httpOnly: true,
-  secure: false, // Désactivé en local
-  sameSite: 'lax' as const, // 'lax' au lieu de 'none'
-
+  secure: isProduction, // true en production, false en développement
+  sameSite: isProduction ? 'none' as const : 'lax' as const,
 });
 
 // Fonction pour définir les cookies d'authentification
 const setTokenCookies = (res: Response, tokens: { accessToken: string; refreshToken: string }) => {
   res.cookie('accessToken', tokens.accessToken, {
     ...cookieOptions(),
-    maxAge: 24 * 60 * 60 * 1000 
+    maxAge: 15 * 60 * 1000 // 15 minutes (cohérent avec oauthSuccess)
   });
   
   res.cookie('refreshToken', tokens.refreshToken, {
     ...cookieOptions(),
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
-   
   });
 };
 
@@ -53,7 +50,6 @@ export const signup = async (req: Request, res: Response, next: NextFunction) : 
         name,
         email,
         password: hashedPassword,
-      
       });
       
       // Gérer l'invitation si token présent
@@ -84,18 +80,20 @@ export const signup = async (req: Request, res: Response, next: NextFunction) : 
         }
       }
       
-      // Générer les tokens
+      // Générer les tokens - FORMAT COHÉRENT avec login
       const tokens = generateTokens({
         userId: user._id.toString(),
         email: user.email,
         role: user.role,
+        name: user.name,
+        image: user.image
       });
       
       setTokenCookies(res, tokens);
       
-      // Réponse
+      // Réponse - FORMAT COHÉRENT avec login
       const userWithoutPassword = {
-        _id: user._id,
+        userId: user._id, // Utiliser userId comme dans login
         name: user.name,
         email: user.email,
         role: user.role,
@@ -119,6 +117,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) : P
   try {
     const { email, password } = req.body;
     
+    console.log('Tentative de connexion pour:', email); // Debug
+    
     // Vérifier si l'utilisateur existe
     const user = await User.findOne({ email });
     if (!user || !user.password) {
@@ -133,6 +133,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) : P
        return;
     }
     
+    console.log('Mot de passe vérifié avec succès pour:', email); // Debug
+    
     // Générer les tokens
     const tokens = generateTokens({
         userId: user._id.toString(),
@@ -142,8 +144,12 @@ export const login = async (req: Request, res: Response, next: NextFunction) : P
         image: user.image
     });
     
+    console.log('Tokens générés avec succès'); // Debug
+    
     // Définir les cookies
     setTokenCookies(res, tokens);
+    
+    console.log('Cookies définis avec succès'); // Debug
     
     // Renvoyer les informations utilisateur (sans le mot de passe)
     const userWithoutPassword = {
@@ -154,8 +160,14 @@ export const login = async (req: Request, res: Response, next: NextFunction) : P
         image: user.image
     };
     
-    res.status(200).json({ message: 'Connexion réussie', user: userWithoutPassword });
+    console.log('Utilisateur à renvoyer:', userWithoutPassword); // Debug
+    
+    res.status(200).json({ 
+      message: 'Connexion réussie', 
+      user: userWithoutPassword 
+    });
   } catch (error: any) {
+    console.error('Erreur dans login:', error); // Debug
     res.status(500).json({ message: 'Erreur lors de la connexion', error: error.message });
   }
 };
@@ -177,10 +189,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
       
       // Supprimer les cookies si le refresh token est invalide
       res.clearCookie('accessToken', cookieOptions());
-      res.clearCookie('refreshToken', { 
-        ...cookieOptions(),
-        path: '/auth/refresh'
-      });
+      res.clearCookie('refreshToken', cookieOptions());
       
        res.status(401).json({ message: 'Refresh token invalide ou expiré' })
        return;
@@ -318,28 +327,15 @@ export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Res
       const tokens = generateTokens({
         userId,
         email, 
-      role: role || 'BIM Modeleur', 
+        role: role || 'BIM Modeleur', 
         name,
         image
       });
       
-      // Définir les cookies
-      res.cookie('accessToken', tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
+      // Définir les cookies - UTILISER LA MÊME FONCTION
+      setTokenCookies(res, tokens);
       
-      res.cookie('refreshToken', tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
-        
-      });
-      
-      // Rediriger vers le client (important: utiliser la variable d'environnement correcte)
+      // Rediriger vers le client
       console.log('Redirection vers:', process.env.CLIENT_URL || 'http://localhost:3000');
       return res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
     } catch (error: any) {
@@ -347,4 +343,3 @@ export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Res
       res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=${encodeURIComponent(error.message || 'unknown_error')}`);
     }
   };
-
