@@ -1,34 +1,30 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, createContext, useContext } from "react";
-import axios from "axios";
-
-// Configuration globale d'axios
-axios.defaults.withCredentials = true;
 
 export interface User {
-    userId: string;
+    userId: string; // Doit correspondre au payload JWT
     id?: string;  
-    name?: string;
+    name?: string; // Rendez cela optionnel pour être plus flexible
     email: string;
     role: string;
     image?: string;
 }
 
+// Créer un contexte pour l'état d'authentification global
 const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
   refreshAuth: () => Promise<void>;
   setUser: (user: User | null) => void;
-  logout: () => Promise<void>;
 }>({
   user: null,
   loading: true,
   refreshAuth: async () => {},
   setUser: () => {},
-  logout: async () => {},
 });
 
+// Export du provider pour être utilisé dans le layout
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,42 +32,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshAuth = useCallback(async () => {
     setLoading(true);
     try {
-      // Utiliser axios au lieu de fetch pour la cohérence
-      const response = await axios.get(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`,
-      { withCredentials: true }
+        { credentials: "include" }
       );
 
-      const data = response.data;
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
 
-      if (data.authenticated && data.user) {
-        console.log("Utilisateur authentifié:", data.user); // Debug
+      const data = await response.json();
+
+      if (data.authenticated) {
         setUser(data.user);
       } else {
-        console.log("Utilisateur non authentifié"); // Debug
         setUser(null);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erreur de vérification d'authentification:", error);
-      // Si l'erreur est 401 (non autorisé), c'est normal - l'utilisateur n'est pas connecté
-      if (error.response?.status === 401) {
-        console.log("Utilisateur non connecté (401)");
-      }
       setUser(null);
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/logout`
-      );
-    } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
-    } finally {
-      setUser(null);
     }
   }, []);
 
@@ -80,11 +61,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshAuth();
   }, [refreshAuth]);
 
+  // Utiliser la syntaxe de création d'élément React sans JSX
   return React.createElement(AuthContext.Provider, {
-    value: { user, loading, refreshAuth, setUser, logout }
+    value: { user, loading, refreshAuth, setUser }
   }, children);
 };
 
+// Hook pour utiliser l'état d'authentification
 export function useAuth() {
   return useContext(AuthContext);
 }
