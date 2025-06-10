@@ -38,7 +38,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Utiliser axios au lieu de fetch pour la cohérence
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`,
+      { withCredentials: true }
       );
 
       const data = response.data;
