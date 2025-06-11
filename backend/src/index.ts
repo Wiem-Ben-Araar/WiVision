@@ -1,4 +1,3 @@
-
 import 'dotenv/config';
 import express from "express";
 import mongoose from "mongoose";
@@ -14,48 +13,51 @@ import invitationRoutes from "./routes/invitationRoutes";
 import clashRoutes from './routes/clash';
 import './config/passport';
 
-
-// Log environment variables for debugging
+// Log environment variables
 console.log('SERVER DEBUG - Environment variables:');
-console.log('JWT_ACCESS_SECRET exists:', !!process.env.JWT_ACCESS_SECRET);
-console.log('JWT_REFRESH_SECRET exists:', !!process.env.JWT_REFRESH_SECRET);
-console.log('MONGO_URI exists:', !!process.env.MONGO_URI);
+console.log('NODE_ENV:', process.env.NODE_ENV || 'development');
 console.log('PORT:', process.env.PORT || 5000);
 
-// Check critical environment variables
+// Vérification des variables critiques
 if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
-  console.error('ERROR: JWT_ACCESS_SECRET and/or JWT_REFRESH_SECRET environment variables are not defined');
-  console.error('Please check your .env file or environment configuration');
-  process.exit(1); // Exit with error
+  console.error('ERROR: JWT secrets not defined');
+  process.exit(1);
 }
 
 if (!process.env.MONGO_URI) {
-  console.error('ERROR: MONGO_URI environment variable is not defined');
-  console.error('Please check your .env file or environment configuration');
-  process.exit(1); // Exit with error
+  console.error('ERROR: MONGO_URI not defined');
+  process.exit(1);
 }
 
-// Initialize Express app
+// Initialisation de l'application
 const app = express();
 
 // Middleware
-app.use(express.json({ limit: '5mb' }));
-app.use(cookieParser()); // Important for authentication cookies
+app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 app.use(passport.initialize());
 
-// Configure CORS properly with credentials support
-app.use(cors({
-  origin: "http://localhost:3000",
+// Configuration CORS
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? "https://votre-app-render.com" 
+    : "http://localhost:3000",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-}));
+};
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI!)
-  .then(() => console.log('Connected to MongoDB'))
+app.use(cors(corsOptions));
+console.log('CORS configured for:', corsOptions.origin);
+
+// Connexion MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000
+})
+  .then(() => console.log('✅ Connected to MongoDB'))
   .catch(err => {
-    console.error('MongoDB connection error:', err);
+    console.error('❌ MongoDB connection error:', err);
     process.exit(1);
   });
 
@@ -67,19 +69,20 @@ app.use('/api/todos', todoRoutes);
 app.use('/api/annotations', annotationRoutes);
 app.use('/api/invitations', invitationRoutes);
 app.use('/api/clash', clashRoutes);
-// Error handling middleware
-import { Request, Response, NextFunction } from "express";
 
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+// Gestion des erreurs
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ 
-    error: 'Server error', 
-    message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred' 
-  });
+  if (!res.headersSent) {
+    res.status(500).json({ 
+      error: 'Server error', 
+      message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred' 
+    });
+  }
 });
 
-// Start server
+// Démarrage du serveur
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

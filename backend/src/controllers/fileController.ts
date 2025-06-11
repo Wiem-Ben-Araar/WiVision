@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import {
   ref,
-  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
@@ -12,222 +12,167 @@ import Project from "../models/project";
 import User from "../models/user";
 import { v4 as uuidv4 } from "uuid";
 
-/**
- * Upload a file or multiple files to a project
- */
+// Fonction utilitaire pour gérer les erreurs de réponse
+const handleErrorResponse = (res: Response, status: number, error: string, details?: any) => {
+  if (!res.headersSent) {
+    res.status(status).json({ error, details });
+  } else {
+    console.error('Cannot send response, headers already sent:', { status, error, details });
+  }
+};
+
 export const uploadFiles = async (req: Request, res: Response) => {
   try {
-    // Check if user is authenticated (auth middleware should be applied)
     if (!req.user) {
-       res.status(401).json({ error: "Not authorized" });
+      return handleErrorResponse(res, 401, "Not authorized");
     }
 
-    // Use type assertion to tell TypeScript about the user shape
     const user = req.user as { email?: string };
-
-    // Get user email from token
     if (!user.email) {
-       res.status(401).json({ error: "User email not found in token" });
+      return handleErrorResponse(res, 401, "User email not found in token");
     }
 
-    // Extract data from the form
     const projectId = req.body.projectId;
-    if (!user.email) {
-       res.status(401).json({ error: "Unauthorized" });
-    }
-    const userEmail = user.email;
-    const files = req.files as Express.Multer.File[]; // You'll need to setup multer middleware
-
-    console.log(
-      "FormData received -> projectId:",
-      projectId,
-      "files count:",
-      files?.length,
-      "userEmail:",
-      userEmail
-    );
-
-    // Validate inputs
-    if (!files || files.length === 0) {
-      res.status(400).json({ error: "No file provided" });
-    }
-
     if (!projectId) {
-      res.status(400).json({ error: "ProjectId is required" });
+      return handleErrorResponse(res, 400, "ProjectId is required");
     }
 
-    // Find the project
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return handleErrorResponse(res, 400, "No file provided");
+    }
+
     const project = await Project.findById(projectId);
     if (!project) {
-      res.status(404).json({ error: `Project with ID ${projectId} not found` });
+      return handleErrorResponse(res, 404, `Project with ID ${projectId} not found`);
     }
 
-    // Try to find the user by email if provided
+    const userEmail = user.email;
     let userId = null;
-    if (userEmail) {
-      const user = await User.findOne({ email: userEmail });
-      if (user) {
-        userId = user._id;
-      }
-    }
+    const dbUser = await User.findOne({ email: userEmail });
+    if (dbUser) userId = dbUser._id;
 
     const downloadURLs = [];
     const fileMetadata = [];
     const newFileIds = [];
 
-    // Process each file
     for (const file of files) {
-      // Check if file is IFC format
       if (!file.originalname.toLowerCase().endsWith(".ifc")) {
-        res.status(400).json({ error: "All files must be in IFC format" });
+        return handleErrorResponse(res, 400, "All files must be in IFC format");
       }
 
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${file.originalname}`
+        .replace(/[^\w.]/g, "_")
+        .replace(/\s+/g, "_");
+      const storagePath = `projects/${projectId}/${fileName}`;
+      const storageRef = ref(storage, storagePath);
+
       try {
-        const timestamp = Date.now();
-        const fileName = `${timestamp}-${file.originalname}`
-          .replace(/[^\w.]/g, "_") // Sanitize filename
-          .replace(/\s+/g, "_");
-        const storagePath = `projects/${projectId}/${fileName}`;
+        // Métadonnées avec token d'accès
+        const metadata = {
+          contentType: "application/octet-stream",
+          customMetadata: {
+            firebaseStorageDownloadTokens: uuidv4(),
+          },
+        };
 
-        try {
-          // Create storage reference
-          const storageRef = ref(storage, `projects/${projectId}/${fileName}`);
+        // Upload avec gestion de progression et timeout augmenté
+        const uploadTask = uploadBytesResumable(storageRef, file.buffer, metadata);
+        
+        // Attendre la complétion avec timeout de 5 minutes
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            uploadTask.cancel();
+            reject(new Error("Upload timeout after 5 minutes"));
+          }, 300000); // 5 minutes
 
-          // Standard metadata for Firebase Storage
-          const metadata = {
-            contentType: "application/octet-stream",
-            customMetadata: {
-              firebaseStorageDownloadTokens: uuidv4(),
+          uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              console.log(`Upload ${fileName}: ${progress.toFixed(1)}%`);
             },
-          };
-
-          const snapshot = await Promise.race([
-            uploadBytes(storageRef, file.buffer, metadata),
-            new Promise((_, reject) => {
-              setTimeout(
-                () => reject(new Error("Upload timeout after 60s")),
-                60000
-              );
-            }),
-          ]);
-
-          // Get download URL
-          const downloadURL = await getDownloadURL(
-            (snapshot as import("firebase/storage").UploadResult).ref
-          );
-
-          if (downloadURL) {
-            downloadURLs.push(downloadURL);
-
-            // Create a new File document in MongoDB
-            const newFile = new File({
-              name: file.originalname,
-              file_url: downloadURL,
-              file_size: file.size,
-              fileType: file.originalname.toLowerCase().endsWith(".ifc")
-                ? "IFC"
-                : "other",
-
-              project: new mongoose.Types.ObjectId(projectId),
-              firebasePath: storagePath,
-              // Use the user ID if found, otherwise store the email as string
-              uploadedBy: userId || userEmail || "unknown",
-            });
-
-            // Save the file in MongoDB
-            await newFile.save();
-            console.log("File saved with ID:", newFile._id);
-
-            fileMetadata.push({
-              id: (newFile._id as mongoose.Types.ObjectId).toString(),
-              name: file.originalname,
-              url: downloadURL,
-            });
-
-            newFileIds.push(newFile._id);
-          } else {
-            console.error("Failed to get URL for", file.originalname);
-          }
-        } catch (firebaseError) {
-          console.error(
-            `Firebase upload error for ${fileName}:`,
-            firebaseError
-          );
-
-          // Check for specific Firebase errors
-          if (
-            typeof firebaseError === "object" &&
-            firebaseError !== null &&
-            "code" in firebaseError
-          ) {
-            const code = (firebaseError as { code: string }).code;
-            if (code === "storage/unauthorized") {
-              res.status(403).json({
-                error: "Firebase Storage permission denied",
-                details:
-                  "Your application doesn't have permission to access Firebase Storage",
-              });
-            } else if (code === "storage/unknown") {
-              // Handle possible connectivity issues
-              res.status(500).json({
-                error: "Firebase Storage connectivity issue",
-                details:
-                  "Could not connect to Firebase Storage. Check your project configuration.",
-              });
+            (error) => {
+              clearTimeout(timeout);
+              reject(error);
+            },
+            async () => {
+              clearTimeout(timeout);
+              resolve();
             }
-          }
-
-          throw firebaseError; // re-throw if not handled
-        }
-      } catch (fileError) {
-        console.error("Error processing file", file.originalname, fileError);
-        res.status(500).json({
-          error: "File upload failed",
-          details:
-            fileError instanceof Error ? fileError.message : String(fileError),
+          );
         });
-      }
-    }
 
-    // Update project with new files
-    if (newFileIds.length > 0) {
-      try {
-        const updatedProject = await Project.findByIdAndUpdate(
-          projectId,
-          { $push: { files: { $each: newFileIds } } },
-          { new: true }
-        ).populate("files");
+        const downloadURL = await getDownloadURL(storageRef);
 
-        if (!updatedProject) {
-          console.error(
-            `Project with ID ${projectId} not found during update.`
-          );
-        } else {
-          console.log(
-            "Project update completed. Files in project:",
-            updatedProject.files.length
-          );
+        const newFile = new File({
+          name: file.originalname,
+          file_url: downloadURL,
+          file_size: file.size,
+          fileType: "IFC",
+          project: new mongoose.Types.ObjectId(projectId),
+          firebasePath: storagePath,
+          uploadedBy: userId || userEmail,
+        });
+
+        await newFile.save();
+        console.log(`File saved: ${fileName} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+
+        fileMetadata.push({
+          id: (newFile._id as mongoose.Types.ObjectId).toString(),
+          name: file.originalname,
+          url: downloadURL,
+        });
+
+        newFileIds.push(newFile._id);
+        downloadURLs.push(downloadURL);
+
+      } catch (firebaseError) {
+        console.error(`Firebase upload error for ${fileName}:`, firebaseError);
+        
+        let errorMessage = "File upload failed";
+        let statusCode = 500;
+
+        if (firebaseError instanceof Error) {
+          if (firebaseError.message.includes("permission") || firebaseError.message.includes("unauthorized")) {
+            errorMessage = "Firebase Storage permission denied";
+            statusCode = 403;
+          } else if (firebaseError.message.includes("quota")) {
+            errorMessage = "Firebase Storage quota exceeded";
+            statusCode = 507;
+          }
         }
-      } catch (updateError) {
-        console.error("Error updating project with files:", updateError);
-        // Continue since files are already uploaded
+
+        return handleErrorResponse(
+          res, 
+          statusCode, 
+          errorMessage, 
+          firebaseError instanceof Error ? firebaseError.message : String(firebaseError)
+        );
       }
     }
 
-    res.status(200).json({
-      downloadURLs,
-      files: fileMetadata,
-      success: downloadURLs.length > 0,
-      message: `${downloadURLs.length} file(s) uploaded successfully`,
+    // Mise à jour du projet
+    await Project.findByIdAndUpdate(
+      projectId,
+      { $push: { files: { $each: newFileIds } } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `${files.length} file(s) uploaded successfully`,
+      files: fileMetadata
     });
+
   } catch (error) {
     console.error("Upload error:", error);
-    res
-      .status(500)
-      .json({
-        error: "Upload failed",
-        details: error instanceof Error ? error.message : String(error),
-      });
+    return handleErrorResponse(
+      res, 
+      500, 
+      "Upload failed", 
+      error instanceof Error ? error.message : String(error)
+    );
   }
 };
 

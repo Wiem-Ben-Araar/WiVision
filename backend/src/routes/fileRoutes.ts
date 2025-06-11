@@ -1,4 +1,3 @@
-// routes/fileRoutes.ts
 import express from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
@@ -11,15 +10,15 @@ import {
 
 const router = express.Router();
 
-// Configure multer for memory storage (we'll send to Firebase from memory)
-const storage = multer.memoryStorage();
+// Configuration optimisée pour la mémoire
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB max
-  });
-  
+  storage: multer.memoryStorage(),
+  limits: { 
+    fileSize: 50 * 1024 * 1024, // 50MB max
+    files: 2 // Max 2 fichiers par requête
+  }
+});
 
-// File routes
 router.post('/upload', authenticate, upload.array('file'), uploadFiles);
 router.get('/project/:id', authenticate, getProjectFiles);
 router.get('/:id', authenticate, getFileById);
