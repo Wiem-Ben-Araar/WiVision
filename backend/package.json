@@ -6,13 +6,13 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "start": "node dist/index.js",
+     "start": "chmod +x ./start.sh && ./start.sh",
     "postinstall": "npm run build",
     "emulator:start": "firebase emulators:start --only storage --import=./firebase-data --export-on-exit --project=wivision-1b106"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "ISC", 
   "description": "",
   "dependencies": {
     "@types/multer": "^1.4.12",
