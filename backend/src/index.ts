@@ -37,18 +37,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(passport.initialize());
 
-// Configuration CORS
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? "https://votre-app-render.com" 
-    : "http://localhost:3000",
+
+app.use(cors({
+  origin: "http://localhost:3000",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-};
-
-app.use(cors(corsOptions));
-console.log('CORS configured for:', corsOptions.origin);
+}));
 
 // Connexion MongoDB
 mongoose.connect(process.env.MONGO_URI, {
