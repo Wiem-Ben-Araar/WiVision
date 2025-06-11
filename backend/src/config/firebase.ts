@@ -13,17 +13,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
-
-// 🔥 CONDITION CRITIQUE : Émulateur SEULEMENT en développement
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    connectStorageEmulator(storage, "127.0.0.1", 9199);
-    console.log('🔥 Firebase Storage Emulator: ACTIF (Development)');
-  } catch (error) {
-    console.warn('⚠️ Émulateur déjà connecté ou erreur:', error);
-  }
+if (process.env.NODE_ENV === 'development') {
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
+  console.log('🔥 Firebase Storage Emulator: ACTIF');
 } else {
-  console.log('🚀 Firebase Storage: PRODUCTION MODE');
+  console.log('🔥 Firebase Storage: Production Mode');
 }
 
 export default storage;
