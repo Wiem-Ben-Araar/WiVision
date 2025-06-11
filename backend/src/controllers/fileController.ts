@@ -143,7 +143,7 @@ export const uploadFiles = async (req: Request, res: Response) => {
           }
         }
 
-        return handleErrorResponse(
+         handleErrorResponse(
           res, 
           statusCode, 
           errorMessage, 
@@ -159,7 +159,7 @@ export const uploadFiles = async (req: Request, res: Response) => {
       { new: true }
     );
 
-    return res.status(200).json({
+     res.status(200).json({
       success: true,
       message: `${files.length} file(s) uploaded successfully`,
       files: fileMetadata
@@ -167,7 +167,7 @@ export const uploadFiles = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error("Upload error:", error);
-    return handleErrorResponse(
+     handleErrorResponse(
       res, 
       500, 
       "Upload failed", 
@@ -225,7 +225,7 @@ export const getProjectFiles = async (req: Request, res: Response) => {
             console.error(`Error populating user for file ${file._id}:`, e);
           }
         }
-        return file;
+         file;
       })
     );
 
