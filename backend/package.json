@@ -7,8 +7,8 @@
     "build": "tsc",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
      "start": "chmod +x ./start.sh && ./start.sh",
-    "postinstall": "npm run build",
-    "emulator:start": "firebase emulators:start --only storage --import=./firebase-data --export-on-exit --project=wivision-1b106"
+    "postinstall": "npm run build"
+   
   },
   "keywords": [],
   "author": "",

@@ -3,9 +3,7 @@ import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.NODE_ENV === 'production' 
-    ? "wivision-1b106.firebaseapp.com" 
-    : "localhost",
+  authDomain: "localhost", // Toujours localhost pour l'émulateur
   projectId: "wivision-1b106",
   storageBucket: "wivision-1b106.appspot.com",
 };
@@ -13,8 +11,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
-// Toujours connecter à l'émulateur
+// Connexion à l'émulateur - TOUJOURS ACTIVE
 connectStorageEmulator(storage, "127.0.0.1", 9199);
-console.log('🔥 Firebase Storage Emulator: ACTIF');
+console.log('🔥 Firebase Storage Emulator: ACTIF (en mode production)');
 
 export default storage;
