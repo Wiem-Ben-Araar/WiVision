@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Installation de Java via SDKMAN (sans sudo)
+# Installation de Java via SDKMAN
 install_java() {
     echo "📦 Installation de Java via SDKMAN..."
 
@@ -24,8 +24,7 @@ install_java() {
     java -version
 }
 
-
-# Vérifier si Java est disponible
+# Vérifier et installer Java si nécessaire
 if ! command -v java &> /dev/null; then
     install_java
 fi
@@ -34,13 +33,31 @@ fi
 echo "☕ Version Java:"
 java -version
 
-# Démarrage de l'émulateur Firebase Storage
-echo "🚀 Démarrage de l'émulateur Firebase Storage..."
-npx firebase emulators:start --only storage --import=./firebase-data --export-on-exit --project=wivision-1b106 &
+# Créer les répertoires manquants
+echo "📂 Création des répertoires d'export..."
+mkdir -p ./firebase-data/storage_export/metadata
+mkdir -p ./firebase-data/storage_export/blobs
 
-# Attendre que l'émulateur soit prêt
-echo "⏳ Attente de 20 secondes pour que l'émulateur démarre..."
-sleep 20
+# Démarrer l'émulateur Firebase en mode détaché
+echo "🚀 Démarrage de l'émulateur Firebase Storage..."
+npx firebase emulators:start --only storage,ui --import=./firebase-data --export-on-exit --project=wivision-1b106 > firebase-emulator.log 2>&1 &
+
+# Attendre que l'UI soit accessible
+echo "⏳ Attente du démarrage de l'interface utilisateur..."
+counter=0
+max_wait=30
+
+while ! nc -z localhost 4000; do 
+  sleep 1
+  counter=$((counter+1))
+  if [ $counter -ge $max_wait ]; then
+    echo "❌ L'interface utilisateur n'a pas démarré dans le délai imparti"
+    cat firebase-emulator.log
+    break
+  fi
+done
+
+echo "✅ Interface utilisateur prête sur le port 4000"
 
 # Démarrer le serveur Express
 echo "🚀 Démarrage du serveur Express..."
