@@ -11,20 +11,34 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
-// Déterminer l'host en fonction de l'environnement
+// Déterminer l'environnement
 const isProduction = process.env.NODE_ENV === 'production';
-const storageHost = isProduction ? process.env.RENDER_EXTERNAL_URL || 'localhost' : 'localhost';
+const isRender = process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_URL;
 
-// Connexion à l'émulateur
-if (isProduction && process.env.RENDER_EXTERNAL_URL) {
-  // Sur Render, utiliser l'URL publique sans le protocole
-  const renderUrl = process.env.RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '');
-  connectStorageEmulator(storage, renderUrl, 9199);
-  console.log(`🔥 Firebase Storage Emulator: ACTIF sur ${renderUrl}:9199`);
-} else {
-  // En local
+console.log('🔧 Environment Debug:', {
+  NODE_ENV: process.env.NODE_ENV,
+  RENDER: process.env.RENDER,
+  RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL,
+  isProduction,
+  isRender
+});
+
+// IMPORTANT: Firebase Storage emulator MUST always connect to localhost
+// even in production environments like Render, because the emulator
+// runs in the same container as your application
+try {
   connectStorageEmulator(storage, "localhost", 9199);
-  console.log('🔥 Firebase Storage Emulator: ACTIF sur localhost:9199');
+  
+  if (isRender) {
+    console.log('🔥 Firebase Storage Emulator: ACTIF sur localhost:9199 (Render Production)');
+  } else if (isProduction) {
+    console.log('🔥 Firebase Storage Emulator: ACTIF sur localhost:9199 (Production)');
+  } else {
+    console.log('🔥 Firebase Storage Emulator: ACTIF sur localhost:9199 (Development)');
+  }
+} catch (error) {
+  console.error('❌ Erreur lors de la connexion à l\'émulateur Storage:', error);
+  console.log('⚠️ L\'application continuera avec Firebase Storage réel');
 }
 
 export default storage;
