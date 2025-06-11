@@ -3,26 +3,27 @@
 # Installation de Java via SDKMAN (sans sudo)
 install_java() {
     echo "📦 Installation de Java via SDKMAN..."
-    
-    # Installer SDKMAN si pas présent
+
     if [ ! -d "$HOME/.sdkman" ]; then
         curl -s "https://get.sdkman.io" | bash
-        source "$HOME/.sdkman/bin/sdkman-init.sh"
-    else
-        source "$HOME/.sdkman/bin/sdkman-init.sh"
     fi
-    
-    # Installer Java 11 si pas présent
+
+    source "$HOME/.sdkman/bin/sdkman-init.sh" || source "/opt/render/.sdkman/bin/sdkman-init.sh"
+
     if ! command -v java &> /dev/null; then
         echo "🔽 Téléchargement de Java 11..."
-        sdk install java 11.0.19-amzn
-        sdk use java 11.0.19-amzn
+        sdk install java 11.0.21-tem
+        sdk use java 11.0.21-tem
     fi
-    
-    # Exporter les variables d'environnement
+
     export JAVA_HOME="$HOME/.sdkman/candidates/java/current"
     export PATH="$JAVA_HOME/bin:$PATH"
+
+    echo "☕ Version Java:"
+    which java
+    java -version
 }
+
 
 # Vérifier si Java est disponible
 if ! command -v java &> /dev/null; then
