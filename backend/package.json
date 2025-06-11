@@ -6,9 +6,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-     "start": "chmod +x ./start.sh && ./start.sh",
-    "postinstall": "npm run build"
-   
+    "start": "chmod +x ./start.sh && ./start.sh",
+    "start:no-emulator": "node dist/index.js",
+    "start:with-emulator": "chmod +x ./start.sh && ./start.sh",
+    "postinstall": "npm run build",
+    "emulator:start": "npx firebase emulators:start --only storage",
+    "emulator:check": "java -version"
   },
   "keywords": [],
   "author": "",
@@ -65,5 +68,8 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
