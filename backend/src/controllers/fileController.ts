@@ -11,6 +11,7 @@ import File from "../models/file";
 import Project from "../models/project";
 import User from "../models/user";
 import { v4 as uuidv4 } from "uuid";
+
 /**
  * Upload a file or multiple files to a project
  */
@@ -18,7 +19,8 @@ export const uploadFiles = async (req: Request, res: Response) => {
   try {
     // Check if user is authenticated (auth middleware should be applied)
     if (!req.user) {
-       res.status(401).json({ error: "Not authorized" });
+      res.status(401).json({ error: "Not authorized" });
+      return;
     }
 
     // Use type assertion to tell TypeScript about the user shape
@@ -26,16 +28,14 @@ export const uploadFiles = async (req: Request, res: Response) => {
 
     // Get user email from token
     if (!user.email) {
-       res.status(401).json({ error: "User email not found in token" });
+      res.status(401).json({ error: "User email not found in token" });
+      return;
     }
 
     // Extract data from the form
     const projectId = req.body.projectId;
-    if (!user.email) {
-       res.status(401).json({ error: "Unauthorized" });
-    }
     const userEmail = user.email;
-    const files = req.files as Express.Multer.File[]; // You'll need to setup multer middleware
+    const files = req.files as Express.Multer.File[];
 
     console.log(
       "FormData received -> projectId:",
@@ -49,16 +49,19 @@ export const uploadFiles = async (req: Request, res: Response) => {
     // Validate inputs
     if (!files || files.length === 0) {
       res.status(400).json({ error: "No file provided" });
+      return;
     }
 
     if (!projectId) {
       res.status(400).json({ error: "ProjectId is required" });
+      return;
     }
 
     // Find the project
     const project = await Project.findById(projectId);
     if (!project) {
       res.status(404).json({ error: `Project with ID ${projectId} not found` });
+      return;
     }
 
     // Try to find the user by email if provided
@@ -73,123 +76,100 @@ export const uploadFiles = async (req: Request, res: Response) => {
     const downloadURLs = [];
     const fileMetadata = [];
     const newFileIds = [];
+    const errors = [];
 
     // Process each file
     for (const file of files) {
       // Check if file is IFC format
       if (!file.originalname.toLowerCase().endsWith(".ifc")) {
-        res.status(400).json({ error: "All files must be in IFC format" });
+        errors.push(`File ${file.originalname} is not in IFC format`);
+        continue;
       }
 
       try {
         const timestamp = Date.now();
-        const fileName = `${timestamp}-${file.originalname}`
+        const fileName = `${timestamp}_${file.originalname}`
           .replace(/[^\w.]/g, "_") // Sanitize filename
           .replace(/\s+/g, "_");
         const storagePath = `projects/${projectId}/${fileName}`;
 
-        try {
-          // Create storage reference
-          // In your uploadFiles function, modify the Firebase upload section
-          const storageRef = ref(storage, `projects/${projectId}/${fileName}`);
+        // Create storage reference
+        const storageRef = ref(storage, storagePath);
 
-          // Metadata CRUCIALE pour l'émulateur
-          const metadata = {
-            contentType: "application/octet-stream",
-            customMetadata: {
-              firebaseStorageDownloadTokens: uuidv4(),
-              emulator: "true", // Force le mode émulateur
-            },
-          };
+        // Metadata for Firebase
+        const metadata = {
+          contentType: "application/octet-stream",
+          customMetadata: {
+            firebaseStorageDownloadTokens: uuidv4(),
+            emulator: process.env.NODE_ENV !== 'production' ? "true" : "false",
+          },
+        };
 
-          const snapshot = await Promise.race([
-            uploadBytes(storageRef, file.buffer, metadata),
-            new Promise((_, reject) => {
-              setTimeout(
-                () => reject(new Error("Upload timeout after 60s")),
-                60000
-              );
-            }),
-          ]);
-          // Get download URL - no need for manual URL construction
-          const downloadURL = await getDownloadURL(
-            (snapshot as import("firebase/storage").UploadResult).ref
-          );
+        // Upload with timeout
+        const snapshot = await Promise.race([
+          uploadBytes(storageRef, file.buffer, metadata),
+          new Promise<never>((_, reject) => {
+            setTimeout(
+              () => reject(new Error("Upload timeout after 60s")),
+              60000
+            );
+          }),
+        ]);
 
-          if (downloadURL) {
-            downloadURLs.push(downloadURL);
+        // Get download URL
+        const downloadURL = await getDownloadURL(snapshot.ref);
 
-            // Create a new File document in MongoDB
-            const newFile = new File({
-              name: file.originalname,
-              file_url: downloadURL,
-              file_size: file.size,
-              fileType: file.originalname.toLowerCase().endsWith(".ifc")
-                ? "IFC"
-                : "other",
+        if (downloadURL) {
+          downloadURLs.push(downloadURL);
 
-              project: new mongoose.Types.ObjectId(projectId),
-              firebasePath: storagePath,
-              // Use the user ID if found, otherwise store the email as string
-              uploadedBy: userId || userEmail || "unknown",
-            });
+          // Create a new File document in MongoDB
+          const newFile = new File({
+            name: file.originalname,
+            file_url: downloadURL,
+            file_size: file.size,
+            fileType: "IFC",
+            project: new mongoose.Types.ObjectId(projectId),
+            firebasePath: storagePath,
+            uploadedBy: userId || userEmail || "unknown",
+          });
 
-            // Save the file in MongoDB
-            await newFile.save();
-            console.log("File saved with ID:", newFile._id);
+          // Save the file in MongoDB
+          await newFile.save();
+          console.log("File saved with ID:", newFile._id);
 
-            fileMetadata.push({
-              id: (newFile._id as mongoose.Types.ObjectId).toString(),
-              name: file.originalname,
-              url: downloadURL,
-            });
+          fileMetadata.push({
+            id: (newFile._id as mongoose.Types.ObjectId).toString(),
+            name: file.originalname,
+            url: downloadURL,
+            size: file.size,
+          });
 
-            newFileIds.push(newFile._id);
-          } else {
-            console.error("Failed to get URL for", file.originalname);
-          }
-        } catch (firebaseError) {
-          console.error(
-            `Firebase upload error for ${fileName}:`,
-            firebaseError
-          );
-
-          // Check for specific Firebase errors
-          if (
-            typeof firebaseError === "object" &&
-            firebaseError !== null &&
-            "code" in firebaseError
-          ) {
-            const code = (firebaseError as { code: string }).code;
-            if (code === "storage/unauthorized") {
-              res.status(403).json({
-                error: "Firebase Storage permission denied",
-                details:
-                  "Your application doesn't have permission to access Firebase Storage",
-              });
-            } else if (code === "storage/unknown") {
-              // Handle possible connectivity issues
-              res.status(500).json({
-                error: "Firebase Storage connectivity issue",
-                details:
-                  "Could not connect to Firebase Storage. Check your project configuration.",
-              });
-            }
-          }
-
-          throw firebaseError; // re-throw if not handled
+          newFileIds.push(newFile._id);
+        } else {
+          console.error("Failed to get URL for", file.originalname);
+          errors.push(`Failed to get download URL for ${file.originalname}`);
         }
       } catch (fileError) {
         console.error("Error processing file", file.originalname, fileError);
-        res.status(500).json({
-          error: "File upload failed",
-          details:
-            fileError instanceof Error ? fileError.message : String(fileError),
-        });
+        errors.push(`Error processing ${file.originalname}: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+        
+        // Handle specific Firebase errors
+        if (
+          typeof fileError === "object" &&
+          fileError !== null &&
+          "code" in fileError
+        ) {
+          const code = (fileError as { code: string }).code;
+          if (code === "storage/unauthorized") {
+            errors.push("Firebase Storage permission denied");
+          } else if (code === "storage/unknown") {
+            errors.push("Firebase Storage connectivity issue");
+          }
+        }
       }
     }
 
-    // Update project with new files
+    // Update project with new files if any were successfully uploaded
     if (newFileIds.length > 0) {
       try {
         const updatedProject = await Project.findByIdAndUpdate(
@@ -199,9 +179,7 @@ export const uploadFiles = async (req: Request, res: Response) => {
         ).populate("files");
 
         if (!updatedProject) {
-          console.error(
-            `Project with ID ${projectId} not found during update.`
-          );
+          console.error(`Project with ID ${projectId} not found during update.`);
         } else {
           console.log(
             "Project update completed. Files in project:",
@@ -210,24 +188,37 @@ export const uploadFiles = async (req: Request, res: Response) => {
         }
       } catch (updateError) {
         console.error("Error updating project with files:", updateError);
-        // Continue since files are already uploaded
+        errors.push("Failed to update project with new files");
       }
+    }
+
+    // Return response based on results
+    const successCount = downloadURLs.length;
+    const totalCount = files.length;
+
+    if (successCount === 0) {
+      res.status(400).json({
+        error: "No files were uploaded successfully",
+        errors: errors,
+        success: false,
+      });
+      return;
     }
 
     res.status(200).json({
       downloadURLs,
       files: fileMetadata,
-      success: downloadURLs.length > 0,
-      message: `${downloadURLs.length} file(s) uploaded successfully`,
+      success: true,
+      message: `${successCount}/${totalCount} file(s) uploaded successfully`,
+      errors: errors.length > 0 ? errors : undefined,
     });
+
   } catch (error) {
     console.error("Upload error:", error);
-    res
-      .status(500)
-      .json({
-        error: "Upload failed",
-        details: error instanceof Error ? error.message : String(error),
-      });
+    res.status(500).json({
+      error: "Upload failed",
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 
@@ -239,6 +230,7 @@ export const getProjectFiles = async (req: Request, res: Response) => {
     // Check if user is authenticated
     if (!req.user) {
       res.status(401).json({ error: "Not authorized" });
+      return;
     }
 
     // Extract project ID from params
@@ -246,16 +238,18 @@ export const getProjectFiles = async (req: Request, res: Response) => {
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({ error: "Invalid project ID" });
+      return;
     }
 
     // Find the project with populated files
     const project = await Project.findById(id).populate({
       path: "files",
-      select: "name file_url file_size uploadedBy firebasePath uploadedAt",
+      select: "name file_url file_size uploadedBy firebasePath uploadedAt fileType",
     });
 
     if (!project) {
       res.status(404).json({ error: "Project not found" });
+      return;
     }
 
     // Populate uploadedBy if it's an ObjectId
@@ -302,12 +296,14 @@ export const deleteFile = async (req: Request, res: Response) => {
     // Check if user is authenticated
     if (!req.user) {
       res.status(401).json({ error: "Not authorized" });
+      return;
     }
 
     const { fileId, projectId, firebasePath } = req.body;
 
     if (!fileId) {
       res.status(400).json({ error: "File ID is required" });
+      return;
     }
 
     // Check if this is a temporary ID (starts with "temp-")
@@ -324,8 +320,6 @@ export const deleteFile = async (req: Request, res: Response) => {
         }
       }
 
-      // For temporary IDs, we DON'T try to update the project in MongoDB
-      // since temp IDs aren't stored in the database
       res.status(200).json({
         success: true,
         message: "Temporary file deleted successfully",
@@ -334,28 +328,26 @@ export const deleteFile = async (req: Request, res: Response) => {
           firebasePath,
         },
       });
+      return;
     }
 
     // Regular MongoDB ObjectID handling
     const fileToDelete = await File.findById(fileId);
     if (!fileToDelete) {
       res.status(404).json({ error: "File not found" });
+      return;
     }
 
     // Check consistency between provided firebasePath and document
     if (
       firebasePath &&
-      fileToDelete &&
       fileToDelete.firebasePath !== firebasePath
     ) {
       console.warn("Provided Firebase path doesn't match the one in database");
     }
 
     // Use the Firebase path from the document if available
-    const pathToDelete =
-      fileToDelete && fileToDelete.firebasePath
-        ? fileToDelete.firebasePath
-        : firebasePath;
+    const pathToDelete = fileToDelete.firebasePath || firebasePath;
 
     // Delete from Firebase Storage
     if (pathToDelete) {
@@ -373,6 +365,7 @@ export const deleteFile = async (req: Request, res: Response) => {
     const deleteResult = await File.findByIdAndDelete(fileId);
     if (!deleteResult) {
       res.status(404).json({ error: "File already deleted" });
+      return;
     }
 
     // Remove reference from the project
@@ -382,7 +375,7 @@ export const deleteFile = async (req: Request, res: Response) => {
         { $pull: { files: new mongoose.Types.ObjectId(fileId) } },
         { new: true }
       );
-    } else if (fileToDelete && fileToDelete.project) {
+    } else if (fileToDelete.project) {
       // If projectId is not provided, use the one from the document
       await Project.findByIdAndUpdate(
         fileToDelete.project,
@@ -396,7 +389,7 @@ export const deleteFile = async (req: Request, res: Response) => {
       message: "File deleted successfully",
       deletedFile: {
         id: fileId,
-        name: fileToDelete ? fileToDelete.name : undefined,
+        name: fileToDelete.name,
         firebasePath: pathToDelete,
       },
     });
@@ -420,18 +413,21 @@ export const getFileById = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       res.status(401).json({ error: "Not authorized" });
+      return;
     }
 
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({ error: "Invalid file ID" });
+      return;
     }
 
     const file = await File.findById(id);
 
     if (!file) {
       res.status(404).json({ error: "File not found" });
+      return;
     }
 
     res.status(200).json(file);
