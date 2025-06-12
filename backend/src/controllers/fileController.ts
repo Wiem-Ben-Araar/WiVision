@@ -6,7 +6,7 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
-import storage, { firebaseConfig } from "../config/firebase";
+import storage from "../config/firebase";
 import File from "../models/file";
 import Project from "../models/project";
 import User from "../models/user";
