@@ -1,80 +1,150 @@
 import { initializeApp } from "firebase/app";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 
-// Configuration Firebase avec validation
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "wivision-1b106.firebaseapp.com",
-  projectId: process.env.FIREBASE_PROJECT_ID || "wivision-1b106",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "wivision-1b106.appspot.com",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
+  authDomain: "localhost",
+  projectId: "wivision-1b106",
+  storageBucket: "wivision-1b106.appspot.com",
 };
 
-console.log('🔧 Firebase Config Debug:', {
-  apiKey: firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 10)}...` : 'MISSING',
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket,
-  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
-  hasAppId: !!firebaseConfig.appId
-});
+// Enhanced logging function
+const logDebug = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] 🔧 FIREBASE DEBUG: ${message}`);
+  if (data) {
+    console.log(`[${timestamp}] 📊 DATA:`, JSON.stringify(data, null, 2));
+  }
+};
 
-// Vérifier les variables d'environnement critiques
-const requiredEnvVars = ['FIREBASE_API_KEY'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+const logError = (message: string, error?: any) => {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ FIREBASE ERROR: ${message}`);
+  if (error) {
+    console.error(`[${timestamp}] 🚨 ERROR DETAILS:`, {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      customData: error.customData
+    });
+  }
+};
 
-if (missingVars.length > 0) {
-  console.error('❌ Variables d\'environnement manquantes:', missingVars);
-  throw new Error(`Variables d'environnement manquantes: ${missingVars.join(', ')}`);
-}
+const logSuccess = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ✅ FIREBASE SUCCESS: ${message}`);
+  if (data) {
+    console.log(`[${timestamp}] 📈 SUCCESS DATA:`, data);
+  }
+};
 
-let app;
-let storage;
+// Initialize Firebase App
+logDebug("Initializing Firebase App", firebaseConfig);
+const app = initializeApp(firebaseConfig);
+logSuccess("Firebase App initialized");
 
-try {
-  console.log('🚀 Initialisation de Firebase...');
-  app = initializeApp(firebaseConfig);
-  console.log('✅ Firebase App initialisée avec succès');
-  
-  storage = getStorage(app);
-  console.log('✅ Firebase Storage initialisé avec succès');
-  console.log('📦 Storage configuré pour le bucket:', firebaseConfig.storageBucket);
-  
-} catch (error) {
-  console.error('❌ Erreur lors de l\'initialisation Firebase:', error);
-  throw error;
-}
+// Initialize Storage
+logDebug("Initializing Firebase Storage");
+const storage = getStorage(app);
+logSuccess("Firebase Storage initialized");
 
-// Déterminer l'environnement
+// Environment detection with detailed logging
 const isProduction = process.env.NODE_ENV === 'production';
 const isRender = process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_URL;
 const useEmulator = process.env.USE_FIREBASE_EMULATOR === 'true';
 
-console.log('🔧 Environment Debug:', {
+const envDebugInfo = {
   NODE_ENV: process.env.NODE_ENV,
   RENDER: process.env.RENDER,
   RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL,
   USE_FIREBASE_EMULATOR: process.env.USE_FIREBASE_EMULATOR,
+  FIREBASE_API_KEY: process.env.FIREBASE_API_KEY ? '***SET***' : 'NOT_SET',
   isProduction,
   isRender,
-  useEmulator
-});
+  useEmulator,
+  timestamp: new Date().toISOString()
+};
 
-// Connecter l'émulateur seulement en développement local
-if (useEmulator && !isProduction) {
+logDebug("Environment Analysis", envDebugInfo);
+
+// Firebase Storage Rules Check
+const checkStorageRules = () => {
+  logDebug("Firebase Storage Rules Reminder", {
+    message: "Ensure your storage.rules allow read/write access",
+    suggestedRules: `
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true; // For development only
+    }
+  }
+}`,
+    productionNote: "Use proper authentication rules in production"
+  });
+};
+
+// Emulator connection with enhanced error handling
+if (useEmulator) {
+  logDebug("Attempting to connect to Firebase Storage Emulator");
   try {
     connectStorageEmulator(storage, "localhost", 9199);
-    console.log('🔥 Firebase Storage Emulator: ACTIF sur localhost:9199');
+    logSuccess("Firebase Storage Emulator connected", {
+      host: "localhost",
+      port: 9199,
+      note: "Make sure emulator is running: firebase emulators:start"
+    });
   } catch (error) {
-    console.error('❌ Erreur émulateur Storage:', error);
-    console.log('⚠️ Basculement vers Firebase Storage réel');
+    logError("Failed to connect to Firebase Storage Emulator", error);
+    logDebug("Emulator Connection Troubleshooting", {
+      steps: [
+        "1. Check if Firebase emulator is running",
+        "2. Verify port 9199 is available",
+        "3. Check firebase.json configuration",
+        "4. Ensure firebaserc is properly configured"
+      ],
+      fallback: "Switching to production Firebase Storage"
+    });
   }
 } else {
-  console.log('🔥 Firebase Storage: Mode PRODUCTION');
-  console.log('📍 Bucket utilisé:', firebaseConfig.storageBucket);
+  logSuccess("Using Production Firebase Storage", {
+    bucket: firebaseConfig.storageBucket,
+    freeQuota: "5GB storage, 1GB/day download, 20K/day uploads",
+    billingNote: "Free tier should be sufficient for most use cases"
+  });
+  checkStorageRules();
 }
 
-// Export both storage and config for debugging
-export { firebaseConfig };
+// Storage configuration validation
+const validateStorageConfig = () => {
+  logDebug("Validating Storage Configuration");
+  
+  const validations = {
+    apiKey: !!process.env.FIREBASE_API_KEY,
+    projectId: !!firebaseConfig.projectId,
+    storageBucket: !!firebaseConfig.storageBucket,
+    bucketFormat: firebaseConfig.storageBucket?.includes('.appspot.com')
+  };
+  
+  logDebug("Configuration Validation Results", validations);
+  
+  const issues = [];
+  if (!validations.apiKey) issues.push("FIREBASE_API_KEY not set");
+  if (!validations.projectId) issues.push("Project ID missing");
+  if (!validations.storageBucket) issues.push("Storage bucket missing");
+  if (!validations.bucketFormat) issues.push("Storage bucket format incorrect");
+  
+  if (issues.length > 0) {
+    logError("Configuration Issues Found", { issues });
+  } else {
+    logSuccess("Configuration validation passed");
+  }
+  
+  return issues.length === 0;
+};
+
+// Run validation
+validateStorageConfig();
+
 export default storage;
+export { logDebug, logError, logSuccess };
