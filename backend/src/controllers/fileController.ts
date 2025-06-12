@@ -5,6 +5,7 @@ import File, { type IFile } from "../models/file"
 import Project from "../models/project"
 import User from "../models/user"
 import { v4 as uuidv4 } from "uuid"
+// import type { File as MulterFile } from "multer"
 
 // ✅ FONCTION POUR VÉRIFIER/CRÉER LE BUCKET
 const ensureBucketExists = async (): Promise<boolean> => {
@@ -46,6 +47,12 @@ const ensureBucketExists = async (): Promise<boolean> => {
 export const uploadFiles = async (req: Request, res: Response): Promise<void> => {
   const uploadId = uuidv4().substring(0, 8)
   console.log(`[${uploadId}] 🚀 Démarrage upload MULTIPLE vers Supabase`)
+
+  // ✅ AUGMENTER LE TIMEOUT DE LA REQUÊTE
+  // @ts-ignore - Ajouter un timeout plus long pour les gros fichiers
+  req.setTimeout(300000) // 5 minutes
+  // @ts-ignore - Augmenter aussi le timeout de la réponse
+  res.setTimeout(300000) // 5 minutes
 
   try {
     // ✅ VÉRIFIER QUE LE BUCKET EXISTE AVANT L'UPLOAD
@@ -239,7 +246,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
             coordinates: { x: 0, y: 0, z: 0 },
           },
           uploadedAt: new Date(),
-        }) as mongoose.Document & IFile & { _id: mongoose.Types.ObjectId }
+        } as IFile)
 
         await newFile.save()
         console.log(`[${fileId}] ✅ Sauvegarde MongoDB réussie: ${newFile._id}`)
@@ -247,7 +254,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         return {
           success: true,
           file: {
-            id: newFile._id.toString(),
+            id: (newFile._id as mongoose.Types.ObjectId).toString(),
             name: file.originalname,
             url: urlData.publicUrl,
             size: file.size,
@@ -275,11 +282,15 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
     results.forEach((result) => {
       if (result.success) {
         uploadResults.successful.push(result)
-        if (result.downloadUrl) {
+        if (typeof result.downloadUrl === "string") {
           uploadResults.downloadURLs.push(result.downloadUrl)
         }
         uploadResults.fileMetadata.push(result.file)
-        if (result.fileId && result.fileId instanceof mongoose.Types.ObjectId) {
+        if (
+          result.fileId &&
+          typeof result.fileId === "object" &&
+          result.fileId instanceof mongoose.Types.ObjectId
+        ) {
           uploadResults.newFileIds.push(result.fileId)
         }
       } else {

@@ -6,10 +6,10 @@ const storage = multer.memoryStorage()
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB par fichier
+    fileSize: 100 * 1024 * 1024, // ✅ 100MB par fichier (au lieu de 50MB)
     files: 10, // ✅ MAXIMUM 10 FICHIERS SIMULTANÉS
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req, file, cb: (error: any, acceptFile: boolean) => void) => {
     // Vérifier que c'est un fichier IFC
     if (file.originalname.toLowerCase().endsWith(".ifc")) {
       cb(null, true)
@@ -28,7 +28,7 @@ export const handleMulterError = (error: any, req: any, res: any, next: any) => 
     if (error.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         error: "Fichier trop volumineux",
-        details: "Taille maximum: 50MB par fichier",
+        details: "Taille maximum: 100MB par fichier",
       })
     }
     if (error.code === "LIMIT_FILE_COUNT") {

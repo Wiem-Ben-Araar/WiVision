@@ -229,34 +229,67 @@ export default function ProjectFiles({
     try {
       const formData = new FormData()
 
-      // ✅ AJOUTER TOUS LES FICHIERS SÉLECTIONNÉS
+      // Ajouter tous les fichiers sélectionnés
       selectedFiles.forEach((file, index) => {
-        formData.append("file", file) // Même nom de champ pour tous
+        formData.append("file", file)
         console.log(`📎 Ajout fichier ${index + 1}/${selectedFiles.length}: ${file.name}`)
       })
 
       formData.append("projectId", projectId)
 
-      console.log(`🚀 Upload de ${selectedFiles.length} fichier(s) vers Supabase Storage...`)
+      const totalSize = selectedFiles.reduce((total, file) => total + file.size, 0)
+      console.log(
+        `🚀 Upload de ${selectedFiles.length} fichier(s) vers Supabase Storage (${formatFileSize(totalSize)})...`,
+      )
 
-      // ✅ SIMULATION PROGRESS (optionnel)
+      // ✅ PROGRESSION PLUS RÉALISTE POUR GROS FICHIERS
+      // Progression plus lente pour les gros fichiers
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + 10, 90))
-      }, 200)
+        setUploadProgress((prev) => {
+          // Ralentir la progression à l'approche de 90%
+          if (prev >= 85) {
+            return Math.min(prev + 0.5, 90) // Très lent après 85%
+          } else if (prev >= 70) {
+            return Math.min(prev + 1, 85) // Lent après 70%
+          } else {
+            return Math.min(prev + 3, 70) // Plus rapide au début
+          }
+        })
+      }, 300)
 
-      const { data } = await axios.post(`${apiUrl}/files/upload`, formData, {
+      // ✅ TIMEOUT PLUS LONG POUR GROS FICHIERS
+      const timeoutMs = Math.max(60000, (totalSize / 1024) * 5) // 5ms par KB, minimum 60s
+
+      // Créer une promesse avec timeout
+      const uploadPromise = axios.post(`${apiUrl}/files/upload`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
         withCredentials: true,
+        timeout: timeoutMs, // Timeout adapté à la taille
       })
+
+      console.log(`⏱️ Timeout configuré: ${Math.round(timeoutMs / 1000)}s pour ${formatFileSize(totalSize)}`)
+
+      // Message de patience pour les gros fichiers
+      if (totalSize > 20 * 1024 * 1024) {
+        // Si plus de 20MB
+        setTimeout(() => {
+          if (uploading) {
+            console.log("⏳ Upload en cours, merci de patienter pour les gros fichiers...")
+            // Afficher un message dans l'UI si nécessaire
+          }
+        }, 15000) // Après 15 secondes
+      }
+
+      const { data } = await uploadPromise
 
       clearInterval(progressInterval)
       setUploadProgress(100)
 
       console.log("✅ Upload multiple réussi:", data)
 
-      // ✅ TRAITEMENT RÉSULTAT UPLOAD MULTIPLE
+      // Traitement résultat upload multiple
       const result: UploadResult = {
         success: data.success,
         message: data.message,
@@ -282,7 +315,7 @@ export default function ProjectFiles({
         })
       }
 
-      // ✅ FERMER LE DIALOG SEULEMENT SI TOUS LES FICHIERS ONT RÉUSSI
+      // Fermer le dialog seulement si tous les fichiers ont réussi
       if (result.stats.failed === 0) {
         setTimeout(() => {
           setUploadDialogOpen(false)
@@ -296,26 +329,32 @@ export default function ProjectFiles({
       let errorMessage = "Échec du téléchargement des fichiers."
 
       if (axios.isAxiosError(error)) {
-        const responseData = error.response?.data
-        if (responseData?.error) {
-          errorMessage = responseData.error
-        } else if (responseData?.errors && Array.isArray(responseData.errors)) {
-          errorMessage = responseData.errors.map((e: any) => `${e.fileName}: ${e.error}`).join(", ")
-        } else if (responseData?.message) {
-          errorMessage = responseData.message
-        }
+        // Gestion spécifique des timeouts
+        if (error.code === "ECONNABORTED") {
+          errorMessage = "L'upload a pris trop de temps. Essayez avec des fichiers plus petits ou moins nombreux."
+        } else {
+          const responseData = error.response?.data
+          if (responseData?.error) {
+            errorMessage = responseData.error
+          } else if (responseData?.errors && Array.isArray(responseData.errors)) {
+            errorMessage = responseData.errors.map((e: any) => `${e.fileName}: ${e.error}`).join(", ")
+          } else if (responseData?.message) {
+            errorMessage = responseData.message
+          }
 
-        if (errorMessage.includes("Bucket not found")) {
-          errorMessage = "Erreur de configuration Supabase. Contactez l'administrateur."
-        } else if (errorMessage.includes("row-level security")) {
-          errorMessage = "Permissions Supabase insuffisantes. Contactez l'administrateur."
+          if (errorMessage.includes("Bucket not found")) {
+            errorMessage = "Erreur de configuration Supabase. Contactez l'administrateur."
+          } else if (errorMessage.includes("row-level security")) {
+            errorMessage = "Permissions Supabase insuffisantes. Contactez l'administrateur."
+          }
         }
       }
 
       setError(errorMessage)
     } finally {
       setUploading(false)
-      setUploadProgress(0)
+      // Ne pas réinitialiser la progression pour montrer où ça a échoué
+      // setUploadProgress(0)
     }
   }
 
