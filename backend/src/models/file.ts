@@ -1,26 +1,25 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { type Document, Schema } from "mongoose"
 
 export interface IFile extends Document {
-  name: string;
-  file_url: string;
-  file_size: number;
-  fileType: "IFC" | "BCF" | "PDF" | "other";
-  project: mongoose.Types.ObjectId;
-  firebasePath?: string;
+  name: string
+  file_url: string
+  file_size: number
+  fileType: "IFC" | "BCF" | "PDF" | "other"
+  project: mongoose.Types.ObjectId
+  supabasePath?: string // ✅ SUPABASE au lieu de firebasePath
   ifcMetadata?: {
-    schema: string;
-    application: string;
-    creator: string;
-    timestamp: Date;
+    schema: string
+    application: string
+    creator: string
+    timestamp: Date
     coordinates: {
-      x: number;
-      y: number;
-      z: number;
-    };
-  };
-  uploadedAt: Date;
-
-  uploadedBy: mongoose.Types.ObjectId | string;
+      x: number
+      y: number
+      z: number
+    }
+  }
+  uploadedAt: Date
+  uploadedBy: mongoose.Types.ObjectId | string
 }
 
 const FileSchema: Schema = new mongoose.Schema({
@@ -38,14 +37,12 @@ const FileSchema: Schema = new mongoose.Schema({
     enum: ["IFC", "BCF", "PDF", "other"],
     default: "other",
   },
-
   project: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Project",
     required: true,
   },
-
-  firebasePath: String,
+  supabasePath: String, // ✅ SUPABASE PATH
   ifcMetadata: {
     schema: String,
     application: String,
@@ -61,13 +58,12 @@ const FileSchema: Schema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-
   uploadedBy: {
     type: Schema.Types.Mixed,
     ref: "User",
     required: true,
   },
-});
+})
 
-const FileModel = mongoose.model("File", FileSchema);
-export default FileModel;
+const FileModel = mongoose.model<IFile>("File", FileSchema)
+export default FileModel
