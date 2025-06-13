@@ -39,8 +39,8 @@ const initializeStorage = async (): Promise<void> => {
 
       const { data: newBucket, error: createError } = await supabase.storage.createBucket("ifc-files", {
         public: false, // Bucket privé pour sécurité
-        allowedMimeTypes: ["application/octet-stream", "application/ifc"],
-        fileSizeLimit: 50 * 1024 * 1024, // 50MB max par fichier
+ fileSizeLimit: 200 * 1024 * 1024, // 200MB
+    allowedMimeTypes: ["application/octet-stream", "application/ifc"]
       })
 
       if (createError) {
