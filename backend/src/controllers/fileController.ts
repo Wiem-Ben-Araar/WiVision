@@ -59,6 +59,7 @@ const ensureBucketExists = async (): Promise<boolean> => {
     console.error("❌ Erreur vérification bucket:", error.message)
     return false
   }
+  
 }
 
 // ✅ UPLOAD MULTIPLE AMÉLIORÉ

@@ -1,14 +1,19 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.SUPABASE_URL || ""
-const supabaseKey = process.env.SUPABASE_ANON_KEY || ""
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || ""; // ✅ Clé privée
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ SUPABASE_URL et SUPABASE_ANON_KEY requis !")
   console.error("📝 Va sur supabase.com créer un compte GRATUIT (pas de carte !)")
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false, // Important pour les environnements serveur
+    autoRefreshToken: false
+  }
+});
 
 // ✅ CRÉATION AUTOMATIQUE DU BUCKET AU DÉMARRAGE
 const initializeStorage = async (): Promise<void> => {

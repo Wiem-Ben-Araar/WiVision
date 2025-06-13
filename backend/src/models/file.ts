@@ -6,7 +6,7 @@ export interface IFile extends Document {
   file_size: number
   fileType: "IFC" | "BCF" | "PDF" | "other"
   project: mongoose.Types.ObjectId
-  supabasePath?: string // ✅ SUPABASE au lieu de firebasePath
+  supabasePath?: string 
   ifcMetadata?: {
     schema: string
     application: string
