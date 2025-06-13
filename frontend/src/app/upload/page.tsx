@@ -40,7 +40,7 @@ const UploadPage = () => {
       }
 
       // Send the request with credentials
-      const response = await axios.post(`${apiUrl}/files/upload`, formData, {
+      const response = await axios.post('/api/files/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true // Include cookies with the request
       });
