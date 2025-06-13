@@ -15,6 +15,7 @@ import {
   CuboidIcon,
   AlertTriangle,
   CheckCircle,
+  X,
 } from "lucide-react"
 import {
   Dialog,
@@ -26,11 +27,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/hooks/use-auth"
 import axios from "axios"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
 
 interface ProjectFile {
   id: string
@@ -46,11 +47,10 @@ interface ProjectFilesProps {
   projectId: string
   files: ProjectFile[]
   userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur"
-  onFileUpload?: (file: ProjectFile) => void
+  onFileUpload?: (files: ProjectFile[]) => void
   setFiles?: (files: ProjectFile[]) => void
 }
 
-// ✅ INTERFACE POUR RÉSULTATS UPLOAD MULTIPLE
 interface UploadResult {
   success: boolean
   message: string
@@ -80,12 +80,15 @@ export default function ProjectFiles({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [visualizerLoading, setVisualizerLoading] = useState(false)
 
-  const isBIMManager = userRole === "BIM Manager"
-  const isBIMCoordinateur = userRole === "BIM Coordinateur"
-  const isBIMModeleur = userRole === "BIM Modeleur"
+  const actualUserRole = user?.role || userRole
+  const isBIMManager = actualUserRole === "BIM Manager"
+  const isBIMCoordinateur = actualUserRole === "BIM Coordinateur"
+  const isBIMModeleur = actualUserRole === "BIM Modeleur"
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const currentUserEmail = user?.email
   const currentUserId = user?.id
+
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
@@ -94,14 +97,11 @@ export default function ProjectFiles({
   const [hasValidFiles, setHasValidFiles] = useState(false)
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
 
-  // ✅ NOUVEAUX ÉTATS POUR UPLOAD MULTIPLE
+  // États pour l'upload avec notification discrète
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
-  const [showUploadResult, setShowUploadResult] = useState(false)
-  // ✅ NOUVEL ÉTAT POUR MESSAGES DE PATIENCE
-  const [patienceMessage, setPatienceMessage] = useState<string | null>(null)
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false)
 
-  // Listen for external trigger to open upload dialog
   useEffect(() => {
     const uploadTrigger = document.getElementById("upload-file-trigger")
     if (uploadTrigger) {
@@ -121,7 +121,7 @@ export default function ProjectFiles({
       name: file.name,
       file_size: file.file_size,
       file_url: file.file_url,
-      supabasePath: file.supabasePath || file.firebasePath,
+      supabasePath: file.supabasePath,
       uploadedBy: file.uploadedBy?.toString(),
       uploadedByEmail: file.uploadedByEmail,
     }))
@@ -129,25 +129,11 @@ export default function ProjectFiles({
 
   const updateViewAllUrl = () => {
     const validFiles = projectFiles.filter((file) => isValidFileUrl(file.file_url))
-
-    const validUrls = validFiles.map((file) => {
-      let url = file.file_url
-
-      if (url.includes("supabase.co")) {
-        return url
-      }
-
-      if (url.includes("127.0.0.1:4001")) {
-        url = url.replace(/%252F/g, "%2F")
-      }
-
-      return url
-    })
-
-    const valid = validUrls.length > 0
+    const valid = validFiles.length > 0
     setHasValidFiles(valid)
 
     if (valid) {
+      const validUrls = validFiles.map((file) => file.file_url)
       sessionStorage.setItem(`valid_urls_${projectId}`, JSON.stringify(validUrls))
       sessionStorage.setItem(`current_project_id`, projectId)
 
@@ -162,17 +148,12 @@ export default function ProjectFiles({
 
   const handleVisualizerClick = (e: React.MouseEvent) => {
     if (!hasValidFiles) return
-
     setVisualizerLoading(true)
-
-    setTimeout(() => {
-      window.location.href = viewAllUrl
-    }, 500)
+    window.location.href = viewAllUrl
   }
 
   const canDeleteFile = (file: ProjectFile) => {
     if (userRole === "BIM Manager") return true
-
     const isUploader = file.uploadedBy === currentUserId || file.uploadedByEmail === currentUserEmail
     return isUploader
   }
@@ -198,16 +179,14 @@ export default function ProjectFiles({
 
       const updatedFiles = projectFiles.filter((file) => file.id !== fileToDelete.id)
       setProjectFiles(updatedFiles)
-      if (setParentFiles) {
-        setParentFiles(updatedFiles)
-      }
-
+      if (setParentFiles) setParentFiles(updatedFiles)
       updateViewAllUrl()
       setDeleteDialogOpen(false)
       setFileToDelete(null)
+
+      toast.success("Fichier supprimé avec succès")
     } catch (error) {
-      console.error("Error during deletion:", error)
-      setError("Échec de la suppression du fichier")
+      toast.error("Échec de la suppression du fichier")
     } finally {
       setLoading(false)
     }
@@ -218,104 +197,35 @@ export default function ProjectFiles({
     setProjectFiles(adaptedFiles)
   }, [projectId, files])
 
-  // ✅ FONCTION UPLOAD MULTIPLE AMÉLIORÉE AVEC CHUNKING
   const handleUpload = async () => {
-    if (selectedFiles.length === 0) return setError("Veuillez sélectionner des fichiers")
+    if (selectedFiles.length === 0) {
+      setError("Veuillez sélectionner des fichiers")
+      return
+    }
 
     setUploading(true)
     setError(null)
     setUploadProgress(0)
     setUploadResult(null)
-    setShowUploadResult(false)
-    setPatienceMessage(null)
 
     try {
       const formData = new FormData()
-
-      // Ajouter tous les fichiers sélectionnés
-      selectedFiles.forEach((file, index) => {
-        formData.append("file", file)
-        console.log(`📎 Ajout fichier ${index + 1}/${selectedFiles.length}: ${file.name}`)
-      })
-
+      selectedFiles.forEach((file) => formData.append("files", file))
       formData.append("projectId", projectId)
 
-      const totalSize = selectedFiles.reduce((total, file) => total + file.size, 0)
-      console.log(
-        `🚀 Upload de ${selectedFiles.length} fichier(s) vers Supabase Storage (${formatFileSize(totalSize)})...`,
-      )
-
-      // ✅ PROGRESSION PLUS RÉALISTE POUR GROS FICHIERS
-      // Progression plus lente pour les gros fichiers
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          // Ralentir la progression à l'approche de 90%
-          if (prev >= 85) {
-            return Math.min(prev + 0.2, 89) // Très lent après 85%
-          } else if (prev >= 70) {
-            return Math.min(prev + 0.5, 85) // Lent après 70%
-          } else {
-            return Math.min(prev + 2, 70) // Plus rapide au début
-          }
-        })
-      }, 300)
-
-      // ✅ MESSAGES DE PATIENCE POUR LES GROS FICHIERS
-      const patienceMessages = [
-        { time: 15000, message: "L'upload est en cours, merci de patienter..." },
-        { time: 30000, message: "Les gros fichiers peuvent prendre plusieurs minutes..." },
-        { time: 60000, message: "L'upload continue, ne fermez pas cette fenêtre..." },
-        { time: 120000, message: "Traitement en cours, cela peut prendre du temps pour les fichiers volumineux..." },
-      ]
-
-      // Configurer les messages de patience
-      const patienceTimers = patienceMessages.map((msg) => {
-        return setTimeout(() => {
-          if (uploading) {
-            console.log(`⏳ ${msg.message}`)
-            setPatienceMessage(msg.message)
-          }
-        }, msg.time)
-      })
-
-      // ✅ TIMEOUT PLUS LONG POUR GROS FICHIERS
-      // Minimum 2 minutes, puis 10ms par KB
-      const timeoutMs = Math.max(120000, (totalSize / 1024) * 10)
-
-      // ✅ CRÉER UNE INSTANCE AXIOS AVEC TIMEOUT PERSONNALISÉ
-      const axiosInstance = axios.create({
-        timeout: timeoutMs,
-      })
-
-      console.log(`⏱️ Timeout configuré: ${Math.round(timeoutMs / 1000)}s pour ${formatFileSize(totalSize)}`)
-
-      // ✅ UTILISER L'INSTANCE AXIOS AVEC TIMEOUT PERSONNALISÉ
-      const { data } = await axiosInstance.post(`${apiUrl}/files/upload`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const { data } = await axios.post(`${apiUrl}/files/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true,
         onUploadProgress: (progressEvent) => {
-          // Utiliser les événements de progression réels si disponibles
           if (progressEvent.total) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            // Limiter à 89% pour laisser la place au traitement côté serveur
-            const cappedProgress = Math.min(percentCompleted, 89)
-            setUploadProgress(cappedProgress)
-            console.log(`📊 Progression réelle: ${percentCompleted}%`)
+            setUploadProgress(percentCompleted)
           }
         },
       })
 
-      // Nettoyer les timers
-      clearInterval(progressInterval)
-      patienceTimers.forEach(clearTimeout)
-      setPatienceMessage(null)
       setUploadProgress(100)
 
-      console.log("✅ Upload multiple réussi:", data)
-
-      // Traitement résultat upload multiple
       const result: UploadResult = {
         success: data.success,
         message: data.message,
@@ -325,69 +235,55 @@ export default function ProjectFiles({
       }
 
       setUploadResult(result)
-      setShowUploadResult(true)
 
-      // Refresh files list
-      await fetchFiles()
-
-      // Notify parent component about successful uploads
-      if (onFileUpload && result.files && result.files.length > 0) {
-        result.files.forEach((file: ProjectFile) => {
-          onFileUpload({
-            ...file,
-            uploadedBy: currentUserId,
-            uploadedByEmail: currentUserEmail,
-          })
+      // Notification discrète avec toast
+      if (result.stats.failed === 0) {
+        toast.success(`${result.stats.successful} fichier(s) importé(s) avec succès`, {
+          description: "Les fichiers sont maintenant disponibles dans le projet",
+        })
+        setShowSuccessNotification(true)
+        setTimeout(() => setShowSuccessNotification(false), 4000)
+      } else {
+        toast.warning(`${result.stats.successful} fichier(s) importé(s), ${result.stats.failed} échec(s)`, {
+          description: "Certains fichiers n'ont pas pu être importés",
         })
       }
 
-      // Fermer le dialog seulement si tous les fichiers ont réussi
+      // Rafraîchir la liste
+      await fetchFiles()
+
+      // Notifier le parent
+      if (onFileUpload && result.files?.length > 0) {
+        onFileUpload(
+          result.files.map((file) => ({
+            ...file,
+            uploadedBy: currentUserId,
+            uploadedByEmail: currentUserEmail,
+          })),
+        )
+      }
+
+      // Fermer automatiquement si succès complet
       if (result.stats.failed === 0) {
         setTimeout(() => {
           setUploadDialogOpen(false)
           setSelectedFiles([])
-          setShowUploadResult(false)
-        }, 3000) // Fermer après 3 secondes
+          setUploadResult(null)
+        }, 2000)
       }
     } catch (error) {
-      console.error("Upload failed:", error)
-
-      let errorMessage = "Échec du téléchargement des fichiers."
+      let errorMessage = "Échec de l'importation des fichiers"
 
       if (axios.isAxiosError(error)) {
-        // Gestion spécifique des timeouts
-        if (error.code === "ECONNABORTED") {
-          errorMessage = "L'upload a pris trop de temps. Nous allons essayer une méthode alternative."
-
-          // ✅ PROPOSER DE RÉESSAYER AVEC CHUNKING
-          setError(errorMessage)
-          setPatienceMessage(
-            "Essayez de diviser le fichier en parties plus petites ou utilisez un outil de compression IFC.",
-          )
-          return
-        } else {
-          const responseData = error.response?.data
-          if (responseData?.error) {
-            errorMessage = responseData.error
-          } else if (responseData?.errors && Array.isArray(responseData.errors)) {
-            errorMessage = responseData.errors.map((e: any) => `${e.fileName}: ${e.error}`).join(", ")
-          } else if (responseData?.message) {
-            errorMessage = responseData.message
-          }
-
-          if (errorMessage.includes("Bucket not found")) {
-            errorMessage = "Erreur de configuration Supabase. Contactez l'administrateur."
-          } else if (errorMessage.includes("row-level security")) {
-            errorMessage = "Permissions Supabase insuffisantes. Contactez l'administrateur."
-          }
-        }
+        const responseData = error.response?.data
+        if (responseData?.error) errorMessage = responseData.error
+        else if (responseData?.errors) errorMessage = responseData.errors.map((e: any) => e.error).join(", ")
       }
 
       setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setUploading(false)
-      // Ne pas réinitialiser la progression pour montrer où ça a échoué
-      // setUploadProgress(0)
     }
   }
 
@@ -400,45 +296,38 @@ export default function ProjectFiles({
           setHasValidFiles(true)
           const urlStr = JSON.stringify(validUrls)
           setViewAllUrl(`/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`)
-          sessionStorage.setItem(`current_project_id`, projectId)
         }
       } catch (e) {
-        console.error("Error retrieving URLs:", e)
+        // Gestion silencieuse des erreurs de parsing
       }
     }
   }, [projectId])
 
   useEffect(() => {
-    if (projectFiles.length > 0) {
-      updateViewAllUrl()
-    }
+    if (projectFiles.length > 0) updateViewAllUrl()
   }, [projectFiles])
 
   function formatFileSize(size: number): string {
-    if (!size) return "0 B"
-    if (size < 1024) return `${size} B`
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`
-    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(2)} MB`
-    return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`
+    if (!size) return "0 o"
+    const units = ["o", "Ko", "Mo", "Go"]
+    let unitIndex = 0
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024
+      unitIndex++
+    }
+    return `${size.toFixed(2)} ${units[unitIndex]}`
   }
 
   const fetchFiles = async () => {
     try {
-      console.log("🔄 Récupération fichiers depuis Supabase...")
       const { data } = await axios.get(`${apiUrl}/projects/${projectId}/files`, {
         withCredentials: true,
       })
-      console.log("✅ Fichiers récupérés:", data.length)
-
       const adaptedFiles = adaptFiles(data)
       setProjectFiles(adaptedFiles)
-      if (setParentFiles) {
-        setParentFiles(adaptedFiles)
-      }
-      return data
+      if (setParentFiles) setParentFiles(adaptedFiles)
     } catch (error) {
-      console.error("Loading error:", error)
-      return []
+      // Gestion silencieuse des erreurs de récupération
     }
   }
 
@@ -449,200 +338,185 @@ export default function ProjectFiles({
   const truncateFileName = (fileName: string, maxLength = 35) => {
     if (!fileName) return "Sans nom"
     if (fileName.length <= maxLength) return fileName
-
     const extension = fileName.split(".").pop() || ""
     const nameWithoutExt = fileName.substring(0, fileName.length - extension.length - 1)
-
-    if (nameWithoutExt.length <= maxLength - 3 - extension.length) {
-      return fileName
-    }
-
-    return `${nameWithoutExt.substring(0, maxLength - 3 - extension.length)}...${extension ? `.${extension}` : ""}`
+    const truncated = nameWithoutExt.substring(0, maxLength - 3 - extension.length)
+    return `${truncated}...${extension ? `.${extension}` : ""}`
   }
 
   const extractUsername = (email?: string) => {
     if (!email) return "Inconnu"
-
-    if (email.includes("@")) {
-      return email.split("@")[0]
-    }
-
-    if (typeof email === "string" && /^[0-9a-f]{24}$/.test(email)) {
-      return `Utilisateur ${email.slice(0, 5)}`
-    }
-
+    if (email.includes("@")) return email.split("@")[0]
+    if (/^[0-9a-f]{24}$/.test(email)) return `Utilisateur ${email.slice(0, 5)}`
     return email
+  }
+
+  const handleDownloadClick = (file: ProjectFile) => {
+    if (file.file_url) {
+      window.open(file.file_url, "_blank")
+    } else {
+      toast.error("URL du fichier non disponible")
+    }
   }
 
   return (
     <div className="p-4 sm:p-6">
+      {/* Notification de succès discrète */}
+      <AnimatePresence>
+        {showSuccessNotification && uploadResult && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -50, scale: 0.9 }}
+            className="fixed top-4 right-4 z-50 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-lg max-w-sm"
+          >
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200">Importation réussie</p>
+                <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+                  {uploadResult.stats.successful} fichier(s) ajouté(s) au projet
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSuccessNotification(false)}
+                className="text-green-400 hover:text-green-600 dark:text-green-500 dark:hover:text-green-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
         <h2 className="font-semibold text-[#005CA9] dark:text-blue-400 flex items-center gap-2">
           <FileBox className="h-5 w-5" />
-          Fichiers du projet (Supabase Storage)
+          Fichiers du projet
         </h2>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="flex items-center gap-2 border-gray-300 dark:border-gray-700 dark:text-gray-300"
+            className="flex items-center gap-2 border-gray-300 dark:border-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             onClick={handleVisualizerClick}
             disabled={!hasValidFiles || visualizerLoading}
           >
             {visualizerLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-[#005CA9] dark:text-blue-400" />
-                Chargement...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin text-[#005CA9] dark:text-blue-400" />
             ) : (
-              <>
-                <CuboidIcon className="h-4 w-4 text-[#005CA9] dark:text-blue-400" />
-                Visualiser
-              </>
+              <CuboidIcon className="h-4 w-4 text-[#005CA9] dark:text-blue-400" />
             )}
+            Visualiser
           </Button>
 
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2">
-                <Download className="h-4 w-4" />
-                Upload Multiple
+                <Upload className="h-4 w-4" />
+                Importer des fichiers
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg dark:bg-gray-900 dark:border-gray-800">
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold text-[#005CA9] dark:text-blue-400">
-                  Upload Multiple vers Supabase Storage
+                  Importer des fichiers IFC
                 </DialogTitle>
+                <DialogDescription className="text-gray-600 dark:text-gray-300">
+                  Sélectionnez un ou plusieurs fichiers IFC à ajouter au projet
+                </DialogDescription>
               </DialogHeader>
+
               <div className="space-y-4 mt-2">
                 {error && (
-                  <Alert className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      <AlertDescription>
-                        <span className="text-red-600 dark:text-red-400">{error}</span>
-                      </AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                {/* ✅ MESSAGE DE PATIENCE */}
-                {patienceMessage && (
-                  <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-                      <AlertDescription>
-                        <span className="text-blue-600 dark:text-blue-400">{patienceMessage}</span>
-                      </AlertDescription>
-                    </div>
-                  </Alert>
-                )}
-
-                {/* ✅ RÉSULTAT UPLOAD MULTIPLE */}
-                {showUploadResult && uploadResult && (
-                  <Alert
-                    className={
-                      uploadResult.stats.failed === 0
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                        : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                    }
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-center gap-2"
                   >
-                    <div className="flex items-start gap-2">
-                      {uploadResult.stats.failed === 0 ? (
-                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5" />
-                      ) : (
-                        <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                      )}
-                      <div className="flex-1">
-                        <AlertDescription>
-                          <div
-                            className={
-                              uploadResult.stats.failed === 0
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-yellow-600 dark:text-yellow-400"
-                            }
-                          >
-                            <strong>{uploadResult.message}</strong>
-                          </div>
-                          <div className="mt-2 text-sm">
-                            <div>✅ Réussis: {uploadResult.stats.successful}</div>
-                            {uploadResult.stats.failed > 0 && <div>❌ Échoués: {uploadResult.stats.failed}</div>}
-                            <div>📊 Taux de réussite: {uploadResult.stats.successRate}%</div>
-                          </div>
-                          {uploadResult.errors && uploadResult.errors.length > 0 && (
-                            <div className="mt-2 text-sm">
-                              <div className="font-medium">Erreurs:</div>
-                              {uploadResult.errors.map((error, index) => (
-                                <div key={index} className="text-red-600 dark:text-red-400">
-                                  • {error.fileName}: {error.error}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </AlertDescription>
-                      </div>
-                    </div>
-                  </Alert>
+                    <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
+                  </motion.div>
                 )}
 
-                <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
+                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <Input
                     type="file"
                     accept=".ifc"
-                    multiple // ✅ PERMETTRE SÉLECTION MULTIPLE
+                    multiple
                     onChange={(e) => {
-                      const files = e.target.files ? Array.from(e.target.files) : []
-                      setSelectedFiles(files)
+                      setSelectedFiles(e.target.files ? Array.from(e.target.files) : [])
                       setError(null)
-                      setShowUploadResult(false)
-                      setPatienceMessage(null)
                     }}
                     className="cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                     disabled={uploading}
                   />
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    Formats acceptés : .ifc (sélectionnez plusieurs fichiers avec Ctrl/Cmd)
-                    <br />
-                    <span className="text-green-600 dark:text-green-400">
-                      ✅ Supabase Storage (1GB gratuit, max 10 fichiers simultanés)
-                    </span>
-                    <br />
-                    <span className="text-amber-600 dark:text-amber-400">
-                      ⚠️ Pour les fichiers volumineux (&gt;50MB), l'upload peut prendre plusieurs minutes
-                    </span>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
+                    <p>Formats acceptés : .ifc</p>
+                    <p className="text-xs">Maximum 20 fichiers simultanés</p>
                   </div>
                 </div>
 
-                {/* ✅ PROGRESS BAR POUR UPLOAD */}
                 {uploading && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Upload en cours...</span>
-                      <span>{uploadProgress}%</span>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
+                      <span>Importation en cours...</span>
+                      <span className="font-medium">{uploadProgress}%</span>
                     </div>
-                    <Progress value={uploadProgress} className="w-full" />
-                  </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </motion.div>
                 )}
 
-                {/* ✅ LISTE DES FICHIERS SÉLECTIONNÉS */}
-                {selectedFiles.length > 0 && (
-                  <div className="text-sm text-gray-700 dark:text-gray-300">
-                    <div className="font-medium mb-2">
-                      {selectedFiles.length} fichier(s) sélectionné(s) (
-                      {formatFileSize(selectedFiles.reduce((total, file) => total + file.size, 0))})
+                {selectedFiles.length > 0 && !uploading && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+                  >
+                    <div className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                      {selectedFiles.length} fichier(s) sélectionné(s)
+                    </div>
+                    <div className="text-xs text-blue-600 dark:text-blue-300 mb-3">
+                      Taille totale : {formatFileSize(selectedFiles.reduce((total, file) => total + file.size, 0))}
                     </div>
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {selectedFiles.map((file, index) => (
                         <div
-                          key={`selected-file-${index}`}
-                          className="flex justify-between items-center text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded"
+                          key={index}
+                          className="flex justify-between items-center text-xs bg-white dark:bg-gray-800 p-2 rounded border"
                         >
-                          <span className="truncate flex-1 mr-2">{file.name}</span>
-                          <span className="text-gray-500">{formatFileSize(file.size)}</span>
+                          <span className="truncate flex-1 mr-2 text-gray-700 dark:text-gray-300">{file.name}</span>
+                          <span className="text-gray-500 dark:text-gray-400">{formatFileSize(file.size)}</span>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
+                )}
+
+                {uploadResult && uploadResult.stats.failed > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-yellow-800 dark:text-yellow-200">Importation partielle</p>
+                        <p className="text-yellow-700 dark:text-yellow-300 mt-1">
+                          {uploadResult.stats.successful} réussis, {uploadResult.stats.failed} échoués
+                        </p>
+                        {uploadResult.errors && uploadResult.errors.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {uploadResult.errors.map((error, index) => (
+                              <div key={index} className="text-xs text-yellow-600 dark:text-yellow-400">
+                                • {error.fileName}: {error.error}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -651,16 +525,15 @@ export default function ProjectFiles({
                     onClick={() => {
                       setUploadDialogOpen(false)
                       setSelectedFiles([])
-                      setShowUploadResult(false)
+                      setUploadResult(null)
                       setError(null)
-                      setPatienceMessage(null)
                     }}
                     disabled={uploading}
                     className="dark:border-gray-700 dark:text-gray-300"
                   >
-                    {showUploadResult && uploadResult?.stats.failed === 0 ? "Fermer" : "Annuler"}
+                    {uploadResult && uploadResult.stats.failed === 0 ? "Fermer" : "Annuler"}
                   </Button>
-                  {(!showUploadResult || (uploadResult && uploadResult.stats.failed > 0)) && (
+                  {(!uploadResult || uploadResult.stats.failed > 0) && (
                     <Button
                       onClick={handleUpload}
                       disabled={uploading || selectedFiles.length === 0}
@@ -669,10 +542,10 @@ export default function ProjectFiles({
                       {uploading ? (
                         <div className="flex items-center">
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          <span>Upload {selectedFiles.length} fichier(s)...</span>
+                          <span>Importation...</span>
                         </div>
                       ) : (
-                        `Upload ${selectedFiles.length} fichier(s)`
+                        `Importer ${selectedFiles.length} fichier(s)`
                       )}
                     </Button>
                   )}
@@ -683,7 +556,6 @@ export default function ProjectFiles({
         </div>
       </div>
 
-      {/* Boîte de dialogue de confirmation de suppression */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md dark:bg-gray-900 dark:border-gray-800">
           <DialogHeader>
@@ -692,10 +564,9 @@ export default function ProjectFiles({
               Confirmer la suppression
             </DialogTitle>
             <DialogDescription className="text-gray-600 dark:text-gray-300 pt-2">
-              Êtes-vous sûr de vouloir supprimer le fichier <span className="font-medium">{fileToDelete?.name}</span> ?
-              <span className="block mt-2 text-red-500 dark:text-red-400 text-sm">
-                Cette action supprimera le fichier de Supabase Storage et est irréversible.
-              </span>
+              Êtes-vous sûr de vouloir supprimer le fichier{" "}
+              <span className="font-medium text-gray-900 dark:text-gray-100">"{fileToDelete?.name}"</span> ?
+              <span className="block mt-2 text-red-500 dark:text-red-400 text-sm">Cette action est irréversible.</span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex justify-end gap-2 pt-4">
@@ -721,7 +592,7 @@ export default function ProjectFiles({
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer de Supabase
+                  Supprimer
                 </>
               )}
             </Button>
@@ -730,19 +601,21 @@ export default function ProjectFiles({
       </Dialog>
 
       {projectFiles.length === 0 ? (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="p-8 text-center border-gray-200 dark:border-gray-800 dark:bg-gray-900">
-            <FileBox className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
-            <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-gray-200">Aucun fichier importé</h3>
-            <div className="text-gray-500 dark:text-gray-400 mb-4">
-              Importez des fichiers IFC vers Supabase Storage pour commencer
+            <div className="bg-blue-50 dark:bg-blue-900/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileBox className="h-8 w-8 text-[#005CA9] dark:text-blue-400" />
             </div>
+            <h3 className="text-lg font-medium mb-2 text-gray-800 dark:text-gray-200">Aucun fichier importé</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Importez des fichiers IFC pour commencer à travailler sur votre projet
+            </p>
             <Button
               onClick={() => setUploadDialogOpen(true)}
               className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 gap-2"
             >
               <Upload className="h-4 w-4" />
-              Upload Multiple
+              Importer des fichiers
             </Button>
           </Card>
         </motion.div>
@@ -754,43 +627,34 @@ export default function ProjectFiles({
             const displayName = truncateFileName(file.name)
             const username = file.uploadedByEmail
               ? extractUsername(file.uploadedByEmail)
-              : file.uploadedBy
-                ? extractUsername(file.uploadedBy)
-                : "Inconnu"
+              : extractUsername(file.uploadedBy)
 
             return (
               <motion.div
                 key={file.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                transition={{ delay: index * 0.05 }}
               >
-                <Card className="p-4 border-gray-200 dark:border-gray-800 dark:bg-gray-900 hover:shadow-md transition-shadow">
+                <Card className="p-4 hover:shadow-md transition-all duration-200 border-gray-200 dark:border-gray-800 dark:bg-gray-900">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center">
+                    <div className="flex items-center flex-1">
                       <div className="bg-blue-50 dark:bg-blue-900/30 p-2 rounded-lg mr-3 flex-shrink-0">
                         <FileBox className="h-5 w-5 text-[#005CA9] dark:text-blue-400" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3
-                          className="font-medium text-sm break-words whitespace-normal max-w-xs text-gray-800 dark:text-gray-200"
+                          className="font-medium text-sm break-words text-gray-800 dark:text-gray-200"
                           title={file.name}
                         >
                           {displayName}
                         </h3>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                           {formatFileSize(file.file_size || 0)}
                         </div>
-
-                        {(file.uploadedByEmail || file.uploadedBy) && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            Créé par <span className="font-medium">{username}</span>
-                          </div>
-                        )}
-
-                        {file.supabasePath && (
-                          <div className="text-xs text-green-600 dark:text-green-400 mt-1">📦 Supabase Storage</div>
-                        )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Créé par <span className="font-medium">{username}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -799,12 +663,12 @@ export default function ProjectFiles({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 border-gray-300 dark:border-gray-700 dark:text-gray-300"
-                      onClick={() => window.open(file.file_url)}
-                      disabled={!validUrl || isBIMModeleur}
+                      className="flex-1 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={() => handleDownloadClick(file)}
+                      disabled={isBIMModeleur}
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      {validUrl ? "Télécharger" : "Téléchargement indisponible"}
+                      Télécharger
                     </Button>
 
                     {canDelete && (
@@ -812,7 +676,7 @@ export default function ProjectFiles({
                         onClick={() => openDeleteDialog(file)}
                         variant="destructive"
                         size="sm"
-                        className="ml-2 bg-red-500 hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
+                        className="bg-red-500 hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

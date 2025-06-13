@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation"
 
 import CameraControls from "camera-controls"
 import SectionTool from "@/components/SectionTool"
-import { MeasurementTool } from "@/components/MeasurementTool"
+import { MeasurementTool, Measurement } from "@/components/MeasurementTool"
 import { AnnotationSystem } from "@/components/AnnotationSystem"
 import { getTodosCount, isActiveTool, TodoManager, toggleTodoPanel } from "@/components/TodoManager"
 import { useAuth } from "@/hooks/use-auth"
@@ -41,15 +41,16 @@ import { LoadingProgress } from "@/components/LoadingProgress"
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
 type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
-interface Measurement {
-  id: string
-  type: MeasurementMode // Ajoutez ce champ
-  lines: THREE.Line[] // Au lieu d'un seul line
-  points: THREE.Vector3[]
-  distance?: number
-  angle?: number
-  labels: CSS2DObject[]
-}
+// Use Measurement type from MeasurementTool to avoid type conflicts
+// interface Measurement {
+//   id: string
+//   type: MeasurementMode // Ajoutez ce champ
+//   lines: THREE.Line[] // Au lieu d'un seul line
+//   points: THREE.Vector3[]
+//   distance?: number
+//   angle?: number
+//   labels: CSS2DObject[]
+// }
 
 interface LoadedModel {
   id: number
@@ -79,7 +80,7 @@ const isBIMModeleur = userRole === "BIM Modeleur"
   const [activeStyle, setActiveStyle] = useState<ViewStyle | null>(null)
   const [loadedModels, setLoadedModels] = useState<LoadedModel[]>([])
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null) as React.RefObject<HTMLDivElement>
   const viewerRef = useRef<IfcViewerAPI | null>(null)
 
   const [loading, setLoading] = useState(false)
@@ -252,7 +253,7 @@ useEffect(() => {
       const renderer = viewer.context.getRenderer()
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
       renderer.outputColorSpace = THREE.SRGBColorSpace
-      renderer.physicallyCorrectLights = true
+      // renderer.physicallyCorrectLights = true // Removed: property does not exist in recent three.js
       renderer.shadowMap.enabled = true
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
       
@@ -354,10 +355,7 @@ useEffect(() => {
               }))
             }, 200)
 
-            const model = await viewer.IFC.loadIfcUrl(url, {
-              applyMaterials: true,
-              coerceMaterials: false,
-            })
+            const model = await viewer.IFC.loadIfcUrl(url)
 
             // Arrêter la simulation de progression
             clearInterval(progressInterval)
@@ -416,7 +414,7 @@ useEffect(() => {
             const bbox = new THREE.Box3()
 
             scene.traverse((object) => {
-              if (object.isMesh && object.geometry) {
+              if (object instanceof THREE.Mesh && object.geometry) {
                 bbox.expandByObject(object)
               }
             })
@@ -433,9 +431,12 @@ useEffect(() => {
             const maxDim = Math.max(size.x, size.y, size.z)
 
             const camera = viewer.context.getCamera()
-            camera.near = Math.max(0.1, maxDim * 0.001)
-            camera.far = Math.max(1000, maxDim * 10)
-            camera.updateProjectionMatrix()
+            // Cast to PerspectiveCamera to access near/far properties
+            if (camera instanceof THREE.PerspectiveCamera) {
+              camera.near = Math.max(0.1, maxDim * 0.001)
+              camera.far = Math.max(1000, maxDim * 10)
+              camera.updateProjectionMatrix()
+            }
 
             const cameraOffsetX = center.x + maxDim
             const cameraOffsetY = center.y + maxDim * 0.5
@@ -509,16 +510,15 @@ useEffect(() => {
     const controls = viewer.context.ifcCamera.cameraControls
 
     // Paramètres avancés pour une navigation fluide
-    controls.smoothTime = 0.25
+    // controls.smoothTime = 0.25 // Removed: property does not exist in CameraControls
     controls.maxDistance = 1000
     controls.minDistance = 0.1
     controls.infinityDolly = false
     controls.dollyToCursor = true
     controls.dollySpeed = 1.0
     controls.truckSpeed = 2.0
-    controls.rotateSpeed = 1.0
 
-    // Configuration des touches
+    // Configuration des touchesy
     controls.mouseButtons = {
       left: CameraControls.ACTION.TRUCK,
       middle: CameraControls.ACTION.DOLLY,
@@ -594,7 +594,7 @@ useEffect(() => {
           // Vérifier les méthodes disponibles
           console.log(
             "Méthodes disponibles dans viewer:",
-            Object.keys(viewer).filter((key) => typeof viewer[key] === "function"),
+            Object.keys(viewer).filter((key) => typeof (viewer as any)[key] === "function"),
           )
 
           // Tentative de sélection avec différentes approches
@@ -609,15 +609,13 @@ useEffect(() => {
           }
 
           // Méthode alternative de ray casting
-          if (viewer.context && viewer.context.castRay) {
-            console.log("Tentative de ray casting")
-            try {
-              const result = viewer.context.castRay(x, y)
-              console.log("Résultat du ray casting:", result)
-            } catch (rayError) {
-              console.error("Erreur de ray casting:", rayError)
-            }
-          }
+          // Note: viewer.context.castRay expects an array of objects, not Vector2.
+          // If you want to perform raycasting, use THREE.Raycaster directly or use viewer.IFC.selector.pickIfcItem().
+          // Example (commented out):
+          // const raycaster = new THREE.Raycaster();
+          // raycaster.setFromCamera({ x, y }, viewer.context.getCamera());
+          // const intersects = raycaster.intersectObjects(viewer.context.getScene().children, true);
+          // console.log("Résultat du ray casting:", intersects);
         } catch (error) {
           console.error("Erreur globale lors de la sélection:", error)
         }
@@ -683,7 +681,7 @@ useEffect(() => {
     const scene = viewer.context.getScene()
 
     const bbox = new THREE.Box3()
-    viewer.IFC.loader.ifcManager.state.models.forEach((model: any) => {
+    Object.values(viewer.IFC.loader.ifcManager.state.models).forEach((model: any) => {
       if (model.mesh) {
         model.mesh.updateMatrixWorld(true)
         const modelBBox = new THREE.Box3().setFromObject(model.mesh)
@@ -734,7 +732,7 @@ useEffect(() => {
 
     controls.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true)
 
-    controls.update(true)
+    controls.update(0)
     viewer.context.getRenderer().render(scene, viewer.context.getCamera())
   }
 
@@ -768,9 +766,8 @@ useEffect(() => {
     controls.maxDistance = 1000
     controls.minDistance = 0.1
 
-    // Activer le damping
-    controls.enableDamping = true
-    controls.dampingInertia = 0.95
+    // Activer le damping (déjà activé par défaut dans CameraControls)
+    // controls.dampingInertia = 0.95
 
     // Configurer le renderer pour de meilleures performances
     const renderer = viewer.context.getRenderer()
@@ -935,10 +932,10 @@ useEffect(() => {
     if (!viewerRef.current) return
 
     const scene = viewerRef.current.context.getScene()
-    const renderer = viewerRef.current.context.getRenderer("css2d")
+    const renderer = viewerRef.current.context.getRenderer()
 
     // Nettoyage en une seule passe
-    const toRemove = []
+    const toRemove: (THREE.Object3D | CSS2DObject)[] = []
 
     scene.traverse((object) => {
       if (object instanceof THREE.Line || object instanceof CSS2DObject) {
@@ -1291,7 +1288,6 @@ useEffect(() => {
 
         <TodoManager
           viewerRef={viewerRef}
-          user={user}
           toast={toast}
           activeTool={activeTool}
           setActiveTool={setActiveTool}
@@ -1300,10 +1296,9 @@ useEffect(() => {
         <AnnotationSystem
           viewerRef={viewerRef}
           containerRef={containerRef}
-          activeTool={activeTool}
-          camera={camera}
+          activeTool={activeTool ?? ""}
+          camera={camera ?? undefined}
           controls={controls}
-          user={user}
           projectId={projectId}
         />
 
@@ -1311,7 +1306,7 @@ useEffect(() => {
         {activeTool === "hide" && <ModelList />}
         {error && (
           <Alert className="absolute bottom-4 left-4 w-auto z-10 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
-            <AlertDescription className="text-red-600 dark:text-red-400">{error}</AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
       </div>

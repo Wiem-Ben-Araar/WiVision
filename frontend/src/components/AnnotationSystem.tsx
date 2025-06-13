@@ -2,45 +2,49 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Cloud, ArrowRight, Type, MessageSquare, Trash, ArrowBigUp } from "lucide-react"
+import { Cloud, Type, MessageSquare, Trash, ArrowBigUp } from "lucide-react"
 import * as THREE from "three"
+// @ts-ignore
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer"
 import type React from "react"
 import { useAuth } from "@/hooks/use-auth"
+import api from "@/lib/axios-config"
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
 // Styles restent identiques...
 const annotationStyles = {
   cloud: {
-    color: 0xFF0000,
+    color: 0xff0000,
     opacity: 0.15,
     segments: 64,
     radius: 0.45,
     outline: {
-      color: 0xCC0000,
+      color: 0xcc0000,
       opacity: 0.9,
-      width: 2.5
-    }
+      width: 2.5,
+    },
   },
 
   arrow: {
-    color: 0xFF0000,
+    color: 0xff0000,
     opacity: 1.0,
     headLength: 0.4,
     headWidth: 0.3,
     shaftRadius: 0.08,
-    length: 1.5
+    length: 1.5,
   },
   text: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: '10px 14px',
-    borderRadius: '4px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-    fontSize: '14px',
-    fontFamily: 'Segoe UI, Arial, sans-serif',
-    borderLeft: '4px solid #FF5733',
-    maxWidth: '250px'
-  }
-};
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    padding: "10px 14px",
+    borderRadius: "4px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+    fontSize: "14px",
+    fontFamily: "Segoe UI, Arial, sans-serif",
+    borderLeft: "4px solid #FF5733",
+    maxWidth: "250px",
+  },
+}
 
 // Types étendus pour inclure les données IFC
 interface BaseAnnotation {
@@ -48,7 +52,7 @@ interface BaseAnnotation {
   date: Date
   viewpoint: {
     position: [number, number, number]
-    target: [number, number, number]  
+    target: [number, number, number]
     up: [number, number, number]
   }
   // NOUVEAU: Données d'ancrage IFC
@@ -75,13 +79,13 @@ interface TextAnnotation extends BaseAnnotation {
   position: THREE.Vector3
 }
 
-export type Comment = (CloudAnnotation | ArrowAnnotation | TextAnnotation) & { 
-  id: string; 
-  author: string;
-  title: string;
-  description?: string;
-  createdAt: Date;
-  modifiedAt: Date;
+export type Comment = (CloudAnnotation | ArrowAnnotation | TextAnnotation) & {
+  id: string
+  author: string
+  title: string
+  description?: string
+  createdAt: Date
+  modifiedAt: Date
 }
 
 // Utilitaires pour gérer l'ancrage IFC
@@ -94,15 +98,17 @@ class IFCAnchorManager {
   }
 
   // Trouver l'élément IFC le plus proche d'une position
-  async findNearestIFCElement(worldPosition: THREE.Vector3): Promise<{modelId: number, expressId: number, element: any} | null> {
+  async findNearestIFCElement(
+    worldPosition: THREE.Vector3,
+  ): Promise<{ modelId: number; expressId: number; element: any } | null> {
     try {
       if (!this.viewer?.IFC?.loader?.ifcManager) return null
 
       const ifcManager = this.viewer.IFC.loader.ifcManager
       const models = ifcManager.state.models || []
-      
+
       let nearestElement = null
-      let minDistance = Infinity
+      let minDistance = Number.POSITIVE_INFINITY
 
       for (const model of models) {
         if (!model.mesh) continue
@@ -111,13 +117,13 @@ class IFCAnchorManager {
         const raycaster = new THREE.Raycaster()
         const direction = new THREE.Vector3(0, -1, 0) // Raycast vers le bas
         raycaster.set(worldPosition, direction)
-        
+
         const intersects = raycaster.intersectObject(model.mesh, true)
-        
+
         if (intersects.length > 0) {
           const intersection = intersects[0]
           const distance = worldPosition.distanceTo(intersection.point)
-          
+
           if (distance < minDistance) {
             // Récupérer l'ID de l'élément IFC
             const expressId = ifcManager.getExpressId(model.mesh.geometry, intersection.faceIndex)
@@ -127,7 +133,6 @@ class IFCAnchorManager {
                 modelId: model.modelID,
                 expressId: expressId,
                 element: intersection.object,
-                intersectionPoint: intersection.point
               }
             }
           }
@@ -144,14 +149,14 @@ class IFCAnchorManager {
   // Calculer la position locale par rapport à l'élément IFC
   calculateLocalPosition(worldPosition: THREE.Vector3, ifcElement: any): THREE.Vector3 {
     const localPosition = new THREE.Vector3()
-    
+
     if (ifcElement && ifcElement.matrixWorld) {
       const inverseMatrix = new THREE.Matrix4().copy(ifcElement.matrixWorld).invert()
       localPosition.copy(worldPosition).applyMatrix4(inverseMatrix)
     } else {
       localPosition.copy(worldPosition)
     }
-    
+
     return localPosition
   }
 
@@ -162,14 +167,14 @@ class IFCAnchorManager {
 
       const ifcManager = this.viewer.IFC.loader.ifcManager
       const model = ifcManager.state.models.find((m: any) => m.modelID === modelId)
-      
+
       if (!model?.mesh) return null
 
       // Pour une implémentation complète, il faudrait récupérer l'élément spécifique
       // et appliquer sa matrice de transformation
       const worldPosition = new THREE.Vector3()
       worldPosition.copy(localPosition).applyMatrix4(model.mesh.matrixWorld)
-      
+
       return worldPosition
     } catch (error) {
       console.error("Erreur lors du calcul de la position mondiale:", error)
@@ -181,7 +186,7 @@ class IFCAnchorManager {
   updateAnchoredPositions() {
     this.anchors.forEach((anchorData, annotationId) => {
       const { localPosition, modelId, expressId, annotationObject } = anchorData
-      
+
       const newWorldPosition = this.calculateWorldPosition(localPosition, modelId, expressId)
       if (newWorldPosition && annotationObject) {
         annotationObject.position.copy(newWorldPosition)
@@ -250,7 +255,7 @@ export function CommentPanel({
   setCommentPosition,
   onSubmit,
   onDeleteAll,
-  userInfo
+  userInfo,
 }: CommentPanelProps) {
   if (!isActive) return null
 
@@ -310,11 +315,7 @@ export function CommentPanel({
           </Button>
         )}
 
-        <Button 
-          variant="destructive" 
-          className="w-full" 
-          onClick={onDeleteAll}
-        >
+        <Button variant="destructive" className="w-full" onClick={onDeleteAll}>
           <Trash className="mr-2 h-4 w-4" />
           Supprimer tous les commentaires
         </Button>
@@ -338,7 +339,7 @@ function getCameraDirection(camera: THREE.Camera, controls?: any): THREE.Vector3
     direction.subVectors(controls.target, camera.position)
     return direction.normalize()
   }
-  
+
   if (controls) {
     const possibleTargets = [
       controls.target0,
@@ -347,9 +348,13 @@ function getCameraDirection(camera: THREE.Camera, controls?: any): THREE.Vector3
       controls._target,
       controls.getTarget?.(),
     ]
-    
+
     for (const target of possibleTargets) {
-      if (target && (target instanceof THREE.Vector3 || (target.x !== undefined && target.y !== undefined && target.z !== undefined))) {
+      if (
+        target &&
+        (target instanceof THREE.Vector3 ||
+          (target.x !== undefined && target.y !== undefined && target.z !== undefined))
+      ) {
         const direction = new THREE.Vector3()
         const targetVec = target instanceof THREE.Vector3 ? target : new THREE.Vector3(target.x, target.y, target.z)
         direction.subVectors(targetVec, camera.position)
@@ -357,7 +362,7 @@ function getCameraDirection(camera: THREE.Camera, controls?: any): THREE.Vector3
       }
     }
   }
-  
+
   const direction = new THREE.Vector3(0, 0, -1)
   direction.applyQuaternion(camera.quaternion)
   return direction.normalize()
@@ -377,10 +382,10 @@ export function AnnotationSystem({
   const [commentText, setCommentText] = useState<string>("")
   const [commentPosition, setCommentPosition] = useState<THREE.Vector3 | null>(null)
   const [annotationObjects, setAnnotationObjects] = useState<THREE.Object3D[]>([])
-  
+
   const [previewObject, setPreviewObject] = useState<THREE.Object3D | null>(null)
   const previewRef = useRef<THREE.Object3D | null>(null)
-  
+
   // NOUVEAU: Gestionnaire d'ancrage IFC
   const anchorManagerRef = useRef<IFCAnchorManager | null>(null)
   const css2DRendererRef = useRef<CSS2DRenderer | null>(null)
@@ -389,19 +394,19 @@ export function AnnotationSystem({
   useEffect(() => {
     if (viewerRef.current) {
       anchorManagerRef.current = new IFCAnchorManager(viewerRef.current)
-      
+
       // Initialiser le renderer CSS2D pour les annotations texte
       if (containerRef.current && !css2DRendererRef.current) {
         const css2DRenderer = new CSS2DRenderer()
         css2DRenderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
-        css2DRenderer.domElement.style.position = 'absolute'
-        css2DRenderer.domElement.style.top = '0px'
-        css2DRenderer.domElement.style.pointerEvents = 'none'
+        css2DRenderer.domElement.style.position = "absolute"
+        css2DRenderer.domElement.style.top = "0px"
+        css2DRenderer.domElement.style.pointerEvents = "none"
         containerRef.current.appendChild(css2DRenderer.domElement)
         css2DRendererRef.current = css2DRenderer
       }
     }
-    
+
     return () => {
       if (css2DRendererRef.current && containerRef.current) {
         containerRef.current.removeChild(css2DRendererRef.current.domElement)
@@ -417,9 +422,9 @@ export function AnnotationSystem({
     const animate = () => {
       if (css2DRendererRef.current && camera) {
         const scene = getSafeScene()
-if (css2DRendererRef.current && camera && scene) {
-  css2DRendererRef.current.render(scene, camera)
-}
+        if (css2DRendererRef.current && camera && scene) {
+          css2DRendererRef.current.render(scene, camera)
+        }
       }
       requestAnimationFrame(animate)
     }
@@ -432,7 +437,7 @@ if (css2DRendererRef.current && camera && scene) {
         userId: user.userId,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
       })
     }
   }, [user])
@@ -453,19 +458,16 @@ if (css2DRendererRef.current && camera && scene) {
     const points = []
     const radius = annotationStyles.cloud.radius
     const numPoints = 36
-    
+
     for (let i = 0; i < numPoints; i++) {
       const angle = (i / numPoints) * Math.PI * 2
       const variance = radius * (0.15 + 0.15 * Math.sin(i * 3))
-      
-      points.push(new THREE.Vector2(
-        Math.cos(angle) * (radius + variance),
-        Math.sin(angle) * (radius + variance)
-      ))
+
+      points.push(new THREE.Vector2(Math.cos(angle) * (radius + variance), Math.sin(angle) * (radius + variance)))
     }
-    
+
     shape.moveTo(points[0].x, points[0].y)
-    
+
     for (let i = 1; i < points.length; i++) {
       const currentPoint = points[i]
       const prevPoint = points[(i - 1) % points.length]
@@ -473,24 +475,24 @@ if (css2DRendererRef.current && camera && scene) {
       const cpY = (prevPoint.y + currentPoint.y) / 2
       shape.quadraticCurveTo(cpX, cpY, currentPoint.x, currentPoint.y)
     }
-    
+
     shape.closePath()
-    
+
     const points3D = shape.getPoints(annotationStyles.cloud.segments * 2)
     const geometry = new THREE.BufferGeometry().setFromPoints(points3D)
-    
+
     const material = new THREE.LineBasicMaterial({
       color: annotationStyles.cloud.color,
       linewidth: annotationStyles.cloud.outline.width,
       opacity: 1.0,
-      transparent: false
+      transparent: false,
     })
-    
+
     const outlineMesh = new THREE.Line(geometry, material)
     cloudGroup.add(outlineMesh)
     cloudGroup.rotation.z = Math.random() * Math.PI * 0.25
     cloudGroup.userData = { isCloud: true }
-    
+
     return cloudGroup
   }
 
@@ -500,34 +502,34 @@ if (css2DRendererRef.current && camera && scene) {
     const color = annotationStyles.arrow.color
     const headLength = annotationStyles.arrow.headLength * length
     const headWidth = annotationStyles.arrow.headWidth * length
-    
+
     const direction = new THREE.Vector3(0, 1, 0)
     direction.normalize()
-    
+
     const arrowHelper = new THREE.ArrowHelper(
       direction,
       new THREE.Vector3(0, 0, 0),
       length,
       color,
       headLength,
-      headWidth
+      headWidth,
     )
-    
+
     const lineMaterial = arrowHelper.line.material as THREE.LineBasicMaterial
     lineMaterial.linewidth = 2
-    
+
     arrowGroup.add(arrowHelper)
     arrowGroup.userData = { isArrow: true }
-    
+
     return arrowGroup
   }
 
   // FONCTION CORRIGÉE pour les annotations texte
   const createTextMarker = (text: string) => {
-    const container = document.createElement('div')
-    container.className = 'annotation-text'
-    
-    const content = document.createElement('div')
+    const container = document.createElement("div")
+    container.className = "annotation-text"
+
+    const content = document.createElement("div")
     content.style.cssText = `
       position: relative;
       background: ${annotationStyles.text.backgroundColor};
@@ -543,12 +545,12 @@ if (css2DRendererRef.current && camera && scene) {
       cursor: default;
       transform: translate(0%, 0%);
     `
-    
-    const textBody = document.createElement('div')
+
+    const textBody = document.createElement("div")
     textBody.style.cssText = `line-height: 1.4;`
-    textBody.textContent = (text && text.trim()) ? text.trim() : ""
-    
-    const triangle = document.createElement('div')
+    textBody.textContent = text && text.trim() ? text.trim() : ""
+
+    const triangle = document.createElement("div")
     triangle.style.cssText = `
       position: absolute;
       bottom: -8px;
@@ -560,23 +562,23 @@ if (css2DRendererRef.current && camera && scene) {
       border-right: 8px solid transparent;
       border-top: 8px solid ${annotationStyles.text.backgroundColor};
     `
-    
+
     content.appendChild(textBody)
     content.appendChild(triangle)
     container.appendChild(content)
-    
+
     const label = new CSS2DObject(container)
-    label.userData = { 
-      isCSS2DObject: true, 
+    label.userData = {
+      isCSS2DObject: true,
       isTextAnnotation: true,
       // AJOUT CRUCIAL: fonction de nettoyage
       cleanup: () => {
         if (container.parentNode) {
           container.parentNode.removeChild(container)
         }
-      }
+      },
     }
-    
+
     return label
   }
 
@@ -588,138 +590,138 @@ if (css2DRendererRef.current && camera && scene) {
       anchorManagerRef.current?.updateAnchoredPositions()
       requestAnimationFrame(updatePositions)
     }
-    
+
     const animationId = requestAnimationFrame(updatePositions)
     return () => cancelAnimationFrame(animationId)
   }, [])
 
   useEffect(() => {
     if (!camera) return
-    
+
     const scene = getSafeScene()
     if (!scene) return
-    
+
     const updateBillboards = () => {
-      scene.traverse((object) => {
+      scene.traverse((object: THREE.Object3D) => {
         if (object.userData && object.userData.isCloud) {
           object.quaternion.copy(camera.quaternion)
         }
       })
     }
-    
+
     const animateId = requestAnimationFrame(function animate() {
       updateBillboards()
       requestAnimationFrame(animate)
     })
-    
+
     return () => cancelAnimationFrame(animateId)
   }, [camera])
 
-  // CHARGEMENT INITIAL avec support de l'ancrage
+  // CHARGEMENT INITIAL avec support de l'ancrage - MODIFIÉ POUR AXIOS
   useEffect(() => {
     const fetchComments = async () => {
-      if (!projectId || activeTool !== "comment") return;
-      
-      try {
-        console.log("Chargement des annotations pour le projet:", projectId);
-        
-        // 1. NETTOYER LA SCÈNE D'ABORD
-        const scene = getSafeScene();
-        if (scene) {
-          annotationObjects.forEach(obj => {
-            scene.remove(obj);
-            if (obj.userData?.cleanup) {
-              obj.userData.cleanup();
-            }
-          });
-        }
-        
-        // 2. Reset des états
-        setAnnotationObjects([]);
-        setComments([]);
-        anchorManagerRef.current?.clearAll();
+      if (!projectId || activeTool !== "comment") return
 
-        // 3. Récupérer depuis la DB
-        const response = await fetch(`/api/annotations?projectId=${projectId}`);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      try {
+        console.log("Chargement des annotations pour le projet:", projectId)
+
+        // 1. NETTOYER LA SCÈNE D'ABORD
+        const scene = getSafeScene()
+        if (scene) {
+          annotationObjects.forEach((obj) => {
+            scene.remove(obj)
+            if (obj.userData?.cleanup) {
+              obj.userData.cleanup()
+            }
+          })
         }
-        
-        const data = await response.json();
-        console.log("Annotations chargées depuis la DB:", data);
-        
+
+        // 2. Reset des états
+        setAnnotationObjects([])
+        setComments([])
+        anchorManagerRef.current?.clearAll()
+
+        // 3. Récupérer depuis la DB avec axios
+        const response = await api.get(`${apiUrl}/annotations`, {
+          params: { projectId },
+        })
+
+        const data = response.data
+        console.log("Annotations chargées depuis la DB:", data)
+
         // 4. Créer les objets 3D avec ancrage
         if (scene && Array.isArray(data) && data.length > 0) {
           const newAnnotationObjects = []
-          
+
           for (const comment of data) {
             if (!comment || !comment.position) continue
-            
+
             const annotation = createAnnotationObject(comment)
             scene.add(annotation)
             newAnnotationObjects.push(annotation)
-            
+
             // Si l'annotation a des données d'ancrage, les restaurer
             if (comment.ifcAnchor && anchorManagerRef.current) {
               anchorManagerRef.current.registerAnchor(comment.id, {
                 localPosition: new THREE.Vector3(
                   comment.ifcAnchor.localPosition.x,
                   comment.ifcAnchor.localPosition.y,
-                  comment.ifcAnchor.localPosition.z
+                  comment.ifcAnchor.localPosition.z,
                 ),
                 modelId: comment.ifcAnchor.modelId,
                 expressId: comment.ifcAnchor.expressId,
-                annotationObject: annotation
+                annotationObject: annotation,
               })
             }
           }
 
-          setComments(data);
-          setAnnotationObjects(newAnnotationObjects);
-          console.log("Objets 3D créés:", newAnnotationObjects.length);
+          setComments(data)
+          setAnnotationObjects(newAnnotationObjects)
+          console.log("Objets 3D créés:", newAnnotationObjects.length)
         } else {
-          console.log("Aucune annotation à afficher");
+          console.log("Aucune annotation à afficher")
         }
       } catch (error) {
-        console.error("Erreur de chargement des annotations:", error);
-        setComments([]);
-        setAnnotationObjects([]);
+        console.error("Erreur de chargement des annotations:", error)
+        setComments([])
+        setAnnotationObjects([])
       }
-    };
+    }
 
-    fetchComments();
-  }, [projectId, activeTool]);
+    fetchComments()
+  }, [projectId, activeTool])
 
   const createAnnotationObject = (comment: Comment) => {
     const group = new THREE.Group()
 
     switch (comment.type) {
-      case 'cloud':
+      case "cloud":
         group.add(createCloudMarker())
         break
-      case 'arrow':
+      case "arrow":
         group.add(createArrowMarker())
         break
-      case 'text':
-        const displayText = comment.title && comment.title.trim() 
-          ? comment.title.trim() 
-          : comment.description?.trim() || "Commentaire sans texte"
+      case "text":
+        const displayText =
+          comment.title && comment.title.trim()
+            ? comment.title.trim()
+            : comment.description?.trim() || "Commentaire sans texte"
         group.add(createTextMarker(displayText))
         break
     }
 
     group.position.copy(comment.position)
-    group.userData = { 
-      commentId: comment.id, 
+    group.userData = {
+      commentId: comment.id,
       isAnnotation: true,
       // AJOUT CRUCIAL: fonction de nettoyage pour tous les types
       cleanup: () => {
-        group.children.forEach(child => {
+        group.children.forEach((child) => {
           if (child.userData?.cleanup) {
             child.userData.cleanup()
           }
         })
-      }
+      },
     }
     return group
   }
@@ -744,34 +746,30 @@ if (css2DRendererRef.current && camera && scene) {
       raycaster.setFromCamera(mouse, viewer.context.getCamera())
 
       const ifcManager = viewer.IFC?.loader?.ifcManager
-      const ifcMeshes = ifcManager?.state.models
-        ?.filter((model: any) => model.mesh)
-        ?.map((model: any) => model.mesh) || []
+      const ifcMeshes =
+        ifcManager?.state.models?.filter((model: any) => model.mesh)?.map((model: any) => model.mesh) || []
 
       const intersects = raycaster.intersectObjects(ifcMeshes, true)
 
       if (intersects.length > 0) {
         const intersection = intersects[0]
         setCommentPosition(intersection.point)
-        
+
         // NOUVEAU: Rechercher l'élément IFC pour l'ancrage
         if (anchorManagerRef.current) {
           const nearestElement = await anchorManagerRef.current.findNearestIFCElement(intersection.point)
           if (nearestElement) {
             console.log("Élément IFC trouvé pour ancrage:", nearestElement)
-            // Stocker temporairement les données d'ancrage
-            setCommentPosition(prev => {
-              if (prev) {
-                prev.userData = {
-                  ifcAnchor: {
-                    modelId: nearestElement.modelId,
-                    expressId: nearestElement.expressId,
-                    localPosition: anchorManagerRef.current!.calculateLocalPosition(intersection.point, nearestElement.element)
-                  }
-                }
-              }
-              return prev
-            })
+            // Ici, vous pouvez stocker les données d'ancrage dans un nouvel état si nécessaire
+            // Par exemple, créez un nouvel état pour ifcAnchorData et stockez-le là
+            // setIfcAnchorData({
+            //   modelId: nearestElement.modelId,
+            //   expressId: nearestElement.expressId,
+            //   localPosition: anchorManagerRef.current!.calculateLocalPosition(
+            //     intersection.point,
+            //     nearestElement.element,
+            //   ),
+            // });
           }
         }
       } else {
@@ -832,172 +830,151 @@ if (css2DRendererRef.current && camera && scene) {
     }
   }, [commentPosition, selectedAnnotationType, commentText])
 
-  // SOUMISSION avec ancrage IFC
+  // SOUMISSION avec ancrage IFC - MODIFIÉ POUR AXIOS
   const handleCommentSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    
+    event.preventDefault()
+
     if (!projectId || !user?.userId || !camera || !commentPosition) {
-      console.error("Données manquantes");
-      return;
+      console.error("Données manquantes")
+      return
     }
 
     try {
-      const scene = getSafeScene();
-      if (!scene) return;
+      const scene = getSafeScene()
+      if (!scene) return
 
       // 1. SUPPRIMER LE PREVIEW D'ABORD
       if (previewRef.current) {
-        scene.remove(previewRef.current);
+        scene.remove(previewRef.current)
         if (previewRef.current.userData?.cleanup) {
-          previewRef.current.userData.cleanup();
+          previewRef.current.userData.cleanup()
         }
-        previewRef.current = null;
+        previewRef.current = null
       }
 
       const position = {
         x: commentPosition.x || 0,
         y: commentPosition.y || 0,
-        z: commentPosition.z || 0
-      };
+        z: commentPosition.z || 0,
+      }
 
-      const cameraDirection = getCameraDirection(camera, controls);
-      
+      const cameraDirection = getCameraDirection(camera, controls)
+
       const generateGUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      };
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0
+          const v = c === "x" ? r : (r & 0x3) | 0x8
+          return v.toString(16)
+        })
+      }
 
       const viewpointData = {
         guid: generateGUID(),
-        camera_view_point: { 
-          x: camera.position.x, 
-          y: camera.position.y, 
-          z: camera.position.z 
+        camera_view_point: {
+          x: camera.position.x,
+          y: camera.position.y,
+          z: camera.position.z,
         },
         camera_direction: {
           x: cameraDirection.x,
           y: cameraDirection.y,
-          z: cameraDirection.z
+          z: cameraDirection.z,
         },
-        camera_up_vector: { 
-          x: camera.up.x, 
-          y: camera.up.y, 
-          z: camera.up.z 
+        camera_up_vector: {
+          x: camera.up.x,
+          y: camera.up.y,
+          z: camera.up.z,
         },
-        field_of_view: (camera as THREE.PerspectiveCamera).fov || 75
-      };
-
-      const author = user.name || user.email || `User-${user.userId}`;
-
-      console.log("Envoi de l'annotation vers la DB...");
-
-      // 2. SAUVEGARDER EN DB D'ABORD
-      const response = await fetch('/api/annotations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        },
-        body: JSON.stringify({
-          title: commentText || 'Nouvelle annotation',
-          type: selectedAnnotationType,
-          position,
-          projectId,
-          viewpoint: viewpointData,
-          author: author
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Échec de la sauvegarde: ${errorData.error || response.statusText}`);
+        field_of_view: (camera as THREE.PerspectiveCamera).fov || 75,
       }
 
-      const savedComment = await response.json();
-      console.log("Annotation sauvegardée en DB:", savedComment);
-      
+      const author = user.name || user.email || `User-${user.userId}`
+
+      console.log("Envoi de l'annotation vers la DB...")
+
+      // 2. SAUVEGARDER EN DB D'ABORD avec axios
+      const response = await api.post(`${apiUrl}/annotations`, {
+        title: commentText || "Nouvelle annotation",
+        type: selectedAnnotationType,
+        position,
+        projectId,
+        viewpoint: viewpointData,
+        author: author,
+      })
+
+      const savedComment = response.data
+      console.log("Annotation sauvegardée en DB:", savedComment)
+
       // 3. CRÉER L'OBJET 3D SEULEMENT APRÈS SUCCÈS DB
-      const annotationObject = createAnnotationObject(savedComment);
-      scene.add(annotationObject);
-      console.log("Objet 3D créé et ajouté à la scène");
-      
+      const annotationObject = createAnnotationObject(savedComment)
+      scene.add(annotationObject)
+      console.log("Objet 3D créé et ajouté à la scène")
+
       // 4. METTRE À JOUR LES ÉTATS
-      setComments(prev => [...prev, savedComment]);
-      setAnnotationObjects(prev => [...prev, annotationObject]);
-      
+      setComments((prev) => [...prev, savedComment])
+      setAnnotationObjects((prev) => [...prev, annotationObject])
+
       // 5. NETTOYER L'INTERFACE
-      setCommentText("");
-      setCommentPosition(null);
-
+      setCommentText("")
+      setCommentPosition(null)
     } catch (error) {
-      console.error("Erreur d'envoi de l'annotation:", error);
-      alert(`Erreur lors de la création de l'annotation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      console.error("Erreur d'envoi de l'annotation:", error)
+      alert(`Erreur lors de la création de l'annotation: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
     }
-  };
+  }
 
+  // SUPPRESSION avec axios
   const handleDeleteAll = async () => {
-    if (!projectId) return;
+    if (!projectId) return
 
     try {
-      const response = await fetch(`/api/annotations/all?projectId=${projectId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Échec de la suppression: ${errorData.error || response.statusText}`);
-      }
+      const response = await api.delete(`${apiUrl}/annotations/all`, {
+        params: { projectId },
+      })
 
       // Nettoyage de la scène
-      const scene = getSafeScene();
+      const scene = getSafeScene()
       if (scene) {
-        annotationObjects.forEach(obj => {
-          scene.remove(obj);
+        annotationObjects.forEach((obj) => {
+          scene.remove(obj)
           if (obj.userData?.cleanup) {
-            obj.userData.cleanup();
+            obj.userData.cleanup()
           }
-        });
-        
+        })
+
         // Supprimer aussi le preview s'il existe
         if (previewRef.current) {
-          scene.remove(previewRef.current);
+          scene.remove(previewRef.current)
           if (previewRef.current.userData?.cleanup) {
-            previewRef.current.userData.cleanup();
+            previewRef.current.userData.cleanup()
           }
-          previewRef.current = null;
+          previewRef.current = null
         }
       }
 
-      setComments([]);
-      setAnnotationObjects([]);
-      setCommentPosition(null);
+      setComments([])
+      setAnnotationObjects([])
+      setCommentPosition(null)
 
-      console.log('Toutes les annotations ont été supprimées avec succès');
-
+      console.log("Toutes les annotations ont été supprimées avec succès")
     } catch (error) {
-      console.error("Erreur de suppression:", error);
-      alert(`Erreur lors de la suppression: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      console.error("Erreur de suppression:", error)
+      alert(`Erreur lors de la suppression: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
     }
-  };
+  }
 
   // Nettoyage lors du démontage
   useEffect(() => {
     return () => {
       const scene = getSafeScene()
       if (scene) {
-        annotationObjects.forEach(obj => {
+        annotationObjects.forEach((obj) => {
           scene.remove(obj)
           if (obj.userData?.cleanup) {
             obj.userData.cleanup()
           }
         })
-        
+
         if (previewRef.current) {
           scene.remove(previewRef.current)
           if (previewRef.current.userData?.cleanup) {
@@ -1013,7 +990,7 @@ if (css2DRendererRef.current && camera && scene) {
       <div className="absolute bottom-20 left-4 bg-white p-4 rounded-lg shadow-lg">
         <div className="text-sm text-gray-500">Chargement...</div>
       </div>
-    );
+    )
   }
 
   if (!user && activeTool === "comment") {
@@ -1021,7 +998,7 @@ if (css2DRendererRef.current && camera && scene) {
       <div className="absolute bottom-20 left-4 bg-white p-4 rounded-lg shadow-lg">
         <div className="text-sm text-red-500">Vous devez être connecté pour créer des annotations.</div>
       </div>
-    );
+    )
   }
 
   return (

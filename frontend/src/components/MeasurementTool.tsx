@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
+// @ts-ignore
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
 
 export type MeasurementMode = 'none' | 'distance' | 'perpendicular' | 'angle';
@@ -35,7 +36,7 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
   const [currentPoints, setCurrentPoints] = useState<THREE.Vector3[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const previewLineRef = useRef<THREE.Line | null>(null);
-  const snapMarkerRef = useRef<THREE.Mesh | null>(null);
+  const snapMarkerRef = useRef<THREE.Object3D | null>(null);
   const snapDistanceThreshold = 0.5;
   const originalClickHandlerRef = useRef<((event: MouseEvent) => void) | null>(null);
   const originalOnClick = useRef<any>(null);

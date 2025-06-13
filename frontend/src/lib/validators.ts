@@ -78,3 +78,61 @@ export const getProjectDescriptionError = (description: string): string | null =
   }
   return null
 }
+
+/**
+ * Validates a todo title (2-100 characters)
+ */
+export const validateTodoTitle = (title: string): boolean => {
+  const trimmedTitle = title.trim()
+  return trimmedTitle.length >= 2 && trimmedTitle.length <= 100
+}
+
+/**
+ * Validates a todo description (max 1000 characters)
+ */
+export const validateTodoDescription = (description: string): boolean => {
+  return description.trim().length <= 1000
+}
+
+/**
+ * Get todo title validation error message
+ */
+export const getTodoTitleError = (title: string): string | null => {
+  const trimmedTitle = title.trim()
+  if (trimmedTitle.length === 0) {
+    return "Le titre est obligatoire"
+  }
+  if (trimmedTitle.length < 2) {
+    return "Le titre doit contenir au moins 2 caractères"
+  }
+  if (trimmedTitle.length > 100) {
+    return "Le titre ne doit pas dépasser 100 caractères"
+  }
+  return null
+}
+
+/**
+ * Get todo description validation error message
+ */
+export const getTodoDescriptionError = (description: string): string | null => {
+  if (description.trim().length > 1000) {
+    return "La description ne doit pas dépasser 1000 caractères"
+  }
+  return null
+}
+
+/**
+ * Validates todo priority
+ */
+export const validateTodoPriority = (priority: string): boolean => {
+  const validPriorities = ["Critical", "Normal", "Minor", "On hold", "Undefined", "Medium"]
+  return validPriorities.includes(priority)
+}
+
+/**
+ * Validates todo status
+ */
+export const validateTodoStatus = (status: string): boolean => {
+  const validStatuses = ["new", "in-progress", "waiting", "done", "closed", "actif", "résolu", "fermé"]
+  return validStatuses.includes(status)
+}

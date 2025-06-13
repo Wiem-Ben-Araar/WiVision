@@ -12,11 +12,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className="min-h-screen bg-background">
+      <body 
+        className="min-h-screen bg-background" 
+        suppressHydrationWarning={true}
+      >
         <ThemeProvider attribute="class" defaultTheme="light">
           <AuthProvider>
             <Navbar />
-            <main className="container mx-auto px-4 py-6">{children}</main>
+            <main 
+              className="container mx-auto px-4 py-6"
+              suppressHydrationWarning={true}
+            >
+              {children}
+            </main>
           </AuthProvider>
         </ThemeProvider>
       </body>

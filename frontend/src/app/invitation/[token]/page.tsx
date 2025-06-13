@@ -17,62 +17,87 @@ export default function InvitationPage() {
   const [error, setError] = useState<string | null>(null);
   const [invitationDetails, setInvitationDetails] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const [isLoading, setIsLoading] = useState(true);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
   useEffect(() => {
     const verifyInvitation = async () => {
       try {
+        setIsLoading(true);
+        // Ajout de withCredentials pour l'authentification
         const { data } = await axios.get(`${apiUrl}/invitations/${token}/verify`, {
-  withCredentials: true
-});
+          withCredentials: true
+        });
         setInvitationDetails(data.invitation);
         
         if (user) {
-          // Normalisation des emails
           const userEmail = user.email?.toLowerCase().trim();
           const invitationEmail = data.invitation.email.toLowerCase().trim();
           
           if (userEmail !== invitationEmail) {
-            setError(`Cette invitation est destinée à ${data.invitation.email}`);
+            setError(`Cette invitation est destinée à ${data.invitation.email}. Veuillez vous connecter avec ce compte.`);
             sessionStorage.removeItem("pendingInvitation");
           }
         }
       } catch (error: any) {
-        setError(error.response?.data?.message || "Invitation invalide ou expirée");
+        console.error('Erreur lors de la vérification:', error);
+        // Gestion plus spécifique des erreurs
+        if (error.response?.status === 401) {
+          // Si pas authentifié, on peut quand même essayer de récupérer les infos publiques
+          try {
+            const { data } = await axios.get(`${apiUrl}/invitations/${token}/verify`);
+            setInvitationDetails(data.invitation);
+          } catch (publicError: any) {
+            setError(publicError.response?.data?.message || "Invitation invalide ou expirée");
+          }
+        } else {
+          setError(error.response?.data?.message || "Invitation invalide ou expirée");
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
   
     if (token) verifyInvitation();
-  }, [token, user]);
+  }, [token, user, apiUrl]);
+
   useEffect(() => {
     const handlePostAuth = async () => {
       const pendingToken = sessionStorage.getItem("pendingInvitation");
       if (user && pendingToken) {
         try {
-          const { data } = await axios.post(`${apiUrl}/invitations/${pendingToken}/accept`, {
-  withCredentials: true
-});
+          const { data } = await axios.post(
+            `${apiUrl}/invitations/${pendingToken}/accept`,
+            {},
+            { withCredentials: true }
+          );
           sessionStorage.removeItem("pendingInvitation");
+          toast.success("Invitation acceptée avec succès");
           router.push(`/projects/${data.projectId}`);
-        } catch (error) {
+        } catch (error: any) {
+          console.error('Erreur acceptation auto:', error);
           setError("Échec de l'acceptation automatique");
         }
       }
     };
   
     if (!loading) handlePostAuth();
-  }, [user, loading]);
+  }, [user, loading, apiUrl, router]);
+
   const handleInvitationAction = async (action: 'accept' | 'decline') => {
     if (!user && action === 'accept') {
       sessionStorage.setItem("pendingInvitation", token);
-      router.push(`/sign-in?callbackUrl=/projects`);
+      router.push(`/sign-in?callbackUrl=${encodeURIComponent(`/invitations/${token}`)}`);
       return;
     }
 
     setIsProcessing(true);
     try {
-      const { data } = await axios.post(`${apiUrl}/invitations/${token}/${action}`, {
-  withCredentials: true
-});
+      const { data } = await axios.post(
+        `${apiUrl}/invitations/${token}/${action}`, 
+        {},
+        { withCredentials: true }
+      );
       
       if (action === 'accept') {
         toast.success("Invitation acceptée avec succès");
@@ -82,6 +107,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
         router.push("/");
       }
     } catch (error: any) {
+      console.error(`Erreur ${action}:`, error);
       const errorMessage = error.response?.data?.message || "Une erreur est survenue";
       setError(errorMessage);
       toast.error(errorMessage);
@@ -90,7 +116,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
     }
   };
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -143,16 +169,28 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
                 <div>
                   <span className="font-medium">Invité par : </span>
                   <span>
-        {invitationDetails.invitedBy?.name || 
-         invitationDetails.invitedBy?.email || 
-         "Équipe du projet"}
-      </span>
-                </div>
-                <div>
-                  <span className="font-medium">Email : </span>
-                  <span>{invitationDetails.email}</span>
+                    {invitationDetails.invitedBy?.name || 
+                     invitationDetails.invitedBy?.email || 
+                     "Équipe du projet"}
+                  </span>
                 </div>
               </div>
+              
+              {user && invitationDetails?.email?.toLowerCase() !== user.email?.toLowerCase() && (
+                <div className="text-red-500 p-3 bg-red-50 rounded-md">
+                  <p>Cette invitation est destinée à {invitationDetails.email}</p>
+                  <Button 
+                    variant="link"
+                    onClick={() => {
+                      sessionStorage.removeItem("pendingInvitation");
+                      router.push("/logout");
+                    }}
+                  >
+                    Changer de compte
+                  </Button>
+                </div>
+              )}
+              
               {!user && (
                 <p className="text-sm text-muted-foreground">
                   Vous devez vous connecter pour accepter cette invitation.
@@ -171,7 +209,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL
           </Button>
           <Button 
             onClick={() => handleInvitationAction('accept')} 
-            disabled={isProcessing}
+            disabled={isProcessing || !!(user && invitationDetails?.email?.toLowerCase() !== user.email?.toLowerCase())}
           >
             {isProcessing ? (
               <>

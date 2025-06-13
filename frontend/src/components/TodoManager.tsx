@@ -2,18 +2,33 @@
 
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
+
+// Extend the Window interface to include todoManager
+declare global {
+  interface Window {
+    todoManager?: {
+      createTodo: () => void
+      toggleTodoPanel: () => void
+      restoreView: (todo: any) => void
+      getTodos: () => any[]
+      getActiveTool: () => string | null
+      exportBCF: () => void
+    }
+  }
+}
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User2, Trash2, X, Plus } from "lucide-react"
+import { User2, Trash2, X, Plus, AlertCircle, CheckCircle } from "lucide-react"
 import * as THREE from "three"
 import JSZip from "jszip"
-import axios from "axios"
+import api from "@/lib/axios-config"
 import { useAuth } from "@/hooks/use-auth"
-// Modifié: Nous n'importons plus ProjectMembers comme un composant
-// import ProjectMembers from "./ProjectMembers"
+import { getTodoTitleError, getTodoDescriptionError, validateTodoPriority, validateTodoStatus } from "@/lib/validators"
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
 // Interface Todo
 export interface Todo {
@@ -21,8 +36,8 @@ export interface Todo {
   id?: string
   title: string
   description?: string
-  status: "new" | "in-progress" | "waiting" | "done" | "closed"
-  priority: "Critical" | "Normal" | "Minor" | "On hold" | "Undefined" | "Medium";
+  status: "new" | "in-progress" | "waiting" | "done" | "closed" | "actif" | "résolu" | "fermé"
+  priority: "Critical" | "Normal" | "Minor" | "On hold" | "Undefined" | "Medium"
   createdBy: string
   userId?: string
   assignedTo?: string
@@ -43,7 +58,6 @@ export interface Todo {
 }
 
 // Fonction utilitaire pour obtenir le nom d'utilisateur à partir de son ID
-// Modifié: Cette fonction utilise maintenant projectMembers passé en paramètre
 const getUserNameById = (userId: string, members: any[] = []) => {
   if (!userId) return "Unassigned"
 
@@ -82,17 +96,20 @@ function TodoPanel({
   if (activeTool !== "notes") return null
 
   return (
-    <div className="absolute right-4 top-20 w-96 bg-white rounded-lg shadow-lg p-4 max-h-[80vh] overflow-auto z-10">
+    <div className="absolute right-4 top-20 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-lg p-4 max-h-[80vh] overflow-auto z-10 border border-gray-200 dark:border-gray-800">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Notes</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notes</h3>
         <div className="flex gap-2 items-center">
-          <Badge variant="outline">{todos.length}</Badge>
+          <Badge variant="outline" className="dark:border-gray-700 dark:text-gray-300">
+            {todos.length}
+          </Badge>
           <Button
             onClick={(e) => {
               e.stopPropagation()
               console.log("Create Note button clicked")
               onCreateNote()
             }}
+            className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             Nouvelle Note
@@ -104,42 +121,46 @@ function TodoPanel({
         {todos.map((todo) => (
           <div
             key={todo._id || todo.id}
-            className="border rounded-lg p-3 hover:border-blue-500 transition-colors cursor-pointer"
+            className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer bg-white dark:bg-gray-800"
             onClick={() => onTodoSelect(todo)}
           >
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h4 className="font-medium">{todo.title}</h4>
-                <p className="text-sm text-gray-600 line-clamp-2">{todo.description}</p>
+                <h4 className="font-medium text-gray-900 dark:text-gray-100">{todo.title}</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{todo.description}</p>
               </div>
-             <Badge
-  className={
-    todo.status === "actif"
-      ? "bg-blue-100 text-blue-800"
-      : todo.status === "résolu"
-      ? "bg-green-100 text-green-800"
-      : "bg-gray-100 text-gray-800"
-  }
->
-  {todo.status}
-</Badge>
+              <Badge
+                className={
+                  todo.status === "new" || todo.status === "actif"
+                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                    : todo.status === "done" || todo.status === "résolu"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                }
+              >
+                {todo.status}
+              </Badge>
             </div>
 
-            <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
               <div className="flex items-center gap-2">
                 <User2 className="h-4 w-4" />
                 <Select
                   value={todo.assignedTo || ""}
                   onValueChange={(value) => onTodoAssign(todo._id || todo.id || "", value)}
                 >
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[140px] dark:border-gray-700 dark:bg-gray-800">
                     <SelectValue placeholder="Assigner à..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
                     <SelectGroup>
                       {projectMembers && projectMembers.length > 0 ? (
                         projectMembers.map((member) => (
-                          <SelectItem key={member.id || member._id} value={member.id || member._id}>
+                          <SelectItem
+                            key={member.id || member._id}
+                            value={member.id || member._id}
+                            className="dark:text-gray-200"
+                          >
                             {member.name || member.email || "Utilisateur sans nom"}
                           </SelectItem>
                         ))
@@ -156,27 +177,32 @@ function TodoPanel({
                   value={todo.status}
                   onValueChange={(value: Todo["status"]) => onTodoStatusChange(todo._id || todo.id || "", value)}
                 >
-                  <SelectTrigger className="w-[120px]">
+                  <SelectTrigger className="w-[120px] dark:border-gray-700 dark:bg-gray-800">
                     <SelectValue />
                   </SelectTrigger>
-               <SelectContent>
-  <SelectGroup>
-    <SelectItem value="actif">Actif</SelectItem>
-    <SelectItem value="résolu">Résolu</SelectItem>
-    <SelectItem value="fermé">Fermé</SelectItem>
-  </SelectGroup>
-</SelectContent>
+                  <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
+                    <SelectGroup>
+                      <SelectItem value="actif" className="dark:text-gray-200">
+                        Actif
+                      </SelectItem>
+                      <SelectItem value="résolu" className="dark:text-gray-200">
+                        Résolu
+                      </SelectItem>
+                      <SelectItem value="fermé" className="dark:text-gray-200">
+                        Fermé
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
                 </Select>
 
                 <button
                   onClick={(e) => {
-                    e.stopPropagation() // Empêche le déclenchement du onClick du parent
-                    onTodoSelect(todo) // Cette ligne appelle déjà restoreTodoView
+                    e.stopPropagation()
+                    onTodoSelect(todo)
                   }}
-                  className="text-blue-500 hover:text-blue-700"
+                  className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   title="Restaurer la vue"
                 >
-                  {/* Icône de caméra au lieu de Eye */}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="16"
@@ -198,14 +224,14 @@ function TodoPanel({
                     e.stopPropagation()
                     onTodoDelete(todo._id || todo.id || "")
                   }}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
               Créé par {getUserNameById(todo.createdBy, projectMembers)}
             </div>
           </div>
@@ -215,7 +241,7 @@ function TodoPanel({
   )
 }
 
-// Sous-composant TodoCreationModal
+// Sous-composant TodoCreationModal avec validation
 function TodoCreationModal({
   isOpen,
   onClose,
@@ -239,79 +265,202 @@ function TodoCreationModal({
   >
   onCreateTodo: () => void
 }) {
+  const [errors, setErrors] = useState<{ title?: string; description?: string }>({})
+  const [touched, setTouched] = useState<{ title: boolean; description: boolean }>({
+    title: false,
+    description: false,
+  })
+
+  // Validation en temps réel
+  useEffect(() => {
+    const newErrors: { title?: string; description?: string } = {}
+
+    if (touched.title) {
+      const titleError = getTodoTitleError(newTodo.title)
+      if (titleError) {
+        newErrors.title = titleError
+      }
+    }
+
+    if (touched.description) {
+      const descriptionError = getTodoDescriptionError(newTodo.description)
+      if (descriptionError) {
+        newErrors.description = descriptionError
+      }
+    }
+
+    setErrors(newErrors)
+  }, [newTodo, touched])
+
+  const handleSubmit = () => {
+    // Marquer tous les champs comme touchés
+    setTouched({ title: true, description: true })
+
+    // Validation finale
+    const titleError = getTodoTitleError(newTodo.title)
+    const descriptionError = getTodoDescriptionError(newTodo.description)
+
+    if (titleError || descriptionError) {
+      setErrors({
+        title: titleError || undefined,
+        description: descriptionError || undefined,
+      })
+      return
+    }
+
+    onCreateTodo()
+  }
+
+  const getInputClassName = (field: "title" | "description", baseClass: string) => {
+    if (errors[field]) {
+      return `${baseClass} border-red-300 dark:border-red-600 focus:border-red-500 focus:ring-red-500`
+    }
+    if (touched[field] && !errors[field] && newTodo[field].trim()) {
+      return `${baseClass} border-green-300 dark:border-green-600 focus:border-green-500 focus:ring-green-500`
+    }
+    return `${baseClass} border-gray-300 dark:border-gray-700 focus:border-[#005CA9] focus:ring-[#005CA9]`
+  }
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-[480px] max-h-[90vh] overflow-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-[480px] max-h-[90vh] overflow-auto border border-gray-200 dark:border-gray-800">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold">Créer une Note</h3>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Créer une Note</h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="dark:text-gray-400 dark:hover:text-gray-200"
+            >
               <X className="h-5 w-5" />
             </Button>
           </div>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="title">Titre</Label>
-              <Input
-                id="title"
-                placeholder="Entrez le titre de la note"
-                value={newTodo.title}
-                onChange={(e) => setNewTodo((prev) => ({ ...prev, title: e.target.value }))}
-              />
+              <Label htmlFor="title" className="text-gray-700 dark:text-gray-300">
+                Titre
+              </Label>
+              <div className="relative">
+                <Input
+                  id="title"
+                  placeholder="Entrez le titre de la note"
+                  value={newTodo.title}
+                  onChange={(e) => setNewTodo((prev) => ({ ...prev, title: e.target.value }))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, title: true }))}
+                  className={getInputClassName("title", "dark:bg-gray-800 dark:text-gray-100")}
+                />
+                {touched.title && !errors.title && newTodo.title.trim() && (
+                  <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-green-500" />
+                )}
+                {errors.title && (
+                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500" />
+                )}
+              </div>
+              {errors.title && (
+                <p className="text-sm text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {errors.title}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">2-100 caractères requis</p>
             </div>
 
             <div>
-              <Label htmlFor="description">Description</Label>
-              <textarea
-                id="description"
-                className="w-full min-h-[100px] p-2 border rounded-md"
-                placeholder="Entrez la description de la note"
-                value={newTodo.description}
-                onChange={(e) => setNewTodo((prev) => ({ ...prev, description: e.target.value }))}
-                rows={4}
-              />
+              <Label htmlFor="description" className="text-gray-700 dark:text-gray-300">
+                Description
+              </Label>
+              <div className="relative">
+                <textarea
+                  id="description"
+                  className={getInputClassName(
+                    "description",
+                    "w-full min-h-[100px] p-2 border rounded-md dark:bg-gray-800 dark:text-gray-100 resize-none",
+                  )}
+                  placeholder="Entrez la description de la note"
+                  value={newTodo.description}
+                  onChange={(e) => setNewTodo((prev) => ({ ...prev, description: e.target.value }))}
+                  onBlur={() => setTouched((prev) => ({ ...prev, description: true }))}
+                  rows={4}
+                />
+                {touched.description && !errors.description && (
+                  <CheckCircle className="absolute right-3 top-3 h-5 w-5 text-green-500" />
+                )}
+                {errors.description && <AlertCircle className="absolute right-3 top-3 h-5 w-5 text-red-500" />}
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                {errors.description && (
+                  <p className="text-sm text-red-500 dark:text-red-400 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.description}
+                  </p>
+                )}
+                <span
+                  className={`text-sm ml-auto ${
+                    newTodo.description.length > 1000
+                      ? "text-red-500 dark:text-red-400"
+                      : newTodo.description.length > 800
+                        ? "text-orange-500 dark:text-orange-400"
+                        : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {newTodo.description.length}/1000
+                </span>
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="priority">Priorité</Label>
+              <Label htmlFor="priority" className="text-gray-700 dark:text-gray-300">
+                Priorité
+              </Label>
               <Select
                 value={newTodo.priority}
                 onValueChange={(value: "Critical" | "Normal" | "Minor" | "On hold" | "Undefined" | "Medium") =>
                   setNewTodo((prev) => ({ ...prev, priority: value }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
                   <SelectValue placeholder="Sélectionner la priorité" />
                 </SelectTrigger>
-               <SelectContent>
-  <SelectGroup>
-    <SelectItem value="Critical">Critique</SelectItem>
-    <SelectItem value="Normal">Normal</SelectItem>
-    <SelectItem value="Medium">Moyen</SelectItem>
-    <SelectItem value="Minor">Mineur</SelectItem>
-    <SelectItem value="On hold">En attente</SelectItem>
-    <SelectItem value="Undefined">Non défini</SelectItem>
-  </SelectGroup>
-</SelectContent>
+                <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
+                  <SelectGroup>
+                    <SelectItem value="Critical" className="dark:text-gray-200">
+                      Critique
+                    </SelectItem>
+                    <SelectItem value="Normal" className="dark:text-gray-200">
+                      Normal
+                    </SelectItem>
+                    <SelectItem value="Medium" className="dark:text-gray-200">
+                      Moyen
+                    </SelectItem>
+                    <SelectItem value="Minor" className="dark:text-gray-200">
+                      Mineur
+                    </SelectItem>
+                    <SelectItem value="On hold" className="dark:text-gray-200">
+                      En attente
+                    </SelectItem>
+                    <SelectItem value="Undefined" className="dark:text-gray-200">
+                      Non défini
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} className="dark:border-gray-700 dark:text-gray-300">
               Annuler
             </Button>
             <Button
-              onClick={() => {
-                console.log("Create Todo button clicked")
-                onCreateTodo()
-              }}
-              disabled={!newTodo.title}
+              onClick={handleSubmit}
+              disabled={!newTodo.title || Object.keys(errors).length > 0}
+              className="bg-[#005CA9] hover:bg-[#004A87] text-white dark:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-             Créer la Note
+              Créer la Note
             </Button>
           </div>
         </div>
@@ -326,33 +475,30 @@ interface TodoManagerProps {
   session?: any
   toast: any
   activeTool?: string | null
-  setActiveTool?: (tool: string | null) => void
+  setActiveTool?: React.Dispatch<React.SetStateAction<string | null>>
 }
-
-// Configuration de l'API avec axios
-const api = axios.create({
-  baseURL: "/api",
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-})
 
 export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool }: TodoManagerProps) {
   const [todos, setTodos] = useState<Todo[]>([])
   const { user, loading } = useAuth()
   const [isCreatingTodo, setIsCreatingTodo] = useState(false)
-  const [projectMembers, setProjectMembers] = useState([])
+  type ProjectMember = { id?: string; _id?: string; name?: string; email?: string; project?: { name?: string } }
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([])
   const [localActiveTool, setLocalActiveTool] = useState<string | null>(activeTool)
-  const [newTodo, setNewTodo] = useState({
+  const [newTodo, setNewTodo] = useState<{
+    title: string
+    description: string
+    priority: "Critical" | "Normal" | "Minor" | "On hold" | "Undefined" | "Medium"
+  }>({
     title: "",
     description: "",
-    priority: "Medium" as const,
+    priority: "Medium",
   })
 
   // Utiliser l'état local si aucun état externe n'est fourni
   const effectiveActiveTool = activeTool !== undefined ? activeTool : localActiveTool
-  const effectiveSetActiveTool = setActiveTool || setLocalActiveTool
+  const effectiveSetActiveTool: React.Dispatch<React.SetStateAction<string | null>> =
+    setActiveTool || setLocalActiveTool
 
   // Chargement initial des todos et des membres du projet
   useEffect(() => {
@@ -367,7 +513,9 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         console.log("Fetching data for project:", projectId)
 
         try {
-          const todosRes = await api.get(`/todos?projectId=${projectId}`)
+          const todosRes = await api.get(`${apiUrl}/todos`, {
+            params: { projectId },
+          })
           console.log("Todos response:", todosRes)
           setTodos(todosRes.data)
         } catch (todoError) {
@@ -375,7 +523,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         }
 
         try {
-          const membersRes = await api.get(`/projects/${projectId}/members`)
+          const membersRes = await api.get(`${apiUrl}/projects/${projectId}/members`)
           console.log("Members response:", membersRes)
           setProjectMembers(membersRes.data.members || [])
         } catch (memberError) {
@@ -389,14 +537,27 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
     fetchData()
   }, [])
 
-  // Fonction pour créer un nouveau todo
+  // Fonction pour créer un nouveau todo avec validation
   const createTodo = async () => {
-    if (!viewerRef.current || !newTodo.title || loading) {
+    if (!viewerRef.current || loading) {
       console.log("Cannot create todo:", {
         viewerExists: !!viewerRef.current,
-        titleExists: !!newTodo.title,
         isLoading: loading,
       })
+      return
+    }
+
+    // Validation avant création
+    const titleError = getTodoTitleError(newTodo.title)
+    const descriptionError = getTodoDescriptionError(newTodo.description)
+
+    if (titleError || descriptionError) {
+      toast.error("Veuillez corriger les erreurs dans le formulaire")
+      return
+    }
+
+    if (!validateTodoPriority(newTodo.priority)) {
+      toast.error("Priorité invalide")
       return
     }
 
@@ -421,7 +582,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
       console.log("3. User object:", user)
 
       // Utiliser _id au lieu de userId si disponible
-      const userId = user?._id || user?.userId || "temp-user-id"
+      const userId = user?.id || user?.userId || "temp-user-id"
       console.log("Using userId:", userId)
 
       const urlParams = new URLSearchParams(window.location.search)
@@ -517,8 +678,8 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
       // Créer directement le todo avec l'objet viewpoint intégré
       console.log("16. Preparing todo data...")
       const todoData = {
-        title: newTodo.title,
-        description: newTodo.description,
+        title: newTodo.title.trim(),
+        description: newTodo.description.trim(),
         status: "new",
         priority: newTodo.priority,
         userId: userId,
@@ -533,7 +694,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
 
       try {
         console.log("18. Sending POST request to /todos")
-        const response = await api.post("/todos", todoData)
+        const response = await api.post(`${apiUrl}/todos`, todoData)
         console.log("19. Todo creation response:", response)
 
         const savedTodo = response.data
@@ -550,30 +711,31 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         setIsCreatingTodo(false)
         setNewTodo({ title: "", description: "", priority: "Medium" })
 
-        toast.success("Todo created successfully")
+        toast.success("Note créée avec succès")
       } catch (apiError) {
         console.error("21. API Error:", apiError)
 
-        if (apiError.response) {
-          console.error("Response status:", apiError.response.status)
-          console.error("Response data:", apiError.response.data)
-        } else if (apiError.request) {
-          console.error("22. No response received:", apiError.request)
+        const error: any = apiError
+        if (error.response) {
+          console.error("Response status:", error.response.status)
+          console.error("Response data:", error.response.data)
+        } else if (error.request) {
+          console.error("22. No response received:", error.request)
         } else {
-          console.error("23. Error setting up request:", apiError.message)
+          console.error("23. Error setting up request:", error.message)
         }
 
-        toast.error(`Failed to save todo: ${apiError.response?.data?.message || apiError.message}`)
+        toast.error(`Échec de la sauvegarde: ${error.response?.data?.message || error.message}`)
       }
     } catch (error) {
       console.error("24. General error:", error)
-      toast.error(`Failed to save todo: ${error.message}`)
+      toast.error(`Échec de la sauvegarde: ${(error as any).message}`)
     }
   }
 
   const restoreTodoView = (todo: Todo) => {
     if (!todo.viewpoint) {
-      toast.error("No viewpoint data available for this todo")
+      toast.error("Aucune donnée de vue disponible pour cette note")
       return
     }
 
@@ -581,7 +743,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
 
     // Validation des données
     if (!camera_view_point || !camera_direction || !camera_up_vector) {
-      toast.error("Invalid viewpoint data")
+      toast.error("Données de vue invalides")
       return
     }
 
@@ -614,23 +776,29 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
   }
 
   const handleTodoStatusChange = async (todoId: string, newStatus: Todo["status"]) => {
+    // Validation du statut
+    if (!validateTodoStatus(newStatus)) {
+      toast.error("Statut invalide")
+      return
+    }
+
     try {
       console.log(`Updating todo ${todoId} status to ${newStatus}`)
-      const response = await api.put(`/todos/${todoId}`, { status: newStatus })
+      const response = await api.put(`${apiUrl}/todos/${todoId}`, { status: newStatus })
       console.log("Status update response:", response)
 
       setTodos((prev) => prev.map((todo) => (todo._id === todoId ? response.data : todo)))
-      toast.success(`Status changed to ${newStatus}`)
+      toast.success(`Statut changé vers ${newStatus}`)
     } catch (error: any) {
       console.error("Failed to update todo status:", error)
-      toast.error(`Failed to update status: ${error.response?.data?.message || error.message}`)
+      toast.error(`Échec de la mise à jour: ${error.response?.data?.message || error.message}`)
     }
   }
 
   const handleTodoAssign = async (todoId: string, userId: string) => {
     try {
       console.log(`Assigning todo ${todoId} to user ${userId}`)
-      const response = await api.put(`/todos/${todoId}`, { assignedTo: userId })
+      const response = await api.put(`${apiUrl}/todos/${todoId}`, { assignedTo: userId })
       console.log("Assignment response:", response)
 
       setTodos((prev) => prev.map((todo) => (todo._id === todoId ? response.data : todo)))
@@ -649,7 +817,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
 
     try {
       console.log(`Deleting todo ${todoId}`)
-      await api.delete(`/todos/${todoId}`)
+      await api.delete(`${apiUrl}/todos/${todoId}`)
       console.log("Todo deleted successfully")
 
       toast.success("Supprimé avec succès !")
@@ -663,109 +831,121 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
   }
 
   const exportBCF = () => {
-    const zip = new JSZip();
+    const zip = new JSZip()
 
     // Génération UUID conforme BCF
     const generateUUID = () => {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16).toUpperCase();
-        });
-    };
-  const mapStatusToBCF = (status: Todo["status"]) => {
-    switch(status.toLowerCase()) {
-      case 'actif': return 'Active';
-      case 'résolu': return 'Resolved';
-      case 'fermé': return 'Closed';
-      default: return 'Active';
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0
+        const v = c === "x" ? r : (r & 0x3) | 0x8
+        return v.toString(16).toUpperCase()
+      })
     }
-  };
+    const mapStatusToBCF = (status: Todo["status"]) => {
+      switch (status.toLowerCase()) {
+        case "actif":
+          return "Active"
+        case "résolu":
+          return "Resolved"
+        case "fermé":
+          return "Closed"
+        default:
+          return "Active"
+      }
+    }
 
     // Conversion des priorités
-const mapPriority = (priority: string) => {
-    switch(priority) {
-      case 'Critical': return 'Critical';
-      case 'Normal': return 'Normal';
-      case 'Medium': return 'Medium'; 
-      case 'Minor': return 'Minor';
-      case 'On hold': return 'On hold';
-      case 'Undefined': return 'Undefined';
-      default: return 'Medium';
+    const mapPriority = (priority: string) => {
+      switch (priority) {
+        case "Critical":
+          return "Critical"
+        case "Normal":
+          return "Normal"
+        case "Medium":
+          return "Medium"
+        case "Minor":
+          return "Minor"
+        case "On hold":
+          return "On hold"
+        case "Undefined":
+          return "Undefined"
+        default:
+          return "Medium"
+      }
     }
-  };
 
     // Conversion du système de coordonnées Three.js → Revit
-    const threeToRevit = (vec: THREE.Vector3) => new THREE.Vector3(
-        vec.x,     // X inchangé
-        -vec.z,    // Y = -Z (axe vertical inversé)
-        vec.y      // Z = Y (profondeur)
-    );
+    const threeToRevit = (vec: THREE.Vector3) =>
+      new THREE.Vector3(
+        vec.x, // X inchangé
+        -vec.z, // Y = -Z (axe vertical inversé)
+        vec.y, // Z = Y (profondeur)
+      )
 
     // Calcul des vecteurs orthogonaux garantis
     const getOrthogonalVectors = (direction: THREE.Vector3) => {
-        const revitUp = new THREE.Vector3(0, 0, 1); // Z-up dans Revit
-        const right = new THREE.Vector3()
-            .crossVectors(direction, revitUp)
-            .normalize();
-        return {
-            direction: direction.normalize(),
-            up: new THREE.Vector3().crossVectors(right, direction).normalize()
-        };
-    };
+      const revitUp = new THREE.Vector3(0, 0, 1) // Z-up dans Revit
+      const right = new THREE.Vector3().crossVectors(direction, revitUp).normalize()
+      return {
+        direction: direction.normalize(),
+        up: new THREE.Vector3().crossVectors(right, direction).normalize(),
+      }
+    }
 
     // Fichiers obligatoires BCF
     zip.file(
-        "bcf.version",
-        `<?xml version="1.0" encoding="UTF-8"?>
+      "bcf.version",
+      `<?xml version="1.0" encoding="UTF-8"?>
 <Version VersionId="2.1" xmlns="http://www.buildingsmart-tech.org/bcf/version_2_1/xsd">
   <DetailedVersion>2.1</DetailedVersion>
-</Version>`
-    );
+</Version>`,
+    )
 
-    const projectId = generateUUID();
+    const projectId = generateUUID()
     zip.file(
-        "project.bcfp",
-        `<?xml version="1.0" encoding="UTF-8"?>
+      "project.bcfp",
+      `<?xml version="1.0" encoding="UTF-8"?>
 <ProjectExtension xmlns="http://www.buildingsmart-tech.org/bcf/version_2_1/xsd">
   <Project ProjectId="${projectId}">
     <Name>${projectMembers?.[0]?.project?.name || "Revit Project"}</Name>
   </Project>
-</ProjectExtension>`
-    );
+</ProjectExtension>`,
+    )
 
     // Génération des topics
     todos.slice(0, 10).forEach((todo) => {
-        const topicGuid = generateUUID();
-        const topicFolder = zip.folder(topicGuid);
-        if (!topicFolder) return;
+      const topicGuid = generateUUID()
+      const topicFolder = zip.folder(topicGuid)
+      if (!topicFolder) return
 
-        // Données de vue
-        const position = threeToRevit(new THREE.Vector3(
-            todo.viewpoint?.camera_view_point.x || 0,
-            todo.viewpoint?.camera_view_point.y || 0,
-            todo.viewpoint?.camera_view_point.z || 0
-        ));
+      // Données de vue
+      const position = threeToRevit(
+        new THREE.Vector3(
+          todo.viewpoint?.camera_view_point.x || 0,
+          todo.viewpoint?.camera_view_point.y || 0,
+          todo.viewpoint?.camera_view_point.z || 0,
+        ),
+      )
 
-        const direction = threeToRevit(new THREE.Vector3(
-            todo.viewpoint?.camera_direction.x || 0,
-            todo.viewpoint?.camera_direction.y || 0,
-            todo.viewpoint?.camera_direction.z || 0
-        ));
+      const direction = threeToRevit(
+        new THREE.Vector3(
+          todo.viewpoint?.camera_direction.x || 0,
+          todo.viewpoint?.camera_direction.y || 0,
+          todo.viewpoint?.camera_direction.z || 0,
+        ),
+      )
 
-        // Calcul automatique du point cible central
-        const targetDistance = Math.max(position.length() * 0.7, 2.0);
-        const target = position.clone().add(direction.normalize().multiplyScalar(targetDistance));
+      // Calcul automatique du point cible central
+      const targetDistance = Math.max(position.length() * 0.7, 2.0)
+      const target = position.clone().add(direction.normalize().multiplyScalar(targetDistance))
 
-        // Vecteurs orthogonaux
-        const { direction: finalDirection, up: finalUp } = getOrthogonalVectors(
-            target.clone().sub(position).normalize()
-        );
+      // Vecteurs orthogonaux
+      const { direction: finalDirection, up: finalUp } = getOrthogonalVectors(target.clone().sub(position).normalize())
 
-        // Viewpoint BCF
-        topicFolder.file(
-            "viewpoint.bcfv",
-            `<?xml version="1.0" encoding="UTF-8"?>
+      // Viewpoint BCF
+      topicFolder.file(
+        "viewpoint.bcfv",
+        `<?xml version="1.0" encoding="UTF-8"?>
 <VisualizationInfo Guid="${generateUUID()}" xmlns="http://www.buildingsmart-tech.org/bcf/version_2_1/xsd">
   <PerspectiveCamera>
     <CameraViewPoint>
@@ -791,55 +971,58 @@ const mapPriority = (priority: string) => {
     </Visibility>
     <ViewSetupHints SpacesVisible="false" SpaceBoundariesVisible="false" OpeningsVisible="false"/>
   </Components>
-</VisualizationInfo>`
-        );
+</VisualizationInfo>`,
+      )
 
-        // Fichier markup avec valeurs par défaut
-        topicFolder.file(
-            "markup.bcf",
-            `<?xml version="1.0" encoding="UTF-8"?>
+      // Fichier markup avec valeurs par défaut
+      topicFolder.file(
+        "markup.bcf",
+        `<?xml version="1.0" encoding="UTF-8"?>
 <Markup xmlns="http://www.buildingsmart-tech.org/bcf/version_2_1/xsd">
   <Topic Guid="${topicGuid}" TopicType="Issue" TopicStatus="${mapStatusToBCF(todo.status)}">
     <Title>${todo.title || "New Issue"}</Title>
     <Description>${todo.description || "No description provided"}</Description>
     <CreationDate>${new Date(todo.createdAt).toISOString()}</CreationDate>
     <Priority>${mapPriority(todo.priority)}</Priority>
-    <AssignedTo>${getUserNameById(todo.assignedTo, projectMembers) || "Unassigned"}</AssignedTo>
+    <AssignedTo>${getUserNameById(todo.assignedTo || "", projectMembers) || "Unassigned"}</AssignedTo>
   </Topic>
-</Markup>`
-        );
+</Markup>`,
+      )
 
-        // Gestion des captures d'écran
-        if (todo.screenshot) {
-            try {
-                const base64Data = todo.screenshot.split('base64,')[1];
-                const binary = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                topicFolder.file("snapshot.png", binary, {
-                    binary: true,
-                    compression: "DEFLATE",
-                    compressionOptions: { level: 9 }
-                });
-            } catch (error) {
-                console.error("Error processing screenshot:", error);
-            }
+      // Gestion des captures d'écran
+      if (todo.screenshot) {
+        try {
+          const base64Data = todo.screenshot.split("base64,")[1]
+          const binary = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
+          topicFolder.file("snapshot.png", binary, {
+            binary: true,
+            compression: "DEFLATE",
+            compressionOptions: { level: 9 },
+          })
+        } catch (error) {
+          console.error("Error processing screenshot:", error)
         }
-    });
+      }
+    })
 
     // Génération et téléchargement
-    zip.generateAsync({
+    zip
+      .generateAsync({
         type: "blob",
         compression: "DEFLATE",
-        compressionOptions: { level: 9 }
-    }).then(content => {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(content);
-        link.download = `Revit_BCF_${new Date().toISOString().slice(0, 10)}.bcf`;
-        link.click();
-    }).catch(error => {
-        console.error("BCF Export Error:", error);
-        toast.error("Failed to generate BCF file");
-    });
-};
+        compressionOptions: { level: 9 },
+      })
+      .then((content) => {
+        const link = document.createElement("a")
+        link.href = URL.createObjectURL(content)
+        link.download = `Revit_BCF_${new Date().toISOString().slice(0, 10)}.bcf`
+        link.click()
+      })
+      .catch((error) => {
+        console.error("BCF Export Error:", error)
+        toast.error("Échec de la génération du fichier BCF")
+      })
+  }
 
   const handleCreateNote = useCallback(() => {
     console.log("handleCreateNote called")
@@ -848,7 +1031,7 @@ const mapPriority = (priority: string) => {
 
   // Corriger la fonction toggleTodosTool avec useCallback
   const toggleTodosTool = useCallback(() => {
-    effectiveSetActiveTool((current) => (current === "todos" ? null : "todos"))
+    effectiveSetActiveTool((current: string | null) => (current === "todos" ? null : "todos"))
   }, [effectiveSetActiveTool])
 
   useEffect(() => {

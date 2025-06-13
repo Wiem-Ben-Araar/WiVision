@@ -1,15 +1,14 @@
-import axios from "axios"
+import axios from "axios";
 
-// Créer une instance Axios avec la configuration de base
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL ,
+  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true, // IMPORTANT: Pour envoyer les cookies
-})
+  withCredentials: true,
+});
 
-// Intercepteur pour gérer l'authentification automatique
+// Intercepteur simple sans logique de redirection dans l'intercepteur
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -26,16 +25,13 @@ api.interceptors.response.use(
         // Réessayer la requête originale
         return api(originalRequest);
       } catch (refreshError) {
-        // Si le refresh échoue, rediriger vers la page de connexion
-        if (typeof window !== "undefined") {
-          window.location.href = '/sign-in';
-        }
+        // Ne pas rediriger ici, laisser le composant gérer la redirection
         return Promise.reject(refreshError);
       }
     }
     
     return Promise.reject(error);
   }
-)
+);
 
-export default api
+export default api;
