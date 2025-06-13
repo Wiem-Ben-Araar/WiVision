@@ -6,7 +6,7 @@ import Project from "../models/project"
 import User from "../models/user"
 import { v4 as uuidv4 } from "uuid"
 
-// ✅ FONCTION POUR VÉRIFIER/CRÉER LE BUCKET - CORRIGÉE
+// ✅ FONCTION POUR VÉRIFIER LE BUCKET (SANS CRÉATION AUTOMATIQUE)
 const ensureBucketExists = async (): Promise<boolean> => {
   try {
     const { data: buckets, error: listError } = await supabase.storage.listBuckets()
@@ -19,23 +19,17 @@ const ensureBucketExists = async (): Promise<boolean> => {
     const ifcBucket = buckets?.find((b) => b.name === "ifc-files")
 
     if (!ifcBucket) {
-      console.log("🔄 Création bucket ifc-files en cours...")
-
-      // ✅ CORRECTION: Configuration bucket simplifiée
-      const { error: createError } = await supabase.storage.createBucket("ifc-files", {
-        public: false,
-        // ❌ SUPPRIMÉ: allowedMimeTypes et fileSizeLimit qui causent l'erreur
-        // Ces options ne sont pas supportées ou mal configurées
-      })
-
-      if (createError) {
-        console.error("❌ Impossible de créer le bucket:", createError.message)
-        return false
-      }
-
-      console.log("✅ Bucket ifc-files créé !")
+      console.error("❌ Bucket 'ifc-files' non trouvé!")
+      console.log("📋 SOLUTION: Créez manuellement le bucket dans Supabase Console:")
+      console.log("   1. Allez sur votre projet Supabase")
+      console.log("   2. Storage → New bucket")
+      console.log("   3. Nom: 'ifc-files'")
+      console.log("   4. Public: NON (décoché)")
+      console.log("   5. Laissez les autres options vides")
+      return false
     }
 
+    console.log("✅ Bucket 'ifc-files' trouvé et disponible")
     return true
   } catch (error: any) {
     console.error("❌ Erreur vérification bucket:", error.message)
