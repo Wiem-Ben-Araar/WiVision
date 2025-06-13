@@ -9,7 +9,7 @@ const upload = multer({
     fileSize: 100 * 1024 * 1024, // ✅ 100MB par fichier (au lieu de 50MB)
     files: 10, // ✅ MAXIMUM 10 FICHIERS SIMULTANÉS
   },
-  fileFilter: (req, file, cb: (error: any, acceptFile: boolean) => void) => {
+  fileFilter: (req, file, cb) => {
     // Vérifier que c'est un fichier IFC
     if (file.originalname.toLowerCase().endsWith(".ifc")) {
       cb(null, true)

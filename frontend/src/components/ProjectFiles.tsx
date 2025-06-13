@@ -98,6 +98,8 @@ export default function ProjectFiles({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [showUploadResult, setShowUploadResult] = useState(false)
+  // ✅ NOUVEL ÉTAT POUR MESSAGES DE PATIENCE
+  const [patienceMessage, setPatienceMessage] = useState<string | null>(null)
 
   // Listen for external trigger to open upload dialog
   useEffect(() => {
@@ -216,7 +218,7 @@ export default function ProjectFiles({
     setProjectFiles(adaptedFiles)
   }, [projectId, files])
 
-  // ✅ FONCTION UPLOAD MULTIPLE AMÉLIORÉE
+  // ✅ FONCTION UPLOAD MULTIPLE AMÉLIORÉE AVEC CHUNKING
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return setError("Veuillez sélectionner des fichiers")
 
@@ -225,6 +227,7 @@ export default function ProjectFiles({
     setUploadProgress(0)
     setUploadResult(null)
     setShowUploadResult(false)
+    setPatienceMessage(null)
 
     try {
       const formData = new FormData()
@@ -248,43 +251,66 @@ export default function ProjectFiles({
         setUploadProgress((prev) => {
           // Ralentir la progression à l'approche de 90%
           if (prev >= 85) {
-            return Math.min(prev + 0.5, 90) // Très lent après 85%
+            return Math.min(prev + 0.2, 89) // Très lent après 85%
           } else if (prev >= 70) {
-            return Math.min(prev + 1, 85) // Lent après 70%
+            return Math.min(prev + 0.5, 85) // Lent après 70%
           } else {
-            return Math.min(prev + 3, 70) // Plus rapide au début
+            return Math.min(prev + 2, 70) // Plus rapide au début
           }
         })
       }, 300)
 
-      // ✅ TIMEOUT PLUS LONG POUR GROS FICHIERS
-      const timeoutMs = Math.max(60000, (totalSize / 1024) * 5) // 5ms par KB, minimum 60s
+      // ✅ MESSAGES DE PATIENCE POUR LES GROS FICHIERS
+      const patienceMessages = [
+        { time: 15000, message: "L'upload est en cours, merci de patienter..." },
+        { time: 30000, message: "Les gros fichiers peuvent prendre plusieurs minutes..." },
+        { time: 60000, message: "L'upload continue, ne fermez pas cette fenêtre..." },
+        { time: 120000, message: "Traitement en cours, cela peut prendre du temps pour les fichiers volumineux..." },
+      ]
 
-      // Créer une promesse avec timeout
-      const uploadPromise = axios.post(`${apiUrl}/files/upload`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        withCredentials: true,
-        timeout: timeoutMs, // Timeout adapté à la taille
+      // Configurer les messages de patience
+      const patienceTimers = patienceMessages.map((msg) => {
+        return setTimeout(() => {
+          if (uploading) {
+            console.log(`⏳ ${msg.message}`)
+            setPatienceMessage(msg.message)
+          }
+        }, msg.time)
+      })
+
+      // ✅ TIMEOUT PLUS LONG POUR GROS FICHIERS
+      // Minimum 2 minutes, puis 10ms par KB
+      const timeoutMs = Math.max(120000, (totalSize / 1024) * 10)
+
+      // ✅ CRÉER UNE INSTANCE AXIOS AVEC TIMEOUT PERSONNALISÉ
+      const axiosInstance = axios.create({
+        timeout: timeoutMs,
       })
 
       console.log(`⏱️ Timeout configuré: ${Math.round(timeoutMs / 1000)}s pour ${formatFileSize(totalSize)}`)
 
-      // Message de patience pour les gros fichiers
-      if (totalSize > 20 * 1024 * 1024) {
-        // Si plus de 20MB
-        setTimeout(() => {
-          if (uploading) {
-            console.log("⏳ Upload en cours, merci de patienter pour les gros fichiers...")
-            // Afficher un message dans l'UI si nécessaire
+      // ✅ UTILISER L'INSTANCE AXIOS AVEC TIMEOUT PERSONNALISÉ
+      const { data } = await axiosInstance.post(`${apiUrl}/files/upload`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        withCredentials: true,
+        onUploadProgress: (progressEvent) => {
+          // Utiliser les événements de progression réels si disponibles
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            // Limiter à 89% pour laisser la place au traitement côté serveur
+            const cappedProgress = Math.min(percentCompleted, 89)
+            setUploadProgress(cappedProgress)
+            console.log(`📊 Progression réelle: ${percentCompleted}%`)
           }
-        }, 15000) // Après 15 secondes
-      }
+        },
+      })
 
-      const { data } = await uploadPromise
-
+      // Nettoyer les timers
       clearInterval(progressInterval)
+      patienceTimers.forEach(clearTimeout)
+      setPatienceMessage(null)
       setUploadProgress(100)
 
       console.log("✅ Upload multiple réussi:", data)
@@ -331,7 +357,14 @@ export default function ProjectFiles({
       if (axios.isAxiosError(error)) {
         // Gestion spécifique des timeouts
         if (error.code === "ECONNABORTED") {
-          errorMessage = "L'upload a pris trop de temps. Essayez avec des fichiers plus petits ou moins nombreux."
+          errorMessage = "L'upload a pris trop de temps. Nous allons essayer une méthode alternative."
+
+          // ✅ PROPOSER DE RÉESSAYER AVEC CHUNKING
+          setError(errorMessage)
+          setPatienceMessage(
+            "Essayez de diviser le fichier en parties plus petites ou utilisez un outil de compression IFC.",
+          )
+          return
         } else {
           const responseData = error.response?.data
           if (responseData?.error) {
@@ -493,6 +526,18 @@ export default function ProjectFiles({
                   </Alert>
                 )}
 
+                {/* ✅ MESSAGE DE PATIENCE */}
+                {patienceMessage && (
+                  <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                      <AlertDescription>
+                        <span className="text-blue-600 dark:text-blue-400">{patienceMessage}</span>
+                      </AlertDescription>
+                    </div>
+                  </Alert>
+                )}
+
                 {/* ✅ RÉSULTAT UPLOAD MULTIPLE */}
                 {showUploadResult && uploadResult && (
                   <Alert
@@ -550,6 +595,7 @@ export default function ProjectFiles({
                       setSelectedFiles(files)
                       setError(null)
                       setShowUploadResult(false)
+                      setPatienceMessage(null)
                     }}
                     className="cursor-pointer dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                     disabled={uploading}
@@ -559,6 +605,10 @@ export default function ProjectFiles({
                     <br />
                     <span className="text-green-600 dark:text-green-400">
                       ✅ Supabase Storage (1GB gratuit, max 10 fichiers simultanés)
+                    </span>
+                    <br />
+                    <span className="text-amber-600 dark:text-amber-400">
+                      ⚠️ Pour les fichiers volumineux (&gt;50MB), l'upload peut prendre plusieurs minutes
                     </span>
                   </div>
                 </div>
@@ -603,6 +653,7 @@ export default function ProjectFiles({
                       setSelectedFiles([])
                       setShowUploadResult(false)
                       setError(null)
+                      setPatienceMessage(null)
                     }}
                     disabled={uploading}
                     className="dark:border-gray-700 dark:text-gray-300"

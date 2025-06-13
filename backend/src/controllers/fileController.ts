@@ -5,7 +5,7 @@ import File, { type IFile } from "../models/file"
 import Project from "../models/project"
 import User from "../models/user"
 import { v4 as uuidv4 } from "uuid"
-// import type { File as MulterFile } from "multer"
+// Removed unnecessary Multer import
 
 // ✅ FONCTION POUR VÉRIFIER/CRÉER LE BUCKET
 const ensureBucketExists = async (): Promise<boolean> => {
@@ -25,7 +25,7 @@ const ensureBucketExists = async (): Promise<boolean> => {
       const { error: createError } = await supabase.storage.createBucket("ifc-files", {
         public: false,
         allowedMimeTypes: ["application/octet-stream"],
-        fileSizeLimit: 50 * 1024 * 1024, // 50MB
+        fileSizeLimit: 100 * 1024 * 1024, // 100MB
       })
 
       if (createError) {
@@ -50,9 +50,9 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
 
   // ✅ AUGMENTER LE TIMEOUT DE LA REQUÊTE
   // @ts-ignore - Ajouter un timeout plus long pour les gros fichiers
-  req.setTimeout(300000) // 5 minutes
+  req.setTimeout(600000) // 10 minutes
   // @ts-ignore - Augmenter aussi le timeout de la réponse
-  res.setTimeout(300000) // 5 minutes
+  res.setTimeout(600000) // 10 minutes
 
   try {
     // ✅ VÉRIFIER QUE LE BUCKET EXISTE AVANT L'UPLOAD
@@ -151,8 +151,10 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
 
     console.log(`[${uploadId}] 🔄 Traitement de ${files.length} fichier(s) en parallèle...`)
 
-    // ✅ TRAITEMENT EN PARALLÈLE DE TOUS LES FICHIERS
-    const uploadPromises = files.map(async (file, index) => {
+    // ✅ TRAITEMENT SÉQUENTIEL POUR LES GROS FICHIERS
+    // Traiter les fichiers un par un pour éviter les timeouts
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index]
       const fileId = `${uploadId}-file-${index}`
 
       console.log(`[${fileId}] 📄 Début traitement: ${file.originalname} (${file.size} octets)`)
@@ -162,15 +164,17 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         if (!file.originalname.toLowerCase().endsWith(".ifc")) {
           const error = `Le fichier ${file.originalname} n'est pas au format IFC`
           console.error(`[${fileId}] ❌ ${error}`)
-          return { success: false, error, fileName: file.originalname }
+          uploadResults.failed.push({ success: false, error, fileName: file.originalname })
+          continue
         }
 
-        // Validation taille fichier (50MB max)
-        const maxFileSize = 50 * 1024 * 1024 // 50MB
+        // Validation taille fichier (100MB max)
+        const maxFileSize = 100 * 1024 * 1024 // 100MB
         if (file.size > maxFileSize) {
-          const error = `Le fichier ${file.originalname} est trop volumineux (${Math.round(file.size / 1024 / 1024)}MB). Taille maximum: 50MB.`
+          const error = `Le fichier ${file.originalname} est trop volumineux (${Math.round(file.size / 1024 / 1024)}MB). Taille maximum: 100MB.`
           console.error(`[${fileId}] ❌ ${error}`)
-          return { success: false, error, fileName: file.originalname }
+          uploadResults.failed.push({ success: false, error, fileName: file.originalname })
+          continue
         }
 
         // Génération du chemin Supabase
@@ -205,11 +209,12 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
 
         if (uploadError) {
           console.error(`[${fileId}] ❌ Échec upload Supabase:`, uploadError.message)
-          return {
+          uploadResults.failed.push({
             success: false,
             error: `Upload failed: ${uploadError.message}`,
             fileName: file.originalname,
-          }
+          })
+          continue
         }
 
         const uploadDuration = Date.now() - uploadStartTime
@@ -220,11 +225,12 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
 
         if (!urlData?.publicUrl) {
           console.error(`[${fileId}] ❌ Échec récupération URL publique`)
-          return {
+          uploadResults.failed.push({
             success: false,
             error: "Failed to get public URL",
             fileName: file.originalname,
-          }
+          })
+          continue
         }
 
         console.log(`[${fileId}] ✅ URL publique obtenue`)
@@ -251,7 +257,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         await newFile.save()
         console.log(`[${fileId}] ✅ Sauvegarde MongoDB réussie: ${newFile._id}`)
 
-        return {
+        const result = {
           success: true,
           file: {
             id: (newFile._id as mongoose.Types.ObjectId).toString(),
@@ -264,39 +270,36 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
           fileId: newFile._id,
           downloadUrl: urlData.publicUrl,
         }
+
+        uploadResults.successful.push(result)
+        uploadResults.downloadURLs.push(result.downloadUrl)
+        uploadResults.fileMetadata.push(result.file)
+        uploadResults.newFileIds.push(result.fileId as mongoose.Types.ObjectId)
+
+        // ✅ ENVOYER UNE RÉPONSE PARTIELLE POUR CHAQUE FICHIER RÉUSSI
+        // Cela permet au client de savoir que le serveur est toujours actif
+        if (index < files.length - 1) {
+          // Envoyer un événement SSE pour informer le client du progrès
+          // Mais seulement si ce n'est pas le dernier fichier
+          res.write(
+            `data: ${JSON.stringify({
+              type: "progress",
+              file: file.originalname,
+              index: index + 1,
+              total: files.length,
+              success: true,
+            })}\n\n`,
+          )
+        }
       } catch (fileError: any) {
         console.error(`[${fileId}] ❌ Erreur traitement:`, fileError.message)
-        return {
+        uploadResults.failed.push({
           success: false,
           error: fileError.message,
           fileName: file.originalname,
-        }
+        })
       }
-    })
-
-    // ✅ ATTENDRE TOUS LES UPLOADS EN PARALLÈLE
-    console.log(`[${uploadId}] ⏳ Attente de tous les uploads...`)
-    const results = await Promise.all(uploadPromises)
-
-    // ✅ TRAITEMENT DES RÉSULTATS
-    results.forEach((result) => {
-      if (result.success) {
-        uploadResults.successful.push(result)
-        if (typeof result.downloadUrl === "string") {
-          uploadResults.downloadURLs.push(result.downloadUrl)
-        }
-        uploadResults.fileMetadata.push(result.file)
-        if (
-          result.fileId &&
-          typeof result.fileId === "object" &&
-          result.fileId instanceof mongoose.Types.ObjectId
-        ) {
-          uploadResults.newFileIds.push(result.fileId)
-        }
-      } else {
-        uploadResults.failed.push(result)
-      }
-    })
+    }
 
     console.log(
       `[${uploadId}] 📊 Résultats: ${uploadResults.successful.length} réussis, ${uploadResults.failed.length} échoués`,
@@ -377,7 +380,10 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
   }
 }
 
-// Garder les autres fonctions...
+
+
+
+
 export const getProjectFiles = async (req: Request, res: Response): Promise<void> => {
   const requestId = uuidv4().substring(0, 8)
   console.log(`[${requestId}] 🔍 Récupération fichiers projet`)
