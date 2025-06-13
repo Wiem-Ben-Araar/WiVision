@@ -1,410 +1,240 @@
-import type { Request, Response } from "express"
-import mongoose from "mongoose"
-import { supabase } from "../config/supabase"
-import File, { type IFile } from "../models/file"
-import Project from "../models/project"
-import User from "../models/user"
-import { v4 as uuidv4 } from "uuid"
+import type { Request, Response } from "express";
+import mongoose from "mongoose";
+import { supabase } from "../config/supabase";
+import File, { type IFile } from "../models/file";
+import Project from "../models/project";
+import User from "../models/user";
+import { v4 as uuidv4 } from "uuid";
+import pLimit from "p-limit";
 
-// ✅ FONCTION POUR VÉRIFIER/CRÉER LE BUCKET AVEC PLUS DE DÉTAILS
+// ✅ FONCTION POUR VÉRIFIER LE BUCKET (OPTIMISÉE)
 const ensureBucketExists = async (): Promise<boolean> => {
   try {
-    console.log("🔍 Vérification du bucket Supabase...")
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-
-    if (listError) {
-      console.error("❌ Erreur vérification buckets:", listError.message)
-      return false
-    }
-
-    console.log(`📊 Buckets disponibles: ${buckets?.length || 0}`)
-
-    // Afficher tous les buckets pour debug
-    buckets?.forEach((bucket) => {
-      console.log(`📦 Bucket: ${bucket.name} (${bucket.public ? "public" : "privé"})`)
-    })
-
-    const ifcBucket = buckets?.find((b) => b.name === "ifc-files")
-
-    if (!ifcBucket) {
-      console.log("⚠️ Bucket 'ifc-files' non trouvé, tentative de création...")
-
-      try {
-        const { data: newBucket, error: createError } = await supabase.storage.createBucket("ifc-files", {
-          public: false,
-          fileSizeLimit: 100 * 1024 * 1024, // 100MB
-        })
-
-        if (createError) {
-          console.error("❌ Erreur création bucket:", createError.message)
-          console.log("📋 SOLUTION: Créez manuellement le bucket dans Supabase Console:")
-          console.log("   1. Allez sur votre projet Supabase")
-          console.log("   2. Storage → New bucket")
-          console.log("   3. Nom: 'ifc-files'")
-          console.log("   4. Public: NON (décoché)")
-          return false
-        }
-
-        console.log("✅ Bucket 'ifc-files' créé avec succès!")
-        return true
-      } catch (createErr: any) {
-        console.error("❌ Exception création bucket:", createErr.message)
-        return false
-      }
-    }
-
-    console.log("✅ Bucket 'ifc-files' trouvé et disponible")
-    return true
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const ifcBucket = buckets?.find((b) => b.name === "ifc-files");
+    return !!ifcBucket;
   } catch (error: any) {
-    console.error("❌ Erreur vérification bucket:", error.message)
-    return false
+    console.error("❌ Erreur vérification bucket:", error.message);
+    return false;
   }
-  
+};
+
+// ✅ FONCTION D'UPLOAD PARALLELE
+async function uploadToSupabase(
+  file: Express.Multer.File,
+  supabasePath: string
+): Promise<{ success: boolean; error?: any }> {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // Timeout après 30s
+
+    supabase.storage
+      .from("ifc-files")
+      .upload(supabasePath, file.buffer, {
+        contentType: "application/octet-stream",
+        upsert: true,
+        duplex: "half",
+        cacheControl: "3600",
+      })
+      .then(({ error }) => {
+        clearTimeout(timeout);
+        resolve({ success: !error, error });
+      })
+      .catch((err) => {
+        clearTimeout(timeout);
+        resolve({ success: false, error: err });
+      });
+  });
 }
 
-// ✅ UPLOAD MULTIPLE AMÉLIORÉ
+// ⚡ UPLOAD MULTIPLE HAUTE PERFORMANCE
 export const uploadFiles = async (req: Request, res: Response): Promise<void> => {
-  const uploadId = uuidv4().substring(0, 8)
-  console.log(`[${uploadId}] 🚀 Démarrage upload MULTIPLE vers Supabase`)
-
-  // ✅ AUGMENTER LE TIMEOUT DE LA REQUÊTE
-  // @ts-ignore - Ajouter un timeout plus long pour les gros fichiers
-  req.setTimeout(600000) // 10 minutes
-  // @ts-ignore - Augmenter aussi le timeout de la réponse
-  res.setTimeout(600000) // 10 minutes
+  const uploadId = uuidv4().substring(0, 8);
+  console.log(`[${uploadId}] 🚀 Démarrage upload MULTIPLE vers Supabase`);
 
   try {
-    // ✅ VÉRIFIER QUE LE BUCKET EXISTE AVANT L'UPLOAD
-    const bucketExists = await ensureBucketExists()
-    if (!bucketExists) {
-      console.error(`[${uploadId}] ❌ Bucket ifc-files non disponible`)
-      res.status(500).json({
-        error: "Bucket Supabase non disponible",
-        solution: "Créez manuellement le bucket dans Supabase Console",
-      })
-      return
+    if (!(await ensureBucketExists())) {
+       res.status(500).json({ error: "Bucket Supabase non disponible" });
     }
 
-    // Vérification authentification
-    if (!req.user) {
-      console.error(`[${uploadId}] ❌ Authentification échouée`)
-      res.status(401).json({ error: "Non autorisé" })
-      return
-    }
+    if (!req.user)  res.status(401).json({ error: "Non autorisé" });
+    
+    const user = req.user as { email?: string };
+    const userEmail = user.email || "unknown@example.com";
+    const projectId: string = req.body.projectId;
 
-    const user = req.user as { email?: string }
-    if (!user.email) {
-      console.error(`[${uploadId}] ❌ Email utilisateur non trouvé`)
-      res.status(401).json({ error: "Email utilisateur non trouvé" })
-      return
-    }
+    // Récupération des fichiers
+    const files: Express.Multer.File[] = Array.isArray(req.files)
+      ? req.files
+      : req.files?.file
+        ? Array.isArray(req.files.file)
+          ? req.files.file
+          : [req.files.file]
+        : req.file
+          ? [req.file]
+          : [];
 
-    // Extraction des données
-    const projectId: string = req.body.projectId
-    const userEmail: string = user.email
-
-    // ✅ GESTION MULTIPLE FILES - req.files peut être un array ou un objet
-    let files: Express.Multer.File[] = []
-
-    if (Array.isArray(req.files)) {
-      // Si req.files est un array (upload multiple avec même nom de champ)
-      files = req.files
-      console.log(`[${uploadId}] 📦 Fichiers trouvés (array): ${files.length}`)
-    } else if (req.files && typeof req.files === "object") {
-      // Si req.files est un objet avec différents champs
-      files = Object.values(req.files).flat()
-      console.log(`[${uploadId}] 📦 Fichiers trouvés (object): ${files.length}`)
-    } else if (req.file) {
-      // Si un seul fichier
-      files = [req.file]
-      console.log(`[${uploadId}] 📦 Fichier unique trouvé`)
-    }
-
-    console.log(`[${uploadId}] 📦 Données reçues: projectId=${projectId}, fichiers=${files.length}, email=${userEmail}`)
-
-    // Validation
-    if (!files || files.length === 0) {
-      console.error(`[${uploadId}] ❌ Aucun fichier fourni`)
-      res.status(400).json({
-        error: "Aucun fichier fourni",
-        debug: {
-          reqFiles: !!req.files,
-          reqFile: !!req.file,
-          filesType: typeof req.files,
-          filesLength: Array.isArray(req.files) ? req.files.length : 0,
-          body: req.body,
-        },
-      })
-      return
+    if (!files.length) {
+       res.status(400).json({ error: "Aucun fichier fourni" });
     }
 
     if (!projectId) {
-      console.error(`[${uploadId}] ❌ ProjectId manquant`)
-      res.status(400).json({ error: "ProjectId requis" })
-      return
+       res.status(400).json({ error: "ProjectId requis" });
     }
 
     // Vérification projet
-    const project = await Project.findById(projectId)
+    const project = await Project.findById(projectId);
     if (!project) {
-      console.error(`[${uploadId}] ❌ Projet non trouvé: ${projectId}`)
-      res.status(404).json({ error: `Projet avec ID ${projectId} non trouvé` })
-      return
+       res.status(404).json({ error: `Projet non trouvé` });
     }
-    console.log(`[${uploadId}] ✅ Projet trouvé: ${project.name || projectId}`)
 
     // Recherche utilisateur
-    let userId: mongoose.Types.ObjectId | null = null
-    if (userEmail) {
-      const userDoc = await User.findOne({ email: userEmail })
-      if (userDoc) {
-        userId = userDoc._id
-        console.log(`[${uploadId}] ✅ Utilisateur trouvé: ${userId}`)
-      }
-    }
+    const userDoc = await User.findOne({ email: userEmail });
+    const userId = userDoc?._id || userEmail;
 
-    // ✅ VARIABLES POUR TRACKING MULTIPLE UPLOADS
-    const uploadResults = {
-      successful: [] as any[],
-      failed: [] as any[],
-      downloadURLs: [] as string[],
-      fileMetadata: [] as any[],
-      newFileIds: [] as mongoose.Types.ObjectId[],
-    }
-
-    console.log(`[${uploadId}] 🔄 Traitement de ${files.length} fichier(s) en séquentiel...`)
-
-    // ✅ TRAITEMENT SÉQUENTIEL POUR LES GROS FICHIERS
-    // Traiter les fichiers un par un pour éviter les timeouts
-    for (let index = 0; index < files.length; index++) {
-      const file = files[index]
-      const fileId = `${uploadId}-file-${index}`
-
-      console.log(
-        `[${fileId}] 📄 Début traitement: ${file.originalname} (${Math.round((file.size / 1024 / 1024) * 100) / 100} MB)`,
-      )
-
-      try {
-        // Validation format IFC
-        if (!file.originalname.toLowerCase().endsWith(".ifc")) {
-          const error = `Le fichier ${file.originalname} n'est pas au format IFC`
-          console.error(`[${fileId}] ❌ ${error}`)
-          uploadResults.failed.push({ success: false, error, fileName: file.originalname })
-          continue
-        }
-
-        // Validation taille fichier (100MB max)
-        const maxFileSize = 100 * 1024 * 1024 // 100MB
-        if (file.size > maxFileSize) {
-          const error = `Le fichier ${file.originalname} est trop volumineux (${Math.round(file.size / 1024 / 1024)}MB). Taille maximum: 100MB.`
-          console.error(`[${fileId}] ❌ ${error}`)
-          uploadResults.failed.push({ success: false, error, fileName: file.originalname })
-          continue
-        }
-
-        // Génération du chemin Supabase
-        const timestamp = Date.now() + index // Éviter les collisions
-        const sanitizedName = file.originalname
-          .replace(/[^a-zA-Z0-9.-]/g, "_")
-          .replace(/_{2,}/g, "_")
-          .toLowerCase()
-
-        const fileName = `${timestamp}_${sanitizedName}`
-        const supabasePath = `projects/${projectId}/${fileName}`
-
-        console.log(`[${fileId}] 📂 Chemin Supabase: ${supabasePath}`)
-
-        // ✅ UPLOAD VERS SUPABASE STORAGE AVEC RETRY
-        const uploadStartTime = Date.now()
-        let uploadSuccess = false
-        let uploadError = null
-        let uploadData = null
-
-        // Tentatives multiples en cas d'échec
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          if (attempt > 1) {
-            console.log(`[${fileId}] 🔄 Tentative ${attempt}/3...`)
-            // Attendre 2 secondes entre les tentatives
-            await new Promise((resolve) => setTimeout(resolve, 2000))
+    // ⚡ PARALLÉLISME CONTRÔLÉ
+    const limit = pLimit(10); // 10 uploads simultanés
+    const startTime = Date.now();
+    
+    const uploadPromises = files.map((file, index) =>
+      limit(async () => {
+        const fileId = `${uploadId}-file-${index}`;
+        
+        try {
+          // Validation format et taille
+          if (!file.originalname.toLowerCase().endsWith(".ifc")) {
+            throw new Error("Format non IFC");
           }
 
-          try {
-            const result = await supabase.storage.from("ifc-files").upload(supabasePath, file.buffer, {
-              contentType: "application/octet-stream",
-              upsert: true, // Écraser si existe déjà
-            })
-
-            if (result.error) {
-              console.error(`[${fileId}] ❌ Tentative ${attempt} échouée:`, result.error.message)
-              uploadError = result.error
-            } else {
-              uploadData = result.data
-              uploadSuccess = true
-              console.log(`[${fileId}] ✅ Upload réussi à la tentative ${attempt}`)
-              break
-            }
-          } catch (err: any) {
-            console.error(`[${fileId}] ❌ Exception tentative ${attempt}:`, err.message)
-            uploadError = err
+          if (file.size > 200 * 1024 * 1024) {
+            throw new Error("Fichier trop volumineux");
           }
-        }
 
-        if (!uploadSuccess) {
-          console.error(`[${fileId}] ❌ Échec upload après 3 tentatives`)
-          uploadResults.failed.push({
-            success: false,
-            error: `Upload failed: ${uploadError?.message || "Unknown error"}`,
-            fileName: file.originalname,
-          })
-          continue
-        }
+          // Génération chemin unique
+          const timestamp = Date.now();
+          const sanitizedName = file.originalname
+            .replace(/[^a-zA-Z0-9.-]/g, "_")
+            .replace(/_+/g, "_")
+            .toLowerCase();
+            
+          const fileName = `${timestamp}_${index}_${sanitizedName}`;
+          const supabasePath = `projects/${projectId}/${fileName}`;
 
-        const uploadDuration = Date.now() - uploadStartTime
-        console.log(`[${fileId}] ✅ Upload Supabase réussi en ${uploadDuration}ms`)
+          // ⚡ UPLOAD DIRECT AVEC TIMEOUT
+          const uploadResult = await uploadToSupabase(file, supabasePath);
+          if (!uploadResult.success) {
+            throw uploadResult.error || "Échec upload";
+          }
 
-        // Récupération URL publique
-        const { data: urlData } = supabase.storage.from("ifc-files").getPublicUrl(supabasePath)
+          // Récupération URL
+          const { data: urlData } = supabase.storage
+            .from("ifc-files")
+            .getPublicUrl(supabasePath);
 
-        if (!urlData?.publicUrl) {
-          console.error(`[${fileId}] ❌ Échec récupération URL publique`)
-          uploadResults.failed.push({
-            success: false,
-            error: "Failed to get public URL",
-            fileName: file.originalname,
-          })
-          continue
-        }
+          if (!urlData?.publicUrl) {
+            throw new Error("Échec récupération URL");
+          }
 
-        console.log(`[${fileId}] ✅ URL publique obtenue`)
-
-        // Sauvegarde dans MongoDB
-        const newFile = new File({
-          name: file.originalname,
-          file_url: urlData.publicUrl,
-          file_size: file.size,
-          fileType: "IFC",
-          project: new mongoose.Types.ObjectId(projectId),
-          supabasePath: supabasePath,
-          uploadedBy: userId || userEmail,
-          ifcMetadata: {
-            schema: "IFC2x3",
-            application: "Supabase Upload",
-            creator: userEmail,
-            timestamp: new Date(),
-            coordinates: { x: 0, y: 0, z: 0 },
-          },
-          uploadedAt: new Date(),
-        } as IFile)
-
-        await newFile.save()
-        console.log(`[${fileId}] ✅ Sauvegarde MongoDB réussie: ${newFile._id}`)
-
-        const result = {
-          success: true,
-          file: {
-            id: (newFile._id as mongoose.Types.ObjectId).toString(),
+          // Création document
+          const newFile = new File({
             name: file.originalname,
-            url: urlData.publicUrl,
-            size: file.size,
+            file_url: urlData.publicUrl,
+            file_size: file.size,
             fileType: "IFC",
-            supabasePath: supabasePath,
-          },
-          fileId: newFile._id,
-          downloadUrl: urlData.publicUrl,
+            project: new mongoose.Types.ObjectId(projectId),
+            supabasePath,
+            uploadedBy: userId,
+            uploadedAt: new Date(),
+          } as IFile);
+
+          await newFile.save();
+
+          // Explicitly cast _id to mongoose.Types.ObjectId
+          const fileId =
+            typeof newFile._id === "object" && newFile._id instanceof mongoose.Types.ObjectId
+              ? newFile._id.toString()
+              : String(newFile._id);
+
+          return {
+            success: true,
+            file: {
+              id: fileId,
+              name: file.originalname,
+              url: urlData.publicUrl,
+              size: file.size,
+              fileType: "IFC",
+              supabasePath,
+            },
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            fileName: file.originalname,
+            error: error.message || String(error),
+          };
         }
+      })
+    );
 
-        uploadResults.successful.push(result)
-        uploadResults.downloadURLs.push(result.downloadUrl)
-        uploadResults.fileMetadata.push(result.file)
-        uploadResults.newFileIds.push(result.fileId as mongoose.Types.ObjectId)
-      } catch (fileError: any) {
-        console.error(`[${fileId}] ❌ Erreur traitement:`, fileError.message)
-        uploadResults.failed.push({
-          success: false,
-          error: fileError.message,
-          fileName: file.originalname,
-        })
-      }
+    const results = await Promise.all(uploadPromises);
+
+    // Mise à jour projet
+    const successfulUploads = results.filter((r) => r.success);
+    const newFileIds = successfulUploads
+      .filter((r) => r.file && r.file.id)
+      .map((r) => r.file && r.file.id ? new mongoose.Types.ObjectId(r.file.id) : null)
+      .filter((id) => id !== null);
+
+    if (newFileIds.length) {
+      await Project.findByIdAndUpdate(
+        projectId,
+        { $push: { files: { $each: newFileIds } } },
+        { new: true }
+      );
     }
 
-    console.log(
-      `[${uploadId}] 📊 Résultats: ${uploadResults.successful.length} réussis, ${uploadResults.failed.length} échoués`,
-    )
-
-    // Mise à jour du projet avec les nouveaux fichiers
-    if (uploadResults.newFileIds.length > 0) {
-      try {
-        await Project.findByIdAndUpdate(
-          projectId,
-          { $push: { files: { $each: uploadResults.newFileIds } } },
-          { new: true },
-        )
-        console.log(`[${uploadId}] ✅ Projet mis à jour avec ${uploadResults.newFileIds.length} nouveaux fichiers`)
-      } catch (updateError: any) {
-        console.error(`[${uploadId}] ❌ Échec mise à jour projet:`, updateError.message)
-      }
-    }
-
-    // ✅ RÉPONSE DÉTAILLÉE POUR UPLOAD MULTIPLE
-    const successCount = uploadResults.successful.length
-    const totalCount = files.length
-    const failedCount = uploadResults.failed.length
+    // Préparation réponse
+    const successCount = successfulUploads.length;
+    const failedCount = results.length - successCount;
+    const duration = Date.now() - startTime;
 
     const responseData = {
       uploadId,
       success: successCount > 0,
-      message: `${successCount}/${totalCount} fichier(s) uploadé(s) avec succès vers Supabase Storage`,
-
-      // Données des fichiers réussis
-      downloadURLs: uploadResults.downloadURLs,
-      files: uploadResults.fileMetadata,
-
-      // Statistiques détaillées
+      message: `${successCount}/${results.length} fichiers uploadés en ${duration}ms`,
+      files: successfulUploads.map((r) => r.file),
       stats: {
-        total: totalCount,
+        total: results.length,
         successful: successCount,
         failed: failedCount,
-        successRate: Math.round((successCount / totalCount) * 100),
+        successRate: Math.round((successCount / results.length) * 100),
       },
-
-      // Erreurs détaillées si il y en a
-      errors:
-        uploadResults.failed.length > 0
-          ? uploadResults.failed.map((f) => ({
-              fileName: f.fileName,
-              error: f.error,
-            }))
-          : undefined,
-
+      errors: results
+        .filter((r) => !r.success)
+        .map((r) => ({
+          fileName: r.fileName,
+          error: r.error,
+        })),
       timestamp: new Date().toISOString(),
       storageProvider: "Supabase",
-    }
+      durationMs: duration,
+    };
 
-    if (successCount === 0) {
-      console.error(`[${uploadId}] ❌ Aucun fichier uploadé avec succès`)
-      res.status(400).json({
-        error: "Aucun fichier n'a été uploadé avec succès",
-        ...responseData,
-      })
-      return
-    }
+    console.log(
+      `[${uploadId}] ⚡ Upload terminé en ${duration}ms - ${successCount} succès`
+    );
 
-    // ✅ SUCCÈS PARTIEL OU TOTAL
-    const statusCode = failedCount > 0 ? 207 : 200 // 207 = Multi-Status pour succès partiel
-    console.log(`[${uploadId}] ✅ Upload multiple terminé - Status: ${statusCode}`)
-
-    res.status(statusCode).json(responseData)
+    res.status(failedCount ? 207 : 200).json(responseData);
   } catch (error: any) {
-    console.error(`[${uploadId}] ❌ Échec processus d'upload multiple:`, error.message)
+    console.error(`[${uploadId}] ❌ Échec global:`, error.message);
     res.status(500).json({
-      error: "Échec upload multiple",
+      error: "Échec traitement global",
       details: error.message || String(error),
       uploadId,
-      storageProvider: "Supabase",
-      timestamp: new Date().toISOString(),
-    })
+    });
   }
-}
+};
+
 
 
 export const getProjectFiles = async (req: Request, res: Response): Promise<void> => {

@@ -1,86 +1,43 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js";
+import fetch from "node-fetch";
 
 const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || ""; // ✅ Clé privée
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || "";
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("❌ SUPABASE_URL et SUPABASE_ANON_KEY requis !")
-  console.error("📝 Va sur supabase.com créer un compte GRATUIT (pas de carte !)")
+  console.error("❌ Configuration Supabase manquante");
+  process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
+// ⚡ CLIENT SUPABASE OPTIMISÉ
+export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: false, // Important pour les environnements serveur
-    autoRefreshToken: false
-  }
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+  global: {
+    fetch: fetch as any,
+    headers: {
+      "X-Client-Info": "bim-express/1.0",
+    },
+  },
 });
 
-// ✅ CRÉATION AUTOMATIQUE DU BUCKET AU DÉMARRAGE
-const initializeStorage = async (): Promise<void> => {
+// ✅ INITIALISATION ASYNCHRONE
+(async () => {
   try {
-    console.log("🔄 Initialisation Supabase Storage...")
-
-    // Vérifier les buckets existants
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-
-    if (listError) {
-      console.error("❌ Erreur liste buckets:", listError.message)
-      return
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const hasIfcBucket = buckets?.some(b => b.name === "ifc-files");
+    
+    if (!hasIfcBucket) {
+      await supabase.storage.createBucket("ifc-files", {
+        public: false,
+        fileSizeLimit: 250 * 1024 * 1024, // 250MB
+        allowedMimeTypes: ["application/octet-stream", "application/ifc"],
+      });
+      console.log("✅ Bucket ifc-files créé");
     }
-
-    console.log("✅ Connexion Supabase réussie !")
-    console.log(`📦 Buckets existants: ${buckets?.map((b) => b.name).join(", ") || "aucun"}`)
-
-    // Vérifier si le bucket ifc-files existe
-    const ifcBucket = buckets?.find((b) => b.name === "ifc-files")
-
-    if (!ifcBucket) {
-      console.log("🔄 Création du bucket ifc-files...")
-
-      const { data: newBucket, error: createError } = await supabase.storage.createBucket("ifc-files", {
-        public: false, // Bucket privé pour sécurité
- fileSizeLimit: 200 * 1024 * 1024, // 200MB
-    allowedMimeTypes: ["application/octet-stream", "application/ifc"]
-      })
-
-      if (createError) {
-        console.error("❌ Erreur création bucket:", createError.message)
-        console.error("🔧 Solution: Cr��ez manuellement le bucket dans Supabase Console")
-        console.error("   1. Allez sur https://supabase.com/dashboard")
-        console.error("   2. Sélectionnez votre projet")
-        console.error("   3. Allez dans Storage")
-        console.error("   4. Cliquez 'New bucket'")
-        console.error("   5. Nom: ifc-files")
-        console.error("   6. Public: false")
-      } else {
-        console.log("✅ Bucket ifc-files créé avec succès !")
-
-        // Test d'upload pour vérifier que tout fonctionne
-        const testPath = `test/init-test-${Date.now()}.txt`
-        const testData = new TextEncoder().encode("Test initialisation")
-
-        const { error: testError } = await supabase.storage.from("ifc-files").upload(testPath, testData)
-
-        if (testError) {
-          console.error("❌ Test upload échoué:", testError.message)
-        } else {
-          console.log("✅ Test upload réussi !")
-
-          // Nettoyer le fichier test
-          await supabase.storage.from("ifc-files").remove([testPath])
-          console.log("🧹 Fichier test nettoyé")
-        }
-      }
-    } else {
-      console.log("✅ Bucket ifc-files déjà existant")
-    }
-  } catch (err: any) {
-    console.error("❌ Erreur initialisation Supabase:", err.message)
+  } catch (error) {
+    console.error("❌ Initialisation Supabase:", error);
   }
-}
-
-// Exécuter l'initialisation après démarrage du serveur
-setTimeout(initializeStorage, 2000)
-
-export { supabase }
-export default supabase
+})();
