@@ -6,9 +6,10 @@ import Project from "../models/project"
 import User from "../models/user"
 import { v4 as uuidv4 } from "uuid"
 
-// ✅ FONCTION POUR VÉRIFIER LE BUCKET (SANS CRÉATION AUTOMATIQUE)
+// ✅ FONCTION POUR VÉRIFIER/CRÉER LE BUCKET AVEC PLUS DE DÉTAILS
 const ensureBucketExists = async (): Promise<boolean> => {
   try {
+    console.log("🔍 Vérification du bucket Supabase...")
     const { data: buckets, error: listError } = await supabase.storage.listBuckets()
 
     if (listError) {
@@ -16,17 +17,40 @@ const ensureBucketExists = async (): Promise<boolean> => {
       return false
     }
 
+    console.log(`📊 Buckets disponibles: ${buckets?.length || 0}`)
+
+    // Afficher tous les buckets pour debug
+    buckets?.forEach((bucket) => {
+      console.log(`📦 Bucket: ${bucket.name} (${bucket.public ? "public" : "privé"})`)
+    })
+
     const ifcBucket = buckets?.find((b) => b.name === "ifc-files")
 
     if (!ifcBucket) {
-      console.error("❌ Bucket 'ifc-files' non trouvé!")
-      console.log("📋 SOLUTION: Créez manuellement le bucket dans Supabase Console:")
-      console.log("   1. Allez sur votre projet Supabase")
-      console.log("   2. Storage → New bucket")
-      console.log("   3. Nom: 'ifc-files'")
-      console.log("   4. Public: NON (décoché)")
-      console.log("   5. Laissez les autres options vides")
-      return false
+      console.log("⚠️ Bucket 'ifc-files' non trouvé, tentative de création...")
+
+      try {
+        const { data: newBucket, error: createError } = await supabase.storage.createBucket("ifc-files", {
+          public: false,
+          fileSizeLimit: 100 * 1024 * 1024, // 100MB
+        })
+
+        if (createError) {
+          console.error("❌ Erreur création bucket:", createError.message)
+          console.log("📋 SOLUTION: Créez manuellement le bucket dans Supabase Console:")
+          console.log("   1. Allez sur votre projet Supabase")
+          console.log("   2. Storage → New bucket")
+          console.log("   3. Nom: 'ifc-files'")
+          console.log("   4. Public: NON (décoché)")
+          return false
+        }
+
+        console.log("✅ Bucket 'ifc-files' créé avec succès!")
+        return true
+      } catch (createErr: any) {
+        console.error("❌ Exception création bucket:", createErr.message)
+        return false
+      }
     }
 
     console.log("✅ Bucket 'ifc-files' trouvé et disponible")
@@ -37,19 +61,16 @@ const ensureBucketExists = async (): Promise<boolean> => {
   }
 }
 
-// ✅ UPLOAD MULTIPLE CORRIGÉ
+// ✅ UPLOAD MULTIPLE AMÉLIORÉ
 export const uploadFiles = async (req: Request, res: Response): Promise<void> => {
   const uploadId = uuidv4().substring(0, 8)
   console.log(`[${uploadId}] 🚀 Démarrage upload MULTIPLE vers Supabase`)
 
-  // ✅ CORRECTION: Timeout plus réaliste et gestion des headers
-  const timeoutMs = 15 * 60 * 1000 // 15 minutes au lieu de 10
-  req.setTimeout(timeoutMs)
-  res.setTimeout(timeoutMs)
-
-  // ✅ AJOUT: Headers pour éviter les timeouts côté client
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('Cache-Control', 'no-cache')
+  // ✅ AUGMENTER LE TIMEOUT DE LA REQUÊTE
+  // @ts-ignore - Ajouter un timeout plus long pour les gros fichiers
+  req.setTimeout(600000) // 10 minutes
+  // @ts-ignore - Augmenter aussi le timeout de la réponse
+  res.setTimeout(600000) // 10 minutes
 
   try {
     // ✅ VÉRIFIER QUE LE BUCKET EXISTE AVANT L'UPLOAD
@@ -58,7 +79,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
       console.error(`[${uploadId}] ❌ Bucket ifc-files non disponible`)
       res.status(500).json({
         error: "Bucket Supabase non disponible",
-        solution: "Vérifiez votre configuration Supabase ou créez le bucket manuellement",
+        solution: "Créez manuellement le bucket dans Supabase Console",
       })
       return
     }
@@ -81,15 +102,21 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
     const projectId: string = req.body.projectId
     const userEmail: string = user.email
 
-    // ✅ GESTION MULTIPLE FILES
+    // ✅ GESTION MULTIPLE FILES - req.files peut être un array ou un objet
     let files: Express.Multer.File[] = []
 
     if (Array.isArray(req.files)) {
+      // Si req.files est un array (upload multiple avec même nom de champ)
       files = req.files
+      console.log(`[${uploadId}] 📦 Fichiers trouvés (array): ${files.length}`)
     } else if (req.files && typeof req.files === "object") {
+      // Si req.files est un objet avec différents champs
       files = Object.values(req.files).flat()
+      console.log(`[${uploadId}] 📦 Fichiers trouvés (object): ${files.length}`)
     } else if (req.file) {
+      // Si un seul fichier
       files = [req.file]
+      console.log(`[${uploadId}] 📦 Fichier unique trouvé`)
     }
 
     console.log(`[${uploadId}] 📦 Données reçues: projectId=${projectId}, fichiers=${files.length}, email=${userEmail}`)
@@ -104,6 +131,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
           reqFile: !!req.file,
           filesType: typeof req.files,
           filesLength: Array.isArray(req.files) ? req.files.length : 0,
+          body: req.body,
         },
       })
       return
@@ -143,25 +171,17 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
       newFileIds: [] as mongoose.Types.ObjectId[],
     }
 
-    console.log(`[${uploadId}] 🔄 Traitement de ${files.length} fichier(s) séquentiellement...`)
+    console.log(`[${uploadId}] 🔄 Traitement de ${files.length} fichier(s) en séquentiel...`)
 
-    // ✅ CORRECTION: Validation taille totale avant upload
-    const totalSize = files.reduce((sum, file) => sum + file.size, 0)
-    const maxTotalSize = 500 * 1024 * 1024 // 500MB total
-    if (totalSize > maxTotalSize) {
-      console.error(`[${uploadId}] ❌ Taille totale trop importante: ${Math.round(totalSize / 1024 / 1024)}MB`)
-      res.status(400).json({ 
-        error: `Taille totale des fichiers trop importante (${Math.round(totalSize / 1024 / 1024)}MB). Maximum: 500MB` 
-      })
-      return
-    }
-
-    // ✅ TRAITEMENT SÉQUENTIEL AVEC TIMEOUT INDIVIDUEL
+    // ✅ TRAITEMENT SÉQUENTIEL POUR LES GROS FICHIERS
+    // Traiter les fichiers un par un pour éviter les timeouts
     for (let index = 0; index < files.length; index++) {
       const file = files[index]
       const fileId = `${uploadId}-file-${index}`
 
-      console.log(`[${fileId}] 📄 Début traitement: ${file.originalname} (${Math.round(file.size / 1024 / 1024 * 100) / 100} MB)`)
+      console.log(
+        `[${fileId}] 📄 Début traitement: ${file.originalname} (${Math.round((file.size / 1024 / 1024) * 100) / 100} MB)`,
+      )
 
       try {
         // Validation format IFC
@@ -172,8 +192,8 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
           continue
         }
 
-        // ✅ CORRECTION: Validation taille fichier plus réaliste
-        const maxFileSize = 100 * 1024 * 1024 // 100MB par fichier
+        // Validation taille fichier (100MB max)
+        const maxFileSize = 100 * 1024 * 1024 // 100MB
         if (file.size > maxFileSize) {
           const error = `Le fichier ${file.originalname} est trop volumineux (${Math.round(file.size / 1024 / 1024)}MB). Taille maximum: 100MB.`
           console.error(`[${fileId}] ❌ ${error}`)
@@ -182,7 +202,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         }
 
         // Génération du chemin Supabase
-        const timestamp = Date.now() + index
+        const timestamp = Date.now() + index // Éviter les collisions
         const sanitizedName = file.originalname
           .replace(/[^a-zA-Z0-9.-]/g, "_")
           .replace(/_{2,}/g, "_")
@@ -193,40 +213,46 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
 
         console.log(`[${fileId}] 📂 Chemin Supabase: ${supabasePath}`)
 
-        // ✅ CORRECTION: Upload avec options simplifiées et retry
+        // ✅ UPLOAD VERS SUPABASE STORAGE AVEC RETRY
         const uploadStartTime = Date.now()
-        let uploadData, uploadError
+        let uploadSuccess = false
+        let uploadError = null
+        let uploadData = null
 
-        // Tentative d'upload avec retry
+        // Tentatives multiples en cas d'échec
         for (let attempt = 1; attempt <= 3; attempt++) {
-          console.log(`[${fileId}] 🔄 Tentative upload ${attempt}/3`)
-          
-          const result = await supabase.storage
-            .from("ifc-files")
-            .upload(supabasePath, file.buffer, {
-              contentType: "application/octet-stream",
-              upsert: false, // Éviter les conflits
-            })
-
-          uploadData = result.data
-          uploadError = result.error
-
-          if (!uploadError) {
-            console.log(`[${fileId}] ✅ Upload réussi à la tentative ${attempt}`)
-            break
+          if (attempt > 1) {
+            console.log(`[${fileId}] 🔄 Tentative ${attempt}/3...`)
+            // Attendre 2 secondes entre les tentatives
+            await new Promise((resolve) => setTimeout(resolve, 2000))
           }
 
-          if (attempt < 3) {
-            console.log(`[${fileId}] ⚠️ Tentative ${attempt} échouée, retry dans 2s...`)
-            await new Promise(resolve => setTimeout(resolve, 2000))
+          try {
+            const result = await supabase.storage.from("ifc-files").upload(supabasePath, file.buffer, {
+              contentType: "application/octet-stream",
+              upsert: true, // Écraser si existe déjà
+            })
+
+            if (result.error) {
+              console.error(`[${fileId}] ❌ Tentative ${attempt} échouée:`, result.error.message)
+              uploadError = result.error
+            } else {
+              uploadData = result.data
+              uploadSuccess = true
+              console.log(`[${fileId}] ✅ Upload réussi à la tentative ${attempt}`)
+              break
+            }
+          } catch (err: any) {
+            console.error(`[${fileId}] ❌ Exception tentative ${attempt}:`, err.message)
+            uploadError = err
           }
         }
 
-        if (uploadError) {
-          console.error(`[${fileId}] ❌ Échec upload Supabase après 3 tentatives:`, uploadError.message)
+        if (!uploadSuccess) {
+          console.error(`[${fileId}] ❌ Échec upload après 3 tentatives`)
           uploadResults.failed.push({
             success: false,
-            error: `Upload failed après 3 tentatives: ${uploadError.message}`,
+            error: `Upload failed: ${uploadError?.message || "Unknown error"}`,
             fileName: file.originalname,
           })
           continue
@@ -235,7 +261,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         const uploadDuration = Date.now() - uploadStartTime
         console.log(`[${fileId}] ✅ Upload Supabase réussi en ${uploadDuration}ms`)
 
-        // ✅ CORRECTION: Récupération URL avec gestion d'erreur
+        // Récupération URL publique
         const { data: urlData } = supabase.storage.from("ifc-files").getPublicUrl(supabasePath)
 
         if (!urlData?.publicUrl) {
@@ -290,7 +316,6 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
         uploadResults.downloadURLs.push(result.downloadUrl)
         uploadResults.fileMetadata.push(result.file)
         uploadResults.newFileIds.push(result.fileId as mongoose.Types.ObjectId)
-
       } catch (fileError: any) {
         console.error(`[${fileId}] ❌ Erreur traitement:`, fileError.message)
         uploadResults.failed.push({
@@ -319,7 +344,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
       }
     }
 
-    // ✅ RÉPONSE FINALE
+    // ✅ RÉPONSE DÉTAILLÉE POUR UPLOAD MULTIPLE
     const successCount = uploadResults.successful.length
     const totalCount = files.length
     const failedCount = uploadResults.failed.length
@@ -328,14 +353,20 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
       uploadId,
       success: successCount > 0,
       message: `${successCount}/${totalCount} fichier(s) uploadé(s) avec succès vers Supabase Storage`,
+
+      // Données des fichiers réussis
       downloadURLs: uploadResults.downloadURLs,
       files: uploadResults.fileMetadata,
+
+      // Statistiques détaillées
       stats: {
         total: totalCount,
         successful: successCount,
         failed: failedCount,
         successRate: Math.round((successCount / totalCount) * 100),
       },
+
+      // Erreurs détaillées si il y en a
       errors:
         uploadResults.failed.length > 0
           ? uploadResults.failed.map((f) => ({
@@ -343,6 +374,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
               error: f.error,
             }))
           : undefined,
+
       timestamp: new Date().toISOString(),
       storageProvider: "Supabase",
     }
@@ -356,7 +388,8 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
       return
     }
 
-    const statusCode = failedCount > 0 ? 207 : 200
+    // ✅ SUCCÈS PARTIEL OU TOTAL
+    const statusCode = failedCount > 0 ? 207 : 200 // 207 = Multi-Status pour succès partiel
     console.log(`[${uploadId}] ✅ Upload multiple terminé - Status: ${statusCode}`)
 
     res.status(statusCode).json(responseData)
@@ -371,6 +404,7 @@ export const uploadFiles = async (req: Request, res: Response): Promise<void> =>
     })
   }
 }
+
 
 export const getProjectFiles = async (req: Request, res: Response): Promise<void> => {
   const requestId = uuidv4().substring(0, 8)
