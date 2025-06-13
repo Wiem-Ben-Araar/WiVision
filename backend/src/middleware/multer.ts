@@ -6,7 +6,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // ✅ 100MB par fichier (au lieu de 50MB)
+    fileSize: 200 * 1024 * 1024, //  200MB
     files: 10, // ✅ MAXIMUM 10 FICHIERS SIMULTANÉS
   },
   fileFilter: (req, file, cb) => {
@@ -25,7 +25,7 @@ export const uploadMultiple = multer({
     fileSize: 100 * 1024 * 1024, // 100MB par fichier
     files: 10 // Maximum 10 fichiers
   }
-}).array('files');
+}).array('file');
 
 // Middleware pour gérer les erreurs Multer
 export const handleMulterError = (error: any, req: any, res: any, next: any) => {
