@@ -1,7 +1,7 @@
 import multer from "multer"
 
 // ✅ CONFIGURATION MULTER POUR UPLOAD MULTIPLE
-const storage = multer.memoryStorage()
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -19,8 +19,13 @@ const upload = multer({
   },
 })
 
-// ✅ MIDDLEWARE POUR UPLOAD MULTIPLE
-export const uploadMultiple = upload.array("file", 10) // 'file' est le nom du champ, 10 max
+export const uploadMultiple = multer({
+  storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB par fichier
+    files: 10 // Maximum 10 fichiers
+  }
+}).array('files');
 
 // Middleware pour gérer les erreurs Multer
 export const handleMulterError = (error: any, req: any, res: any, next: any) => {
