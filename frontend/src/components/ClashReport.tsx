@@ -1,6 +1,6 @@
 'use client';
 
-import {useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {Loader2, X, FileDown } from 'lucide-react';
 
@@ -19,9 +19,26 @@ interface ClashData {
   };
   distance: number;
   position: number[];
+  overlap_volume?: number;
 }
 
-export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () => void }) {
+interface ClashReportProps {
+  data: ClashData[];
+  onClose: () => void;
+  aiUsed?: boolean;
+  aiAccuracy?: string;
+  reportTitle?: string;
+  reportSubtitle?: string;
+}
+
+export function ClashReport({ 
+  data, 
+  onClose, 
+  aiUsed = false,
+  aiAccuracy,
+  reportTitle = "Rapport de Clashs",
+  reportSubtitle = `${data.length} conflits détectés`
+}: ClashReportProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const generatePDF = async () => {
@@ -31,16 +48,23 @@ export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () 
       // Dynamically import jsPDF to avoid server-side rendering issues
       const { default: jsPDF } = await import('jspdf');
   
-      
       const doc = new jsPDF();
       
       // Add title
       doc.setFontSize(18);
-      doc.text(`Rapport de Clashs (${data.length})`, 14, 20);
+      doc.text(reportTitle, 14, 20);
       doc.setFontSize(12);
-      doc.text(`Généré le ${new Date().toLocaleDateString()}`, 14, 30);
+      doc.text(reportSubtitle, 14, 28);
       
-      let yPos = 40;
+      // Add AI info if used
+      if (aiUsed) {
+        doc.setFontSize(10);
+        doc.setTextColor(0, 128, 0);
+        doc.text(`Optimisation IA activée${aiAccuracy ? ` (Précision: ${aiAccuracy})` : ''}`, 14, 36);
+        doc.setTextColor(0);
+      }
+      
+      let yPos = aiUsed ? 44 : 40;
       const pageWidth = doc.internal.pageSize.getWidth();
       
       data.forEach((clash, index) => {
@@ -54,7 +78,7 @@ export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () 
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text(`Clash #${index + 1}`, 14, yPos);
-        yPos += 10;
+        yPos += 8;
         
         // Elements info
         doc.setFont('helvetica', 'normal');
@@ -115,7 +139,21 @@ export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () 
         <div className="p-6 space-y-6">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold">Rapport de Clashs ({data.length})</h1>
+              <h1 className="text-2xl font-bold">{reportTitle}</h1>
+              <p className="text-gray-600 mt-1">{reportSubtitle}</p>
+              
+              {aiUsed && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                    IA activée
+                  </span>
+                  {aiAccuracy && (
+                    <span className="text-sm text-gray-500">
+                      Précision estimée: {aiAccuracy}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button 

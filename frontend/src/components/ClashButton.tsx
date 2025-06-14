@@ -3,18 +3,16 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import { CrosshairIcon, Loader2, FileIcon } from 'lucide-react';
+import { CrosshairIcon, Loader2, FileIcon, FileStack } from 'lucide-react';
 import ClashConfigModal from '@/components/ClashConfigModal';
 import { ClashReport } from '@/components/ClashReport';
 
-// URL de base du serveur Flask
-const API_BASE_URL = 'http://localhost:5000'; // IMPORTANT: Ajustez ce port à celui de votre serveur Flask
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
 interface LoadedModel {
   id: string;
   name: string;
   url: string;
-  // Add other properties as needed based on your model structure
 }
 
 interface ClashResult {
@@ -39,6 +37,18 @@ interface ClashResponse {
   clashes: ClashResult[];
   status?: string;
   error?: string;
+  session_id?: string;
+}
+
+interface IntraClashResponse {
+  clashes: ClashResult[];
+  model_name: string;
+  element_count: number;
+  clashing_element_count: number;
+  ai_used: boolean;
+  status?: string;
+  error?: string;
+  session_id?: string;
 }
 
 export default function ClashButton({ loadedModels }: { loadedModels: LoadedModel[] }) {
@@ -48,8 +58,15 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pollingStatus, setPollingStatus] = useState('');
+  const [aiMetrics, setAiMetrics] = useState<{used: boolean; accuracy?: string}>({used: false});
+  const [intraResults, setIntraResults] = useState<IntraClashResponse | null>(null);
+  const [intraMode, setIntraMode] = useState(false);
 
-  const handleDetect = async (config: { modelUrls: string[]; tolerance: number }) => {
+  const handleDetect = async (config: { 
+    modelUrls: string[]; 
+    tolerance: number;
+    useAI: boolean;
+  }) => {
     setLoading(true);
     setError(null);
     setPollingStatus('Préparation des modèles...');
@@ -68,78 +85,154 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         formData.append('models', file, `model${index + 1}.ifc`);
       });
       formData.append('tolerance', config.tolerance.toString());
+      formData.append('use_ai', config.useAI.toString());
 
       setPollingStatus('Envoi des modèles au serveur...');
       
-      // Utiliser l'URL complète avec le bon port du serveur Flask
-      const { data } = await axios.post<{ session_id: string }>(`${API_BASE_URL}/api/clash/detect`, formData);
+      const { data } = await axios.post<ClashResponse>(
+        `${API_BASE_URL}/api/clash/detect`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
       
-      setSessionId(data.session_id);
+      setSessionId(data.session_id || null);
+      setAiMetrics({used: config.useAI});
       
-      // Polling pour les résultats
-      setPollingStatus('Analyse des clashs en cours...');
-      const result = await pollResults(data.session_id);
-      setResults(result.clashes);
-      setModalOpen(false);
-    } catch (err) {
-      console.error('Détail de l\'erreur:', err);
-      if (axios.isAxiosError(err)) {
-        setError(`Erreur de connexion: ${err.message}. Vérifiez que le serveur Flask fonctionne sur le port correct.`);
+      if (data.session_id) {
+        setPollingStatus('Analyse des clashs en cours...');
+        const result = await pollResults(data.session_id);
+        setResults(result.clashes);
+        setModalOpen(false);
       } else {
-        setError('Erreur lors de la détection des clashs');
+        throw new Error('Session ID manquant dans la réponse');
       }
+    } catch (err: any) {
+      console.error('Erreur détectée:', err);
+      let errorMsg = 'Erreur lors de la détection des clashs';
+      
+      if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error) {
+          errorMsg = err.response.data.error;
+        } else {
+          errorMsg = `Erreur de connexion: ${err.message}`;
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      setError(errorMsg);
     } finally {
       setLoading(false);
       setPollingStatus('');
     }
   };
 
-const pollResults = async (sessionId: string): Promise<ClashResponse> => {
-  const MAX_ATTEMPTS = 120; // 6 minutes maximum (à 3s par intervalle)
-  const DELAY = 3000;
+  const handleDetectIntra = async (config: { 
+    modelUrl: string; 
+    tolerance: number;
+    useAI: boolean;
+  }) => {
+    setLoading(true);
+    setError(null);
+    setPollingStatus('Préparation du modèle...');
 
-  for (let i = 0; i < MAX_ATTEMPTS; i++) {
     try {
-      setPollingStatus(`Analyse en cours... ${Math.round((i/MAX_ATTEMPTS) * 100)}%`);
+      const formData = new FormData();
       
-      // Utiliser l'URL correcte avec le port du serveur Express (pas Flask)
-      const { data } = await axios.get<ClashResponse>(`${API_BASE_URL}/api/clash/status/${sessionId}`);
+      setPollingStatus('Téléchargement du modèle...');
+      const response = await fetch(config.modelUrl);
+      const fileBlob = await response.blob();
       
-      if (data.error) {
-        throw new Error(data.error);
+      formData.append('model', fileBlob, 'model.ifc');
+      formData.append('tolerance', config.tolerance.toString());
+      formData.append('use_ai', config.useAI.toString());
+
+      setPollingStatus('Analyse intra-modèle en cours...');
+      
+      const { data } = await axios.post<IntraClashResponse>(
+        `${API_BASE_URL}/api/clash/detect_intra`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      if (data.session_id) {
+        setPollingStatus('Analyse intra-modèle en cours...');
+        const result = await pollResults(data.session_id);
+        setIntraResults(result);
+        setIntraMode(true);
+        setModalOpen(false);
+      } else {
+        throw new Error('Session ID manquant dans la réponse');
       }
+    } catch (err: any) {
+      console.error('Erreur détectée:', err);
+      let errorMsg = "Erreur lors de l'analyse intra-modèle";
       
-      // Vérifier si le rapport est prêt (statut 200 avec des données)
-      if (data.clashes) {
-        setPollingStatus('Récupération du rapport...');
-        return data; // Le rapport est déjà dans la réponse
-      }
-      
-      // Si statut = 'processing', continuer à attendre
-      if (data.status === 'processing') {
-        await new Promise(resolve => setTimeout(resolve, DELAY));
-        continue;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, DELAY));
-    } catch (err) {
       if (axios.isAxiosError(err)) {
-        if (err.response?.status === 404) {
-          // Le rapport n'est pas encore prêt, continuer à attendre
-          await new Promise(resolve => setTimeout(resolve, DELAY));
-          continue;
+        if (err.response?.data?.error) {
+          errorMsg = err.response.data.error;
+        } else {
+          errorMsg = `Erreur de connexion: ${err.message}`;
         }
-        if (err.response?.status === 202) {
-          // Status "processing", continuer à attendre
-          await new Promise(resolve => setTimeout(resolve, DELAY));
-          continue;
-        }
+      } else if (err.message) {
+        errorMsg = err.message;
       }
-      throw err;
+      
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+      setPollingStatus('');
     }
-  }
-  throw new Error('Délai dépassé pour la détection des clashs');
-};
+  };
+
+  const pollResults = async (sessionId: string): Promise<any> => {
+    const MAX_ATTEMPTS = 60;
+    const DELAY = 3000;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
+        setPollingStatus(`Analyse en cours... ${progress}%`);
+        
+        const { data } = await axios.get(
+          `${API_BASE_URL}/api/clash/status/${sessionId}`
+        );
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        if (data.clashes || data.model_name) {
+          setPollingStatus('Récupération du rapport...');
+          return data;
+        }
+        
+        if (data.status === 'processing') {
+          await new Promise(resolve => setTimeout(resolve, DELAY));
+          continue;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, DELAY));
+      } catch (err: any) {
+        if (axios.isAxiosError(err)) {
+          if (err.response?.status === 404 || err.response?.status === 202) {
+            await new Promise(resolve => setTimeout(resolve, DELAY));
+            continue;
+          }
+        }
+        throw err;
+      }
+    }
+    throw new Error('Délai dépassé pour la détection');
+  };
   
   const openHtmlReport = () => {
     if (sessionId) {
@@ -153,13 +246,19 @@ const pollResults = async (sessionId: string): Promise<ClashResponse> => {
         variant="ghost"
         size="icon"
         onClick={() => setModalOpen(true)}
-        disabled={loadedModels.length < 2 || loading}
+        disabled={loadedModels.length < 1 || loading}
         title="Détection de clash"
+        className="relative group"
       >
         {loading ? (
           <Loader2 className="h-5 w-5 animate-spin" />
         ) : (
-          <CrosshairIcon className="h-5 w-5" />
+          <div className="relative">
+            <CrosshairIcon className="h-5 w-5" />
+            <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full h-4 w-4 flex items-center justify-center">
+              <FileStack className="h-3 w-3" />
+            </div>
+          </div>
         )}
       </Button>
 
@@ -169,16 +268,23 @@ const pollResults = async (sessionId: string): Promise<ClashResponse> => {
         onOpenChange={(open) => {
           setModalOpen(open);
           setError(null);
+          setIntraMode(false);
         }}
         onDetect={handleDetect}
+        onDetectIntra={handleDetectIntra}
+        intraMode={intraMode}
+        setIntraMode={setIntraMode}
       />
 
       {loading && pollingStatus && (
-        <div className="fixed top-4 right-4 bg-blue-100 text-blue-800 p-4 rounded-lg shadow-lg z-50">
-          <div className="flex items-center">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            <span>{pollingStatus}</span>
-          </div>
+        <div className="fixed top-4 right-4 bg-blue-100 text-blue-800 p-4 rounded-lg shadow-lg z-50 flex items-center">
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          <span>{pollingStatus}</span>
+          {aiMetrics.used && (
+            <span className="ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+              IA activée
+            </span>
+          )}
         </div>
       )}
 
@@ -187,6 +293,9 @@ const pollResults = async (sessionId: string): Promise<ClashResponse> => {
           <ClashReport 
             data={results} 
             onClose={() => setResults(null)}
+            aiUsed={aiMetrics.used}
+            reportTitle="Rapport de Clashs Inter-Modèles"
+            reportSubtitle={`${results.length} conflits détectés`}
           />
           {sessionId && (
             <div className="fixed bottom-16 right-4 bg-blue-100 p-2 rounded-md shadow-md">
@@ -204,15 +313,30 @@ const pollResults = async (sessionId: string): Promise<ClashResponse> => {
         </>
       )}
 
+      {intraResults && (
+        <ClashReport 
+          data={intraResults.clashes} 
+          onClose={() => setIntraResults(null)}
+          aiUsed={intraResults.ai_used}
+          reportTitle={`Détection Intra-Modèle: ${intraResults.model_name}`}
+          reportSubtitle={`${intraResults.clashing_element_count} éléments en conflit sur ${intraResults.element_count}`}
+        />
+      )}
+
       {error && (
-        <div className="fixed bottom-4 right-4 bg-red-100 text-red-700 p-4 rounded-lg shadow-lg z-50">
-          {error}
-          <button 
-            className="ml-4 text-red-700 hover:text-red-900"
-            onClick={() => setError(null)}
-          >
-            ×
-          </button>
+        <div className="fixed bottom-4 right-4 bg-red-100 text-red-700 p-4 rounded-lg shadow-lg z-50 max-w-md">
+          <div className="flex justify-between items-start">
+            <div>
+              <strong className="font-medium">Erreur de détection</strong>
+              <p className="mt-1 text-sm">{error}</p>
+            </div>
+            <button 
+              className="ml-4 text-red-700 hover:text-red-900 text-lg"
+              onClick={() => setError(null)}
+            >
+              &times;
+            </button>
+          </div>
         </div>
       )}
     </>
