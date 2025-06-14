@@ -38,12 +38,11 @@ export const UserButton = () => {
         { withCredentials: true }
       );
       
-      // Important: Mettre à jour l'état utilisateur AVANT de rediriger
       setUser(null);
-      
       toast.success("Déconnecté avec succès");
       router.push("/sign-in");
     } catch (error) {
+      console.error("Logout error:", error); 
       toast.error("Erreur lors de la déconnexion");
     } finally {
       setLoading(false);

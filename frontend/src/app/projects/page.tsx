@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
@@ -65,7 +65,8 @@ export default function ProjectsPage() {
   const router = useRouter()
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
-  const fetchProjects = () => {
+  // Wrap fetchProjects in useCallback to memoize it
+  const fetchProjects = useCallback(() => {
     setIsLoading(true)
     axios
       .get(`${apiUrl}/projects`, {
@@ -90,7 +91,7 @@ export default function ProjectsPage() {
         setError(error.response?.data?.error || "Erreur de chargement")
       })
       .finally(() => setIsLoading(false))
-  }
+  }, [apiUrl])
 
   useEffect(() => {
     if (!loading && user) {
@@ -98,7 +99,7 @@ export default function ProjectsPage() {
     } else if (!loading && !user) {
       router.push("/sign-in")
     }
-  }, [loading, user])
+  }, [loading, user, fetchProjects, router]) // Added missing dependencies
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -260,7 +261,9 @@ export default function ProjectsPage() {
               </DialogTitle>
               <DialogDescription className="text-gray-600 dark:text-gray-300 pt-2">
                 Êtes-vous sûr de vouloir supprimer le projet{" "}
-                <span className="font-medium text-gray-900 dark:text-gray-100">"{projectToDelete?.name}"</span> ?
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  &quot;{projectToDelete?.name}&quot;
+                </span> ?
                 <span className="block mt-2 text-red-500 dark:text-red-400 text-sm font-medium">
                   Cette action est irréversible et supprimera tous les fichiers associés.
                 </span>

@@ -7,13 +7,13 @@ import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, FileBox, ArrowLeft, Loader2, Calendar, User, CuboidIcon } from "lucide-react"
+import { Users, FileBox, Loader2, Calendar, User, CuboidIcon } from "lucide-react"
 import Link from "next/link"
 import ProjectFiles from "@/components/ProjectFiles"
 import ProjectMembers from "@/components/ProjectMembers"
 import axios from "axios"
 import { motion } from "framer-motion"
-import { useAuth } from "@/hooks/use-auth"
+
 
 interface Project {
   _id: string
@@ -57,7 +57,7 @@ export default function ProjectDetailsPage() {
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<"BIM Manager" | "BIM Coordinateur" | "BIM Modeleur" | "none">("none");
-  const { user } = useAuth()
+ 
 
   // Configuration de l'URL API
   const apiUrl = process.env.NEXT_PUBLIC_API_URL 
@@ -138,7 +138,7 @@ export default function ProjectDetailsPage() {
         })
         
         setFiles(
-          response.data.map((file: any) => ({
+          response.data.map((file: { _id: string; url: string; name: string; fileSize: number; createdAt: string }) => ({
             id: file._id,
             file_url: file.url,
             name: file.name,
@@ -208,7 +208,7 @@ export default function ProjectDetailsPage() {
           asChild
           className="bg-[#005CA9] hover:bg-[#004A87] dark:bg-[#3b82f6] dark:hover:bg-[#2563eb] text-white"
         >
-          <Link href="/">Retour à l'accueil</Link>
+          <Link href="/">Retour à l&apos;accueil</Link>
         </Button>
       </div>
     )
@@ -303,7 +303,7 @@ export default function ProjectDetailsPage() {
               value="overview"
               className="data-[state=active]:bg-[#005CA9] data-[state=active]:text-white dark:data-[state=active]:bg-[#3b82f6]"
             >
-              Vue d'ensemble
+              Vue d&apos;ensemble
             </TabsTrigger>
             <TabsTrigger
               value="files"
@@ -353,7 +353,7 @@ export default function ProjectDetailsPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center text-[#005CA9] dark:text-[#3b82f6]">
                       <Users className="h-5 w-5 mr-2" />
-                      Membres de l'équipe
+                      Membres de l&apos;équipe
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -394,21 +394,3 @@ export default function ProjectDetailsPage() {
   )
 }
 
-// Ajout du composant Badge manquant
-function Badge({
-  children,
-  className,
-  variant,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { variant?: string }) {
-  return (
-    <div
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-        variant === "outline" ? "border border-gray-200" : ""
-      } ${className}`}
-      {...props}
-    >
-      {children}
-    </div>
-  )
-}

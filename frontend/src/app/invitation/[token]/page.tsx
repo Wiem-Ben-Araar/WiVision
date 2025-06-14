@@ -9,13 +9,32 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import axios from "axios";
 
+interface InvitationDetails {
+  projectName?: string;
+  email: string;
+  invitedBy?: {
+    name?: string;
+    email?: string;
+  };
+}
+
+interface AxiosErrorResponse {
+  message?: string;
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+}
+
 export default function InvitationPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
   const [error, setError] = useState<string | null>(null);
-  const [invitationDetails, setInvitationDetails] = useState<any>(null);
+  const [invitationDetails, setInvitationDetails] = useState<InvitationDetails | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -24,14 +43,13 @@ export default function InvitationPage() {
     const verifyInvitation = async () => {
       try {
         setIsLoading(true);
-        // Ajout de withCredentials pour l'authentification
         const { data } = await axios.get(`${apiUrl}/invitations/${token}/verify`, {
           withCredentials: true
         });
         setInvitationDetails(data.invitation);
         
         if (user) {
-          const userEmail = user.email?.toLowerCase().trim();
+          const userEmail = user.email?.toLowerCase().trim() || '';
           const invitationEmail = data.invitation.email.toLowerCase().trim();
           
           if (userEmail !== invitationEmail) {
@@ -39,16 +57,16 @@ export default function InvitationPage() {
             sessionStorage.removeItem("pendingInvitation");
           }
         }
-      } catch (error: any) {
+      } catch (err) {
+        const error = err as AxiosErrorResponse;
         console.error('Erreur lors de la vérification:', error);
-        // Gestion plus spécifique des erreurs
         if (error.response?.status === 401) {
-          // Si pas authentifié, on peut quand même essayer de récupérer les infos publiques
           try {
             const { data } = await axios.get(`${apiUrl}/invitations/${token}/verify`);
             setInvitationDetails(data.invitation);
-          } catch (publicError: any) {
-            setError(publicError.response?.data?.message || "Invitation invalide ou expirée");
+          } catch (publicError) {
+            const publicErr = publicError as AxiosErrorResponse;
+            setError(publicErr.response?.data?.message || "Invitation invalide ou expirée");
           }
         } else {
           setError(error.response?.data?.message || "Invitation invalide ou expirée");
@@ -74,7 +92,8 @@ export default function InvitationPage() {
           sessionStorage.removeItem("pendingInvitation");
           toast.success("Invitation acceptée avec succès");
           router.push(`/projects/${data.projectId}`);
-        } catch (error: any) {
+        } catch (err) {
+          const error = err as AxiosErrorResponse;
           console.error('Erreur acceptation auto:', error);
           setError("Échec de l'acceptation automatique");
         }
@@ -106,7 +125,8 @@ export default function InvitationPage() {
         toast.success("Invitation refusée");
         router.push("/");
       }
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as AxiosErrorResponse;
       console.error(`Erreur ${action}:`, error);
       const errorMessage = error.response?.data?.message || "Une erreur est survenue";
       setError(errorMessage);
@@ -116,12 +136,12 @@ export default function InvitationPage() {
     }
   };
 
-  if (loading || isLoading) {
+  if (loading || isLoading || isProcessing) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
           <RefreshCw className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-lg">Vérification de l'invitation...</p>
+          <p className="mt-4 text-lg">Traitement en cours...</p>
         </div>
       </div>
     );
@@ -132,15 +152,15 @@ export default function InvitationPage() {
       <div className="flex justify-center items-center min-h-screen p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-center text-red-500">Erreur d'invitation</CardTitle>
+            <CardTitle className="text-center text-red-500">Erreur d&apos;invitation</CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <p className="text-lg">{error}</p>
-            <p className="text-muted-foreground mt-2">Cette invitation peut être invalide ou expirée.</p>
+            <p className="text-muted-foreground mt-2">Cette invitation peut être invalide ou expir&eacute;e.</p>
           </CardContent>
           <CardFooter className="flex justify-center">
-            <Button onClick={() => router.push("/")}>Retour à l'accueil</Button>
+            <Button onClick={() => router.push("/")}>Retour à l&apos;accueil</Button>
           </CardFooter>
         </Card>
       </div>

@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import axios from "axios"
+import axios, { AxiosError } from "axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,8 +15,7 @@ import { FaGithub } from "react-icons/fa"
 import { validateEmail, validatePassword } from "@/lib/validators"
 import { Loader2, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
-import { useTheme } from "next-themes"
+
 import { motion } from "framer-motion"
 
 export default function SignInForm() {
@@ -26,8 +25,8 @@ export default function SignInForm() {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
   const [loading, setLoading] = useState(false)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
-  const { refreshAuth, setUser } = useAuth()
-  const { theme } = useTheme()
+  const {setUser } = useAuth()
+
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -84,7 +83,8 @@ export default function SignInForm() {
       } else {
         router.push("/")
       }
-    } catch (error: any) {
+    }catch (err) {
+      const error = err as AxiosError<{ message?: string }>
       const errorMessage = error.response?.data?.message || "Échec de la connexion. Vérifiez vos identifiants."
       toast.error(errorMessage)
     } finally {
@@ -97,7 +97,7 @@ export default function SignInForm() {
     try {
       // Redirection vers le fournisseur OAuth
       window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/${provider}`
-    } catch (error) {
+    } catch  {
       toast.error(`Erreur lors de la connexion avec ${provider}`)
       setOauthLoading(null)
     }
@@ -112,7 +112,7 @@ export default function SignInForm() {
         className="absolute top-8 left-8 flex items-center text-gray-600 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-blue-400 transition-colors"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        <span className="text-sm font-medium">Retour à l'accueil</span>
+        <span className="text-sm font-medium">Retour à l&apos;accueil</span>
       </Link>
 
       <motion.div

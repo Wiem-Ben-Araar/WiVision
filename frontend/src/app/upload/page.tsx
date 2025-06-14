@@ -11,7 +11,10 @@ import Link from 'next/link';
 import { Loader2, Upload, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
-
+interface UploadError {
+  fileName: string;
+  error: string;
+}
 const UploadPage = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +60,7 @@ const UploadPage = () => {
         const responseData = error.response?.data;
         
         if (responseData?.errors && Array.isArray(responseData.errors)) {
-          errorMessage = responseData.errors.map((e: any) => 
+          errorMessage = responseData.errors.map((e: UploadError) =>
             `${e.fileName}: ${e.error}`
           ).join(", ");
         } else if (responseData?.message) {

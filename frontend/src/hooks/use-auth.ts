@@ -33,17 +33,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshAuth = useCallback(async () => {
     setLoading(true);
     try {
-     const response = await axios.get(
+      const response = await axios.get(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`,
-        { withCredentials: true } // Important
+        { withCredentials: true }
       );
 
-if (response.data.authenticated) {
+      if (response.data.authenticated) {
         setUser(response.data.user);
       } else {
         setUser(null);
       }
     } catch (error) {
+      console.error("Authentication check failed:", error); // <-- Correction ici
       setUser(null);
     } finally {
       setLoading(false);

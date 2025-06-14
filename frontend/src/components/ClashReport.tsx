@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CrosshairIcon, Loader2, X, FileDown } from 'lucide-react';
+import {Loader2, X, FileDown } from 'lucide-react';
 
 interface ClashData {
   element_a: {
@@ -52,12 +52,12 @@ export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () 
         
         // Clash header
         doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text(`Clash #${index + 1}`, 14, yPos);
         yPos += 10;
         
         // Elements info
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         
         // Element A

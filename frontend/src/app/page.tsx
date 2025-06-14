@@ -60,7 +60,7 @@ export default function Home() {
     {
       icon: Users,
       title: "Collaboration en équipe",
-      description: "Travaillez en équipe sur vos projets avec des outils de partage et d'annotation en temps réel.",
+      description: "Travaillez en équipe sur vos projets avec des outils de partage et d&apos;annotation en temps réel.",
     },
     {
       icon: FileBox,
@@ -264,7 +264,7 @@ export default function Home() {
             <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="max-w-xl text-center md:text-left">
                 <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-                  Commencez à utiliser WiVision dès aujourd'hui
+                  Commencez à utiliser WiVision dès aujourd&apos;hui
                 </h2>
                 <p className="text-blue-100">
                   Créez un compte gratuit et découvrez comment notre plateforme peut transformer votre façon de travailler.

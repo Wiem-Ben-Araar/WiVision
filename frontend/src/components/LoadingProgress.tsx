@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+
 import { Progress } from "@/components/ui/progress"
 import { Loader2, FileText, CheckCircle } from "lucide-react"
 

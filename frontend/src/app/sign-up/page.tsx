@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
-import axios from "axios"
+import axios, { AxiosError } from "axios"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,8 +15,7 @@ import { TriangleAlert, Loader2, ArrowLeft } from "lucide-react"
 import { FcGoogle } from "react-icons/fc"
 import { FaGithub } from "react-icons/fa"
 import { validateEmail, validatePassword, validateName, passwordsMatch } from "@/lib/validators"
-import Image from "next/image"
-import { useTheme } from "next-themes"
+
 import { motion } from "framer-motion"
 
 axios.defaults.withCredentials = true
@@ -33,7 +32,7 @@ export default function SignUpForm() {
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
   const [serverError, setServerError] = useState("")
   const router = useRouter()
-  const { theme } = useTheme()
+
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -102,9 +101,9 @@ export default function SignUpForm() {
         toast.success("Compte créé avec succès !")
         router.push("/sign-in")
       }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || "Erreur lors de la création du compte"
-      setServerError(errorMessage)
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>
+      const errorMessage = error.response?.data?.message || "Erreur lors de la création du compte"
       toast.error(errorMessage)
     } finally {
       setIsSubmitting(false)
@@ -115,7 +114,7 @@ export default function SignUpForm() {
     setOauthLoading(provider)
     try {
       window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/${provider}`
-    } catch (error) {
+    } catch  {
       toast.error(`Erreur lors de la connexion avec ${provider}`)
       setOauthLoading(null)
     }
@@ -130,7 +129,7 @@ export default function SignUpForm() {
         className="absolute top-8 left-8 flex items-center text-gray-600 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-blue-400 transition-colors"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        <span className="text-sm font-medium">Retour à l'accueil</span>
+        <span className="text-sm font-medium">Retour à l&apos;accueil</span>
       </Link>
 
       <motion.div
