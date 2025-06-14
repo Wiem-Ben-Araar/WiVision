@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-// @ts-ignore
+// @ts-expect-error CSS2DObject is not properly typed in three.js examples
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
+import { IfcViewerAPI } from 'web-ifc-viewer';
 
 export type MeasurementMode = 'none' | 'distance' | 'perpendicular' | 'angle';
 
@@ -14,14 +15,22 @@ export interface Measurement {
   labels: CSS2DObject[];
 }
 
+interface ViewerModel {
+  mesh?: THREE.Mesh;
+}
+
+
+
+
+
 interface MeasurementToolProps {
-  viewer: any;
+  viewer: IfcViewerAPI;
   containerRef: React.RefObject<HTMLDivElement>;
   active: boolean;
   measurementMode: MeasurementMode;
   onMeasurementComplete?: (measurement: Measurement) => void;
   onClearMeasurements?: () => void;
-  clearMeasurementsRef?: React.MutableRefObject<(() => void) | null>; // Nouvelle prop pour exposer la fonction de suppression
+  clearMeasurementsRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export const MeasurementTool: React.FC<MeasurementToolProps> = ({
@@ -38,11 +47,10 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
   const previewLineRef = useRef<THREE.Line | null>(null);
   const snapMarkerRef = useRef<THREE.Object3D | null>(null);
   const snapDistanceThreshold = 0.5;
-  const originalClickHandlerRef = useRef<((event: MouseEvent) => void) | null>(null);
-  const originalOnClick = useRef<any>(null);
+  const originalOnClick = useRef<((event: MouseEvent) => void) | null>(null);
   const lastHoverPointRef = useRef<THREE.Vector3 | null>(null);
   
-  const createLabel = (text: string, position: THREE.Vector3) => {
+  const createLabel = useCallback((text: string, position: THREE.Vector3) => {
     const labelDiv = document.createElement('div');
     labelDiv.className = 'measurement-label';
     labelDiv.textContent = text;
@@ -66,9 +74,9 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     const labelObj = new CSS2DObject(labelDiv);
     labelObj.position.copy(position);
     return labelObj;
-  };
+  }, []);
 
-  const createSnapMarker = (position: THREE.Vector3) => {
+  const createSnapMarker = useCallback((position: THREE.Vector3) => {
     if (snapMarkerRef.current) {
       viewer.context.getScene().remove(snapMarkerRef.current);
     }
@@ -101,9 +109,9 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     snapMarkerRef.current = group;
     
     return group;
-  };
+  }, [viewer]);
 
-  const findSnapPoint = (point: THREE.Vector3): THREE.Vector3 | null => {
+  const findSnapPoint = useCallback((point: THREE.Vector3): THREE.Vector3 | null => {
     if (!viewer) return null;
     
     const snapThreshold = snapDistanceThreshold;
@@ -122,11 +130,9 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     }
   
     // 2. Snap aux sommets des éléments IFC
-    const ifcMeshes = viewer.IFC.loader.ifcManager.state.models
-      .filter((model: any) => model.mesh)
-      .map((model: any) => model.mesh);
-  
-    const sphere = new THREE.Sphere(point.clone(), snapThreshold);
+    const ifcMeshes = Object.values(viewer.IFC?.loader?.ifcManager?.state?.models || {})
+      .filter((model: ViewerModel) => model.mesh)
+      .map((model: ViewerModel) => model.mesh as THREE.Mesh);
     
     for (const mesh of ifcMeshes) {
       if (!mesh.geometry) continue;
@@ -146,9 +152,9 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     }
   
     return closestPoint;
-  };
+  }, [viewer, measurements, snapDistanceThreshold]);
 
-  const getIntersectionPoint = (event: MouseEvent): THREE.Vector3 | null => {
+  const getIntersectionPoint = useCallback((event: MouseEvent): THREE.Vector3 | null => {
     const container = containerRef.current;
     if (!container || !viewer) return null;
     
@@ -164,7 +170,7 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     const ifcMeshes: THREE.Mesh[] = [];
     
     if (viewer.IFC?.loader?.ifcManager?.state?.models) {
-      Object.values(viewer.IFC.loader.ifcManager.state.models).forEach((model: any) => {
+      Object.values(viewer.IFC.loader.ifcManager.state.models).forEach((model: ViewerModel) => {
         if (model.mesh) {
           ifcMeshes.push(model.mesh);
         }
@@ -185,35 +191,13 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     }
     
     return null;
-  };
+  }, [containerRef, viewer]);
 
-  const handleMeasureClick = (event: MouseEvent) => {
-    if (!active || measurementMode === 'none' || !viewer) return;
-    
-    event.preventDefault();
-    event.stopPropagation();
-    
-    const point = lastHoverPointRef.current;
-    if (!point) return;
-
-    setCurrentPoints(prev => {
-      const newPoints = [...prev, point.clone()];
-      
-      if ((measurementMode === 'distance' && newPoints.length === 2) ||
-          (measurementMode === 'angle' && newPoints.length === 3) ||
-          (measurementMode === 'perpendicular' && newPoints.length === 3)) {
-        setTimeout(() => finalizeMeasurement(newPoints, measurementMode), 0);
-        return [];
-      }
-      
-      return newPoints;
-    });
-  };
-
-  const finalizeMeasurement = (points: THREE.Vector3[], mode: MeasurementMode) => {
+  const finalizeMeasurement = useCallback((points: THREE.Vector3[], mode: MeasurementMode) => {
     if (!viewer) return;
     
-    let distance, angle;
+    let distance: number | undefined;
+    let angle: number | undefined;
     let line: THREE.Line | undefined;
     const labels: CSS2DObject[] = [];
     const scene = viewer.context.getScene();
@@ -281,7 +265,7 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
       labels.push(label);
     }
     
-    const newMeasurement = {
+    const newMeasurement: Measurement = {
       id: Math.random().toString(),
       points,
       distance,
@@ -295,12 +279,36 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     if (onMeasurementComplete) {
       onMeasurementComplete(newMeasurement);
     }
-  };
+  }, [viewer, createLabel, onMeasurementComplete]);
+
+  const handleMeasureClick = useCallback((event: MouseEvent) => {
+    if (!active || measurementMode === 'none' || !viewer) return;
+    
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const point = lastHoverPointRef.current;
+    if (!point) return;
+
+    setCurrentPoints(prev => {
+      const newPoints = [...prev, point.clone()];
+      
+      if ((measurementMode === 'distance' && newPoints.length === 2) ||
+          (measurementMode === 'angle' && newPoints.length === 3) ||
+          (measurementMode === 'perpendicular' && newPoints.length === 3)) {
+        setTimeout(() => finalizeMeasurement(newPoints, measurementMode), 0);
+        return [];
+      }
+      
+      return newPoints;
+    });
+  }, [active, measurementMode, viewer, finalizeMeasurement]);
 
   const disableSelection = useCallback(() => {
-    if (containerRef.current) {
-      originalOnClick.current = containerRef.current.onclick;
-      containerRef.current.onclick = (e) => {
+    const container = containerRef.current;
+    if (container) {
+      originalOnClick.current = container.onclick;
+      container.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
       };
@@ -308,22 +316,44 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
   }, [containerRef]);
 
   const enableSelection = useCallback(() => {
-    if (containerRef.current && originalOnClick.current) {
-      containerRef.current.onclick = originalOnClick.current;
+    const container = containerRef.current;
+    if (container && originalOnClick.current) {
+      container.onclick = originalOnClick.current;
     }
   }, [containerRef]);
 
+  // Fonction pour supprimer toutes les mesures (appelée seulement par le bouton supprimer)
+  const clearAllMeasurements = useCallback(() => {
+    const scene = viewer?.context?.getScene?.();
+    if (scene) {
+      measurements.forEach(m => {
+        if (m.line) scene.remove(m.line);
+        m.labels.forEach(label => scene.remove(label));
+      });
+    }
+    setMeasurements([]);
+    if (onClearMeasurements) {
+      onClearMeasurements();
+    }
+  }, [viewer, measurements, onClearMeasurements]);
 
+  // Exposer la fonction de suppression via la ref
+  useEffect(() => {
+    if (clearMeasurementsRef) {
+      clearMeasurementsRef.current = clearAllMeasurements;
+    }
+  }, [clearAllMeasurements, clearMeasurementsRef]);
 
   useEffect(() => {
-    if (!containerRef.current || !viewer) return;
+    const container = containerRef.current;
+    if (!container || !viewer) return;
     
     if (active) {
       disableSelection();
-      containerRef.current.addEventListener('click', handleMeasureClick, { capture: true });
+      container.addEventListener('click', handleMeasureClick, { capture: true });
     } else {
       enableSelection();
-      containerRef.current.removeEventListener('click', handleMeasureClick, { capture: true });
+      container.removeEventListener('click', handleMeasureClick, { capture: true });
       
       // Clean up preview line and snap marker when tool is deactivated
       if (previewLineRef.current) {
@@ -337,14 +367,15 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     }
     
     return () => {
-      if (containerRef.current) {
-        containerRef.current.removeEventListener('click', handleMeasureClick, { capture: true });
+      if (container) {
+        container.removeEventListener('click', handleMeasureClick, { capture: true });
       }
     };
-  }, [active, viewer, measurementMode, disableSelection, enableSelection]);
+  }, [active, viewer, measurementMode, disableSelection, enableSelection, handleMeasureClick, containerRef]);
 
   useEffect(() => {
-    if (!viewer || measurementMode === 'none' || !active || !containerRef.current) {
+    const container = containerRef.current;
+    if (!viewer || measurementMode === 'none' || !active || !container) {
       return;
     }
 
@@ -389,11 +420,11 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
       }
     };
 
-    containerRef.current.addEventListener('mousemove', onMouseMove);
+    container.addEventListener('mousemove', onMouseMove);
     
     return () => {
-      if (containerRef.current) {
-        containerRef.current.removeEventListener('mousemove', onMouseMove);
+      if (container) {
+        container.removeEventListener('mousemove', onMouseMove);
       }
       if (viewer) {
         if (previewLineRef.current) {
@@ -406,29 +437,7 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
         }
       }
     };
-  }, [measurementMode, currentPoints, active, viewer]);
-
-  // Fonction pour supprimer toutes les mesures (appelée seulement par le bouton supprimer)
-  const clearAllMeasurements = useCallback(() => {
-    const scene = viewer?.context?.getScene?.();
-    if (scene) {
-      measurements.forEach(m => {
-        if (m.line) scene.remove(m.line);
-        m.labels.forEach(label => scene.remove(label));
-      });
-    }
-    setMeasurements([]);
-    if (onClearMeasurements) {
-      onClearMeasurements();
-    }
-  }, [viewer, measurements, onClearMeasurements]);
-
-  // Exposer la fonction de suppression via la ref
-  useEffect(() => {
-    if (clearMeasurementsRef) {
-      clearMeasurementsRef.current = clearAllMeasurements;
-    }
-  }, [clearAllMeasurements, clearMeasurementsRef]);
+  }, [measurementMode, currentPoints, active, viewer, getIntersectionPoint, findSnapPoint, createSnapMarker, containerRef]);
 
   useEffect(() => {
     return () => {
@@ -438,6 +447,5 @@ export const MeasurementTool: React.FC<MeasurementToolProps> = ({
     };
   }, [enableSelection]);
   
-
   return null;
 };

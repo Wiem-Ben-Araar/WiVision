@@ -1,15 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import { CrosshairIcon, Loader2, FileIcon, DownloadIcon } from 'lucide-react';
+import { CrosshairIcon, Loader2, FileIcon } from 'lucide-react';
 import ClashConfigModal from '@/components/ClashConfigModal';
 import { ClashReport } from '@/components/ClashReport';
 
 // URL de base du serveur Flask
 const API_BASE_URL = 'http://localhost:5000'; // IMPORTANT: Ajustez ce port à celui de votre serveur Flask
-const API_FLASK_URL = 'http://localhost:5001';
+
+interface LoadedModel {
+  id: string;
+  name: string;
+  url: string;
+  // Add other properties as needed based on your model structure
+}
+
 interface ClashResult {
   element_a: {
     name: string;
@@ -28,7 +35,13 @@ interface ClashResult {
   overlap_volume?: number;
 }
 
-export default function ClashButton({ loadedModels }: { loadedModels: any[] }) {
+interface ClashResponse {
+  clashes: ClashResult[];
+  status?: string;
+  error?: string;
+}
+
+export default function ClashButton({ loadedModels }: { loadedModels: LoadedModel[] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ClashResult[] | null>(null);
@@ -81,7 +94,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: any[] }) {
     }
   };
 
-const pollResults = async (sessionId: string): Promise<any> => {
+const pollResults = async (sessionId: string): Promise<ClashResponse> => {
   const MAX_ATTEMPTS = 120; // 6 minutes maximum (à 3s par intervalle)
   const DELAY = 3000;
 
@@ -90,7 +103,7 @@ const pollResults = async (sessionId: string): Promise<any> => {
       setPollingStatus(`Analyse en cours... ${Math.round((i/MAX_ATTEMPTS) * 100)}%`);
       
       // Utiliser l'URL correcte avec le port du serveur Express (pas Flask)
-      const { data } = await axios.get(`${API_BASE_URL}/api/clash/status/${sessionId}`);
+      const { data } = await axios.get<ClashResponse>(`${API_BASE_URL}/api/clash/status/${sessionId}`);
       
       if (data.error) {
         throw new Error(data.error);

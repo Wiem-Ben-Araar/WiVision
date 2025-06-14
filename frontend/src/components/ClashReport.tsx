@@ -30,7 +30,7 @@ export function ClashReport({ data, onClose }: { data: ClashData[]; onClose: () 
       
       // Dynamically import jsPDF to avoid server-side rendering issues
       const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
+  
       
       const doc = new jsPDF();
       

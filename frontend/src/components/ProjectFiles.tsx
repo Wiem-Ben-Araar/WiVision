@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -67,6 +67,16 @@ interface UploadResult {
   }>
 }
 
+interface FileData {
+  _id?: string
+  name: string
+  file_size?: number
+  file_url: string
+  supabasePath?: string
+  uploadedBy?: string | number
+  uploadedByEmail?: string
+}
+
 export default function ProjectFiles({
   projectId,
   files = [],
@@ -81,8 +91,6 @@ export default function ProjectFiles({
   const [visualizerLoading, setVisualizerLoading] = useState(false)
 
   const actualUserRole = user?.role || userRole
-  const isBIMManager = actualUserRole === "BIM Manager"
-  const isBIMCoordinateur = actualUserRole === "BIM Coordinateur"
   const isBIMModeleur = actualUserRole === "BIM Modeleur"
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -115,7 +123,7 @@ export default function ProjectFiles({
     return !!url && typeof url === "string" && url.trim() !== ""
   }
 
-  const adaptFiles = (inputFiles: any[]): ProjectFile[] => {
+  const adaptFiles = (inputFiles: FileData[]): ProjectFile[] => {
     return inputFiles.map((file) => ({
       id: file._id || `temp-${Math.random()}`,
       name: file.name,
@@ -127,7 +135,7 @@ export default function ProjectFiles({
     }))
   }
 
-  const updateViewAllUrl = () => {
+  const updateViewAllUrl = useCallback(() => {
     const validFiles = projectFiles.filter((file) => isValidFileUrl(file.file_url))
     const valid = validFiles.length > 0
     setHasValidFiles(valid)
@@ -144,9 +152,9 @@ export default function ProjectFiles({
       setViewAllUrl("#")
       sessionStorage.removeItem(`valid_urls_${projectId}`)
     }
-  }
+  }, [projectFiles, projectId])
 
-  const handleVisualizerClick = (e: React.MouseEvent) => {
+  const handleVisualizerClick = () => {
     if (!hasValidFiles) return
     setVisualizerLoading(true)
     window.location.href = viewAllUrl
@@ -185,7 +193,7 @@ export default function ProjectFiles({
       setFileToDelete(null)
 
       toast.success("Fichier supprimé avec succès")
-    } catch (error) {
+    } catch {
       toast.error("Échec de la suppression du fichier")
     } finally {
       setLoading(false)
@@ -277,7 +285,9 @@ export default function ProjectFiles({
       if (axios.isAxiosError(error)) {
         const responseData = error.response?.data
         if (responseData?.error) errorMessage = responseData.error
-        else if (responseData?.errors) errorMessage = responseData.errors.map((e: any) => e.error).join(", ")
+        else if (responseData?.errors) {
+          errorMessage = responseData.errors.map((e: { error: string }) => e.error).join(", ")
+        }
       }
 
       setError(errorMessage)
@@ -297,7 +307,7 @@ export default function ProjectFiles({
           const urlStr = JSON.stringify(validUrls)
           setViewAllUrl(`/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`)
         }
-      } catch (e) {
+      } catch {
         // Gestion silencieuse des erreurs de parsing
       }
     }
@@ -305,7 +315,7 @@ export default function ProjectFiles({
 
   useEffect(() => {
     if (projectFiles.length > 0) updateViewAllUrl()
-  }, [projectFiles])
+  }, [projectFiles, updateViewAllUrl])
 
   function formatFileSize(size: number): string {
     if (!size) return "0 o"
@@ -318,7 +328,7 @@ export default function ProjectFiles({
     return `${size.toFixed(2)} ${units[unitIndex]}`
   }
 
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     try {
       const { data } = await axios.get(`${apiUrl}/projects/${projectId}/files`, {
         withCredentials: true,
@@ -326,14 +336,14 @@ export default function ProjectFiles({
       const adaptedFiles = adaptFiles(data)
       setProjectFiles(adaptedFiles)
       if (setParentFiles) setParentFiles(adaptedFiles)
-    } catch (error) {
+    } catch {
       // Gestion silencieuse des erreurs de récupération
     }
-  }
+  }, [apiUrl, projectId, setParentFiles])
 
   useEffect(() => {
     fetchFiles()
-  }, [projectId])
+  }, [fetchFiles])
 
   const truncateFileName = (fileName: string, maxLength = 35) => {
     if (!fileName) return "Sans nom"
@@ -565,7 +575,7 @@ export default function ProjectFiles({
             </DialogTitle>
             <DialogDescription className="text-gray-600 dark:text-gray-300 pt-2">
               Êtes-vous sûr de vouloir supprimer le fichier{" "}
-              <span className="font-medium text-gray-900 dark:text-gray-100">"{fileToDelete?.name}"</span> ?
+              <span className="font-medium text-gray-900 dark:text-gray-100">&ldquo;{fileToDelete?.name}&rdquo;</span> ?
               <span className="block mt-2 text-red-500 dark:text-red-400 text-sm">Cette action est irréversible.</span>
             </DialogDescription>
           </DialogHeader>
@@ -622,7 +632,6 @@ export default function ProjectFiles({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projectFiles.map((file, index) => {
-            const validUrl = isValidFileUrl(file.file_url)
             const canDelete = canDeleteFile(file)
             const displayName = truncateFileName(file.name)
             const username = file.uploadedByEmail

@@ -7,13 +7,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 
+// Définir une interface pour le modèle
+interface Model {
+  url: string;
+  name?: string;
+}
+
 export default function ClashConfigModal({ 
   models,
   open,
   onOpenChange,
   onDetect
 }: { 
-  models: any[];
+  models: Model[]; // Utilisation de l'interface définie
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDetect: (config: { modelUrls: string[]; tolerance: number }) => Promise<void>;
@@ -23,7 +29,6 @@ export default function ClashConfigModal({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Initialiser la sélection
     const initialSelection = models.reduce((acc, m) => ({ 
       ...acc, 
       [m.url]: false 

@@ -9,8 +9,8 @@ declare global {
     todoManager?: {
       createTodo: () => void
       toggleTodoPanel: () => void
-      restoreView: (todo: any) => void
-      getTodos: () => any[]
+      restoreView: (todo: Todo) => void
+      getTodos: () => Todo[]
       getActiveTool: () => string | null
       exportBCF: () => void
     }
@@ -27,6 +27,7 @@ import JSZip from "jszip"
 import api from "@/lib/axios-config"
 import { useAuth } from "@/hooks/use-auth"
 import { getTodoTitleError, getTodoDescriptionError, validateTodoPriority, validateTodoStatus } from "@/lib/validators"
+import { IfcViewerAPI } from "web-ifc-viewer"
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
@@ -56,9 +57,37 @@ export interface Todo {
     createdBy: string
   } | null
 }
+type AxiosError = {
+  response?: {
+    status: number;
+    data: {
+      message?: string;
+    };
+  };
+  request?: XMLHttpRequest; 
+  message: string;
+};
+
+
+// Define toast type
+type ToastType = {
+  error: (message: string) => void;
+  success: (message: string) => void;
+};
+
+// Define session type
+type SessionType = {
+  user?: {
+    id?: string;
+    userId?: string;
+  };
+};
+
+// Type pour les membres du projet
+type ProjectMember = { id?: string; _id?: string; name?: string; username?: string; email?: string; userId?: string; project?: { name?: string } }
 
 // Fonction utilitaire pour obtenir le nom d'utilisateur à partir de son ID
-const getUserNameById = (userId: string, members: any[] = []) => {
+const getUserNameById = (userId: string, members: ProjectMember[] = []) => {
   if (!userId) return "Unassigned"
 
   // Chercher le membre dans la liste des membres du projet
@@ -91,7 +120,7 @@ function TodoPanel({
   onTodoAssign: (id: string, userId: string) => void
   activeTool: string | null
   onCreateNote: () => void
-  projectMembers: any[]
+  projectMembers: ProjectMember[]
 }) {
   if (activeTool !== "notes") return null
 
@@ -158,7 +187,7 @@ function TodoPanel({
                         projectMembers.map((member) => (
                           <SelectItem
                             key={member.id || member._id}
-                            value={member.id || member._id}
+                            value={member.id || member._id || ""}
                             className="dark:text-gray-200"
                           >
                             {member.name || member.email || "Utilisateur sans nom"}
@@ -471,11 +500,11 @@ function TodoCreationModal({
 
 // Composant principal TodoManager
 interface TodoManagerProps {
-  viewerRef: React.RefObject<any>
-  session?: any
-  toast: any
-  activeTool?: string | null
-  setActiveTool?: React.Dispatch<React.SetStateAction<string | null>>
+  viewerRef: React.RefObject<IfcViewerAPI | null>; // Changed from { context: ViewerContext }
+  session?: SessionType;
+  toast: ToastType;
+  activeTool?: string | null;
+  setActiveTool?: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool }: TodoManagerProps) {
@@ -537,7 +566,6 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
     fetchData()
   }, [])
 
-  // Fonction pour créer un nouveau todo avec validation
   const createTodo = async () => {
     if (!viewerRef.current || loading) {
       console.log("Cannot create todo:", {
@@ -547,8 +575,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
       return
     }
 
-    // Validation avant création
-    const titleError = getTodoTitleError(newTodo.title)
+      const titleError = getTodoTitleError(newTodo.title)
     const descriptionError = getTodoDescriptionError(newTodo.description)
 
     if (titleError || descriptionError) {
@@ -564,16 +591,18 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
     console.log("Creating todo...")
 
     try {
-      // Récupérer la caméra et les contrôles de la vue
+      // Access the viewer's context properly
+      const viewer = viewerRef.current;
+      
+      // Get camera from the IFC viewer
       console.log("1. Getting camera and controls...")
-      const camera = viewerRef.current.context.getCamera()
+      const camera = viewer.context.getCamera(); // Access via viewer.context
       console.log("Camera:", camera)
 
-      const controls = viewerRef.current.context.ifcCamera.cameraControls
+      const controls = viewer.context.ifcCamera.cameraControls; // Access via viewer.context
       console.log("Controls:", controls)
 
-      // Calculer le point cible à partir des contrôles de caméra
-      console.log("2. Calculating target point...")
+      // Rest of your existing createTodo logic...
       const target = new THREE.Vector3()
       controls.getTarget(target)
       console.log("Target:", target)
@@ -595,7 +624,9 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         return
       }
 
-      const fieldOfView = camera.fov || 45
+      const fieldOfView = (camera as THREE.PerspectiveCamera).isPerspectiveCamera
+        ? (camera as THREE.PerspectiveCamera).fov
+        : 45
       console.log("5. Field of view:", fieldOfView)
 
       const direction = {
@@ -653,22 +684,14 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         renderer.render(viewerRef.current.context.getScene(), camera)
         console.log("13. Render completed")
 
-        // Vérifier si la méthode getScreenShot existe
-        if (typeof viewerRef.current.context.getScreenShot === "function") {
-          screenshot = viewerRef.current.context.getScreenShot(undefined, true)
+        // Utiliser toujours la méthode alternative pour capturer une capture d'écran
+        try {
+          // Essayer d'utiliser toDataURL du renderer
+          screenshot = renderer.domElement.toDataURL("image/png")
           console.log("14. Screenshot captured:", screenshot ? "Success" : "Failed")
-        } else {
-          console.log("14. getScreenShot method not available, using alternative method")
-
-          // Méthode alternative pour capturer une capture d'écran
-          try {
-            // Essayer d'utiliser toDataURL du renderer
-            screenshot = renderer.domElement.toDataURL("image/png")
-            console.log("15. Alternative screenshot method succeeded")
-          } catch (altScreenshotError) {
-            console.error("15. Alternative screenshot method failed:", altScreenshotError)
-            screenshot = null
-          }
+        } catch (altScreenshotError) {
+          console.error("15. Alternative screenshot method failed:", altScreenshotError)
+          screenshot = null
         }
       } catch (screenshotError) {
         console.error("Screenshot error:", screenshotError)
@@ -715,7 +738,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
       } catch (apiError) {
         console.error("21. API Error:", apiError)
 
-        const error: any = apiError
+        const error = apiError as AxiosError;
         if (error.response) {
           console.error("Response status:", error.response.status)
           console.error("Response data:", error.response.data)
@@ -725,50 +748,56 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
           console.error("23. Error setting up request:", error.message)
         }
 
-        toast.error(`Échec de la sauvegarde: ${error.response?.data?.message || error.message}`)
+       const message = error instanceof Error ? error.message : 'Unknown error';
+  toast.error(`Échec de la sauvegarde: ${message}`);
       }
     } catch (error) {
       console.error("24. General error:", error)
-      toast.error(`Échec de la sauvegarde: ${(error as any).message}`)
+      const message = error instanceof Error ? error.message : 'Unknown error';
+  toast.error(`Échec de la sauvegarde: ${message}`);
     }
   }
 
-  const restoreTodoView = (todo: Todo) => {
-    if (!todo.viewpoint) {
-      toast.error("Aucune donnée de vue disponible pour cette note")
-      return
+const restoreTodoView = useCallback((todo: Todo) => {
+    if (!todo.viewpoint || !viewerRef.current) {
+      toast.error("Aucune donnée de vue disponible pour cette note");
+      return;
     }
 
-    const { camera_view_point, camera_direction, camera_up_vector, field_of_view } = todo.viewpoint
+const { camera_view_point, camera_direction, camera_up_vector, field_of_view } = todo.viewpoint;
 
     // Validation des données
     if (!camera_view_point || !camera_direction || !camera_up_vector) {
-      toast.error("Données de vue invalides")
-      return
+      toast.error("Données de vue invalides");
+      return;
     }
 
-    // Conversion des coordonnées
-    const position = new THREE.Vector3(camera_view_point.x, camera_view_point.y, camera_view_point.z)
-
-    const direction = new THREE.Vector3(camera_direction.x, camera_direction.y, camera_direction.z)
-
-    const up = new THREE.Vector3(camera_up_vector.x, camera_up_vector.y, camera_up_vector.z)
+    const position = new THREE.Vector3(camera_view_point.x, camera_view_point.y, camera_view_point.z);
+    const direction = new THREE.Vector3(camera_direction.x, camera_direction.y, camera_direction.z);
+    const up = new THREE.Vector3(camera_up_vector.x, camera_up_vector.y, camera_up_vector.z);
 
     // Calcul de la cible
-    const target = position.clone().add(direction)
+    const target = position.clone().add(direction);
 
-    // Animation de la caméra
-    viewerRef.current.context.ifcCamera.cameraControls.setLookAt(
-      position.x,
-      position.y,
-      position.z,
-      target.x,
-      target.y,
-      target.z,
-      true,
-      1.2,
-    )
-  }
+     // Get camera and controls from the IFC viewer
+    const viewer = viewerRef.current;
+    const camera = viewer.context.getCamera(); // Access via viewer.context
+    const controls = viewer.context.ifcCamera.cameraControls; // Access via viewer.context
+
+    // Set camera properties
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      (camera as THREE.PerspectiveCamera).fov = field_of_view;
+      (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    }
+    camera.up.copy(up);
+
+  // Animation de la caméra
+  controls.setLookAt(
+      position.x, position.y, position.z,
+      target.x, target.y, target.z,
+      true
+    );
+  }, [viewerRef, toast]);
 
   // Mise à jour de handleTodoSelect pour utiliser la nouvelle fonction restoreTodoView
   const handleTodoSelect = (todo: Todo) => {
@@ -789,9 +818,9 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
 
       setTodos((prev) => prev.map((todo) => (todo._id === todoId ? response.data : todo)))
       toast.success(`Statut changé vers ${newStatus}`)
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to update todo status:", error)
-      toast.error(`Échec de la mise à jour: ${error.response?.data?.message || error.message}`)
+      toast.error(`Échec de la mise à jour: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -803,9 +832,9 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
 
       setTodos((prev) => prev.map((todo) => (todo._id === todoId ? response.data : todo)))
       toast.success("Assigné avec succès")
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to assign todo:", error)
-      toast.error(`Échec de l'assignation: ${error.response?.data?.message || error.message}`)
+      toast.error(`Échec de l'assignation: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -821,7 +850,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
       console.log("Todo deleted successfully")
 
       toast.success("Supprimé avec succès !")
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to delete todo:", error)
 
       // Restore original todos on error
@@ -830,7 +859,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
     }
   }
 
-  const exportBCF = () => {
+const exportBCF = useCallback(() => {
     const zip = new JSZip()
 
     // Génération UUID conforme BCF
@@ -1022,7 +1051,7 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
         console.error("BCF Export Error:", error)
         toast.error("Échec de la génération du fichier BCF")
       })
-  }
+}, [todos, projectMembers, toast]);
 
   const handleCreateNote = useCallback(() => {
     console.log("handleCreateNote called")
@@ -1033,28 +1062,26 @@ export function TodoManager({ viewerRef, toast, activeTool = null, setActiveTool
   const toggleTodosTool = useCallback(() => {
     effectiveSetActiveTool((current: string | null) => (current === "todos" ? null : "todos"))
   }, [effectiveSetActiveTool])
-
-  useEffect(() => {
+useEffect(() => {
+  if (typeof window !== "undefined") {
+    window.todoManager = {
+      createTodo: () => {
+        console.log("createTodo called from window.todoManager");
+        setIsCreatingTodo(true);
+      },
+      toggleTodoPanel: toggleTodosTool,
+      restoreView: restoreTodoView,
+      getTodos: () => todos,
+      getActiveTool: () => effectiveActiveTool,
+      exportBCF: exportBCF,
+    };
+  }
+  return () => {
     if (typeof window !== "undefined") {
-      window.todoManager = {
-        createTodo: () => {
-          console.log("createTodo called from window.todoManager")
-          setIsCreatingTodo(true)
-        },
-        toggleTodoPanel: toggleTodosTool,
-        restoreView: restoreTodoView,
-        getTodos: () => todos,
-        getActiveTool: () => effectiveActiveTool,
-        exportBCF: exportBCF,
-      }
+      delete window.todoManager;
     }
-
-    return () => {
-      if (typeof window !== "undefined") {
-        delete window.todoManager
-      }
-    }
-  }, [todos, effectiveActiveTool, toggleTodosTool])
+  };
+}, [todos, effectiveActiveTool, toggleTodosTool, handleCreateNote, restoreTodoView, exportBCF]);
 
   return (
     <>

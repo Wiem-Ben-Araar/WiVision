@@ -1,9 +1,108 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ChevronRight, ChevronDown, X, Copy, Search, Download, Package, Layers, Hash, Info } from 'lucide-react';
+import { IfcViewerAPI } from 'web-ifc-viewer';
 
-// Types
+interface IFCValue {
+  value: string | number | boolean;
+}
+
+interface IFCCoordinates {
+  value: number;
+}
+
+interface IFCLocation {
+  Coordinates: IFCCoordinates[];
+}
+
+interface IFCPlacement {
+  Location: IFCLocation;
+}
+
+interface IFCObjectPlacement {
+  RelativePlacement: IFCPlacement;
+}
+
+interface IFCStructure {
+  expressID: number;
+  Name?: IFCValue;
+}
+
+interface IFCContainedInStructure {
+  RelatingStructure: IFCStructure;
+}
+
+interface IFCRelatingObject {
+  expressID: number;
+}
+
+interface IFCDecomposes {
+  RelatingObject: IFCRelatingObject;
+}
+
+interface IFCProperty {
+  Name: IFCValue;
+  NominalValue: IFCValue;
+}
+
+interface IFCPropertyDefinition {
+  Name?: IFCValue;
+  HasProperties: IFCProperty[];
+}
+
+interface IFCDefinition {
+  RelatingPropertyDefinition: IFCPropertyDefinition;
+}
+
+interface IFCMaterial {
+  name?: string;
+  color?: string;
+  value?: string;
+  properties?: Record<string, IFCValue | string | number>;
+}
+
+interface IFCElement {
+  expressID: number;
+  GlobalId?: IFCValue;
+  type?: IFCValue;
+  Name?: IFCValue;
+  ObjectType?: IFCValue;
+  Description?: IFCValue;
+  Tag?: IFCValue;
+  Status?: IFCValue;
+  Phase?: IFCValue;
+  ProductionYear?: IFCValue;
+  InstallationYear?: IFCValue;
+  Width?: IFCValue;
+  Length?: IFCValue;
+  Height?: IFCValue;
+  Depth?: IFCValue;
+  Area?: IFCValue;
+  Volume?: IFCValue;
+  ObjectPlacement?: IFCObjectPlacement;
+  ContainedInStructure?: IFCContainedInStructure | IFCContainedInStructure[];
+  FillsVoids?: boolean;
+  IsDecomposedBy?: IFCElement[];
+  Decomposes?: IFCDecomposes;
+  IsDefinedBy?: IFCDefinition | IFCDefinition[];
+  materials?: IFCMaterial[];
+  [key: string]: unknown;
+}
+
+// Type for IFC viewer properties interface
+interface IFCViewerProperties {
+  getItemProperties: (modelID: number, elementID: number, recursive: boolean) => Promise<IFCElement>;
+}
+
+// Type for IFC viewer with properties
+type IFCViewerWithProperties = IfcViewerAPI & {
+  IFC: {
+    properties?: IFCViewerProperties;
+    getProperties?: (modelID: number, elementID: number, recursive: boolean) => Promise<IFCElement>;
+  };
+};
+
 interface PropertySidebarProps {
-  viewer: any;
+  viewer: IfcViewerAPI | null;
   selectedElement: number | null;
   modelID: number | null;
   onClose?: () => void;
@@ -11,14 +110,14 @@ interface PropertySidebarProps {
 
 interface PropertyGroup {
   name: string;
-  properties: Record<string, any>;
+  properties: Record<string, string | number | boolean>;
   expanded: boolean;
   priority: number;
   icon?: React.ReactNode;
 }
 
 export default function PropertySidebar({ viewer, selectedElement, modelID, onClose }: PropertySidebarProps) {
-  const [properties, setProperties] = useState<any>(null);
+  const [properties, setProperties] = useState<IFCElement | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [propertyGroups, setPropertyGroups] = useState<PropertyGroup[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -32,17 +131,24 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
   };
 
   // Fonction pour extraire toutes les propriétés récursivement
-  const extractAllProperties = (obj: any, prefix = '', result: Record<string, any> = {}) => {
+  const extractAllProperties = useCallback((obj: unknown, prefix = '', result: Record<string, string | number | boolean> = {}): Record<string, string | number | boolean> => {
     if (!obj || typeof obj !== 'object') return result;
     
-    Object.entries(obj).forEach(([key, value]: [string, any]) => {
+    const objectEntries = Object.entries(obj as Record<string, unknown>);
+    
+    objectEntries.forEach(([key, value]) => {
       const propName = prefix ? `${prefix}.${key}` : key;
       
       if (key === 'value' && prefix) {
-        result[prefix] = value;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          result[prefix] = value;
+        }
       } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        if (value.value !== undefined) {
-          result[propName] = value.value;
+        const valueObj = value as Record<string, unknown>;
+        if (valueObj.value !== undefined) {
+          if (typeof valueObj.value === 'string' || typeof valueObj.value === 'number' || typeof valueObj.value === 'boolean') {
+            result[propName] = valueObj.value;
+          }
         } else {
           extractAllProperties(value, propName, result);
         }
@@ -54,26 +160,28 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
           }
         });
       } else if (value !== undefined && value !== null && key !== 'expressID') {
-        result[propName] = value;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          result[propName] = value;
+        }
       }
     });
     
     return result;
-  };
+  }, []);
 
   // Organiser les propriétés en groupes avec icônes
-  const organizeProperties = (props: any) => {
+  const organizeProperties = useCallback((props: IFCElement | null): PropertyGroup[] => {
     if (!props) return [];
 
     const groups: PropertyGroup[] = [];
     
     // Groupe principal: Informations de base (priorité la plus élevée)
-    const basicProps: Record<string, any> = {};
+    const basicProps: Record<string, string | number | boolean> = {};
     if (props.expressID) basicProps['ID'] = props.expressID;
     if (props.GlobalId?.value) basicProps['Global ID'] = props.GlobalId.value;
     if (props.type?.value) basicProps['Type IFC'] = props.type.value;
     if (props.Name?.value) basicProps['Nom'] = props.Name.value;
-    if (props.ObjectType?.value) basicProps['Type d\'objet'] = props.ObjectType.value;
+    if (props.ObjectType?.value) basicProps['Type d&apos;objet'] = props.ObjectType.value;
     if (props.Description?.value) basicProps['Description'] = props.Description.value;
     if (props.Tag?.value) basicProps['Tag'] = props.Tag.value;
     
@@ -88,26 +196,23 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }
 
     // Dimensions et géométrie (priorité élevée)
-    const geometryProps: Record<string, any> = {};
+    const geometryProps: Record<string, string | number | boolean> = {};
     
     // Dimensions explicites
-    ['Width', 'Length', 'Height', 'Depth', 'Area', 'Volume'].forEach(dim => {
-      if (props[dim]?.value !== undefined) geometryProps[dim] = props[dim].value;
+    const dimensions = ['Width', 'Length', 'Height', 'Depth', 'Area', 'Volume'] as const;
+    dimensions.forEach(dim => {
+      const propValue = props[dim];
+      if (propValue && typeof propValue === 'object' && 'value' in propValue && propValue.value !== undefined) {
+        geometryProps[dim] = propValue.value;
+      }
     });
     
     // Récupérer les informations de placement
-    if (props.ObjectPlacement) {
-      if (props.ObjectPlacement.RelativePlacement) {
-        const placement = props.ObjectPlacement.RelativePlacement;
-        if (placement.Location) {
-          const location = placement.Location;
-          if (location.Coordinates) {
-            geometryProps['Position X'] = location.Coordinates[0].value;
-            geometryProps['Position Y'] = location.Coordinates[1].value;
-            geometryProps['Position Z'] = location.Coordinates[2].value;
-          }
-        }
-      }
+    if (props.ObjectPlacement?.RelativePlacement?.Location?.Coordinates) {
+      const coordinates = props.ObjectPlacement.RelativePlacement.Location.Coordinates;
+      if (coordinates[0]) geometryProps['Position X'] = coordinates[0].value;
+      if (coordinates[1]) geometryProps['Position Y'] = coordinates[1].value;
+      if (coordinates[2]) geometryProps['Position Z'] = coordinates[2].value;
     }
     
     if (Object.keys(geometryProps).length) {
@@ -121,11 +226,11 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }
 
     // Phase et statut (priorité moyenne-haute)
-    const phaseProps: Record<string, any> = {};
+    const phaseProps: Record<string, string | number | boolean> = {};
     if (props.Status?.value) phaseProps['Statut'] = props.Status.value;
     if (props.Phase?.value) phaseProps['Phase'] = props.Phase.value;
     if (props.ProductionYear?.value) phaseProps['Année de production'] = props.ProductionYear.value;
-    if (props.InstallationYear?.value) phaseProps['Année d\'installation'] = props.InstallationYear.value;
+    if (props.InstallationYear?.value) phaseProps['Année d&apos;installation'] = props.InstallationYear.value;
     
     if (Object.keys(phaseProps).length) {
       groups.push({
@@ -138,15 +243,23 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }
 
     // Matériaux (priorité moyenne)
-    const materialProps: Record<string, any> = {};
+    const materialProps: Record<string, string | number | boolean> = {};
     if (props.materials && Array.isArray(props.materials) && props.materials.length > 0) {
-      props.materials.forEach((material: any, idx: number) => {
+      props.materials.forEach((material, idx) => {
         const matName = material.name || `Matériau ${idx + 1}`;
         materialProps[matName] = material.color || material.value || 'Non spécifié';
         
         if (material.properties) {
-          Object.entries(material.properties).forEach(([key, value]: [string, any]) => {
-            materialProps[`${matName} - ${key}`] = value.value !== undefined ? value.value : value;
+          Object.entries(material.properties).forEach(([key, value]) => {
+            let materialValue: string | number | boolean;
+            if (typeof value === 'object' && value !== null && 'value' in value) {
+              materialValue = (value as IFCValue).value;
+            } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+              materialValue = value;
+            } else {
+              materialValue = String(value);
+            }
+            materialProps[`${matName} - ${key}`] = materialValue;
           });
         }
       });
@@ -163,14 +276,14 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }
 
     // Relations spatiales (priorité moyenne-basse)
-    const relProps: Record<string, any> = {};
+    const relProps: Record<string, string | number | boolean> = {};
     
     if (props.ContainedInStructure) {
       const containers = Array.isArray(props.ContainedInStructure) 
         ? props.ContainedInStructure 
         : [props.ContainedInStructure];
       
-      containers.forEach((container: any, idx: number) => {
+      containers.forEach((container, idx) => {
         if (container.RelatingStructure) {
           const structure = container.RelatingStructure;
           relProps[`Contenu dans ${idx+1}`] = structure.expressID || 'Structure';
@@ -201,31 +314,28 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     if (props.IsDefinedBy) {
       const definitions = Array.isArray(props.IsDefinedBy) ? props.IsDefinedBy : [props.IsDefinedBy];
       
-      definitions.forEach((def: any) => {
-        if (def.RelatingPropertyDefinition) {
+      definitions.forEach((def) => {
+        if (def.RelatingPropertyDefinition?.HasProperties && Array.isArray(def.RelatingPropertyDefinition.HasProperties)) {
           const propDef = def.RelatingPropertyDefinition;
+          const setName = propDef.Name?.value || 'Property Set';
+          const propObj: Record<string, string | number | boolean> = {};
           
-          if (propDef.HasProperties && Array.isArray(propDef.HasProperties)) {
-            const setName = propDef.Name?.value || 'Property Set';
-            const propObj: Record<string, any> = {};
-            
-            propDef.HasProperties.forEach((prop: any) => {
-              if (prop.Name && prop.NominalValue) {
-                propObj[prop.Name.value] = prop.NominalValue.value;
-              }
-            });
-            
-            if (Object.keys(propObj).length) {
-              const isPriority = commonPsets.some(pset => setName.includes(pset));
-              
-              groups.push({
-                name: setName,
-                properties: propObj,
-                expanded: isPriority,
-                priority: isPriority ? 50 : 30,
-                icon: <Hash className="h-4 w-4" />
-              });
+          propDef.HasProperties.forEach((prop) => {
+            if (prop.Name && prop.NominalValue) {
+              propObj[String(prop.Name.value)] = prop.NominalValue.value;
             }
+          });
+          
+          if (Object.keys(propObj).length) {
+            const isPriority = commonPsets.some(pset => String(setName).includes(pset));
+            
+            groups.push({
+              name: String(setName),
+              properties: propObj,
+              expanded: isPriority,
+              priority: isPriority ? 50 : 30,
+              icon: <Hash className="h-4 w-4" />
+            });
           }
         }
       });
@@ -233,8 +343,8 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
 
     // Ajouter les autres propriétés
     const allProps = extractAllProperties(props);
-    const otherProps: Record<string, any> = {};
-    const existingProps = new Set();
+    const otherProps: Record<string, string | number | boolean> = {};
+    const existingProps = new Set<string>();
     
     groups.forEach(group => {
       Object.keys(group.properties).forEach(key => {
@@ -260,7 +370,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     }
 
     return groups.sort((a, b) => b.priority - a.priority);
-  };
+  }, [extractAllProperties]);
 
   // Exporter les propriétés
   const exportToExcel = () => {
@@ -274,7 +384,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     propertyGroups.forEach(group => {
       Object.entries(group.properties).forEach(([key, value]) => {
         const safeValue = typeof value === 'string' ? 
-          value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : value;
+          value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : String(value);
         
         excelXml += '<Row>';
         excelXml += `<Cell><Data ss:Type="String">${group.name}</Data></Cell>`;
@@ -302,7 +412,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     
     const query = searchQuery.toLowerCase();
     return propertyGroups.map(group => {
-      const filteredProps: Record<string, any> = {};
+      const filteredProps: Record<string, string | number | boolean> = {};
       Object.entries(group.properties).forEach(([key, value]) => {
         const stringValue = String(value).toLowerCase();
         if (key.toLowerCase().includes(query) || stringValue.includes(query)) {
@@ -338,19 +448,20 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
       setLoading(true);
       try {
         // Essayer différentes méthodes d'API selon la version d'IFC.js
-        let props = null;
+        let props: IFCElement | null = null;
+        
+        const viewerWithProperties = viewer as unknown as IFCViewerWithProperties;
         
         // Pour les versions récentes
-        if (viewer.IFC.properties && viewer.IFC.properties.getItemProperties) {
-          props = await viewer.IFC.properties.getItemProperties(modelID, selectedElement, true);
+        if (
+          viewerWithProperties.IFC.properties &&
+          typeof viewerWithProperties.IFC.properties.getItemProperties === 'function'
+        ) {
+          props = await viewerWithProperties.IFC.properties.getItemProperties(modelID, selectedElement, true);
         } 
         // Pour les versions plus anciennes
-        else if (viewer.IFC.getProperties) {
-          props = await viewer.IFC.getProperties(modelID, selectedElement, true);
-        }
-        // Pour web-ifc-viewer
-        else if (viewer.IFC.selector && viewer.IFC.selector.getProperties) {
-          props = await viewer.IFC.selector.getProperties(modelID, selectedElement);
+        else if (viewerWithProperties.IFC.getProperties) {
+          props = await viewerWithProperties.IFC.getProperties(modelID, selectedElement, true);
         }
         
         console.log("Propriétés récupérées:", props);
@@ -368,9 +479,26 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     };
 
     fetchProperties();
-  }, [viewer, selectedElement, modelID]);
+  }, [viewer, selectedElement, modelID, organizeProperties]);
 
   const filteredGroups = getFilteredProperties();
+
+  // Early return if viewer is not available
+  if (!viewer) {
+    return (
+      <div className="w-80 bg-gradient-to-br from-slate-50 to-slate-100 h-full flex flex-col border-l border-slate-200 shadow-lg">
+        <div className="p-6 text-center flex flex-col items-center justify-center h-full">
+          <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-4">
+            <Package className="h-8 w-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-medium text-slate-700 mb-2">Viewer non disponible</h3>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Le viewer IFC n&apos;est pas encore initialisé
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!selectedElement) {
     return (

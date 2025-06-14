@@ -30,35 +30,53 @@ interface Member {
   image?: string
 }
 
+interface Invitation {
+  id?: string
+  _id?: string
+  email: string
+  status: "pending" | "accepted"
+  createdAt?: string
+  role?: string
+}
+
 interface ProjectMembersProps {
   projectId: string
   projectName: string
-  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur";
+  userRole: "BIM Manager" | "BIM Coordinateur" | "BIM Modeleur"
   onMemberInvite?: (email: string) => void
+}
+
+interface ErrorResponse {
+  response?: {
+    data?: {
+      error: string
+    }
+  }
 }
 
 export default function ProjectMembers({ projectId, projectName, userRole, onMemberInvite }: ProjectMembersProps) {
   const { user } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
-  const [invitations, setInvitations] = useState<any[]>([])
+  const [invitations, setInvitations] = useState<Invitation[]>([])
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [emails, setEmails] = useState("")
   const [message, setMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sendingInvites, setSendingInvites] = useState(false)
-const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
-  // Vérifier si l'utilisateur peut inviter des membres
-  // On vérifie aussi le rôle dans les membres du projet pour l'utilisateur actuel
-  const currentUserMember = members.find(member => member.email === user?.email);
-  const actualUserRole = currentUserMember?.role || userRole;
-  const canInviteMembers = actualUserRole === "BIM Manager" || userRole === "BIM Manager";
+  const [selectedRole, setSelectedRole] = useState("BIM Modeleur")
+  
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
+  // Vérifier si l'utilisateur peut inviter des membres
+  // On vérifie aussi le rôle dans les membres du projet pour l'utilisateur actuel
+  const currentUserMember = members.find(member => member.email === user?.email)
+  const actualUserRole = currentUserMember?.role || userRole
+  const canInviteMembers = actualUserRole === "BIM Manager" || userRole === "BIM Manager"
 
   // Listen for external trigger to open invite dialog
   useEffect(() => {
-    if (!canInviteMembers) return;
+    if (!canInviteMembers) return
     
     const inviteTrigger = document.getElementById("invite-member-trigger")
     if (inviteTrigger) {
@@ -70,6 +88,8 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!apiUrl || !projectId) return
+
       try {
         const [membersRes, invitationsRes] = await Promise.all([
           axios.get(`${apiUrl}/projects/${projectId}/members`, {
@@ -82,17 +102,23 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
 
         setMembers(membersRes.data.members)
         setInvitations(invitationsRes.data.invitations)
-      } catch (error: any) {
+      } catch (err) {
+        const error = err as ErrorResponse
         setError(error.response?.data?.error || "Échec du chargement des données")
       } finally {
         setIsLoading(false)
       }
     }
 
-    projectId && fetchData()
-  }, [projectId])
+    fetchData()
+  }, [projectId, apiUrl])
 
   const handleInvite = async () => {
+    if (!apiUrl) {
+      toast.error("Configuration API manquante")
+      return
+    }
+
     setSendingInvites(true)
     const emailList = emails
       .split(/[,;\n]/)
@@ -125,7 +151,8 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
       if (onMemberInvite) {
         emailList.forEach((email) => onMemberInvite(email))
       }
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse
       toast.error(error.response?.data?.error || "Échec de l'envoi des invitations")
     } finally {
       setSendingInvites(false)
@@ -205,21 +232,23 @@ const [selectedRole, setSelectedRole] = useState("BIM Modeleur");
                     className="min-h-[80px] dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                   />
                 </div>
-<div className="space-y-2">
-  <Label htmlFor="role" className="text-gray-700 dark:text-gray-300 font-medium">
-    Rôle du membre
-  </Label>
-  <select
-    id="role"
-    value={selectedRole}
-    onChange={(e) => setSelectedRole(e.target.value)}
-    className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 dark:bg-gray-800"
-  > 
-    <option value="BIM Modeleur">BIM Modeleur (visualisation seule)</option>
-    <option value="BIM Coordinateur">BIM Coordinateur</option>
-    <option value="BIM Manager">BIM Manager</option>
-  </select>
-</div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role" className="text-gray-700 dark:text-gray-300 font-medium">
+                    Rôle du membre
+                  </Label>
+                  <select
+                    id="role"
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value)}
+                    className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 dark:bg-gray-800"
+                  > 
+                    <option value="BIM Modeleur">BIM Modeleur (visualisation seule)</option>
+                    <option value="BIM Coordinateur">BIM Coordinateur</option>
+                    <option value="BIM Manager">BIM Manager</option>
+                  </select>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
                     variant="outline"

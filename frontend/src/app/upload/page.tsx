@@ -1,7 +1,7 @@
 "use client";
 
 import axios from 'axios';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,14 @@ import Link from 'next/link';
 import { Loader2, Upload, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from '@/hooks/use-auth';
+
 interface UploadError {
   fileName: string;
   error: string;
 }
-const UploadPage = () => {
+
+// Separate component that uses useSearchParams
+const UploadContent = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +146,26 @@ const UploadPage = () => {
         </CardFooter>
       </Card>
     </div>
+  );
+};
+
+// Loading fallback component
+const UploadPageFallback = () => (
+  <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+    <Card className="w-full max-w-md">
+      <CardContent className="flex justify-center items-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </CardContent>
+    </Card>
+  </div>
+);
+
+// Main component wrapped in Suspense
+const UploadPage = () => {
+  return (
+    <Suspense fallback={<UploadPageFallback />}>
+      <UploadContent />
+    </Suspense>
   );
 };
 
