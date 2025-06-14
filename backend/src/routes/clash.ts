@@ -11,7 +11,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
 });
-
+const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
 // Route pour la détection inter-modèles
 router.post(
   '/detect',
@@ -42,7 +42,7 @@ router.post(
 
       // Envoi à Flask
       const response = await axios.post(
-        'http://localhost:5001/api/clash/detect',
+        `${FLASK_API_URL}/api/clash/detect`,
         flaskFormData,
         { headers: flaskFormData.getHeaders() }
       );
@@ -88,7 +88,7 @@ router.post(
 
       // Envoi à Flask
       const response = await axios.post(
-        'http://localhost:5001/api/clash/detect_intra', // Nouvelle endpoint Flask
+        `${FLASK_API_URL}/api/clash/detect_intra`, // Nouvelle endpoint Flask
         flaskFormData,
         { headers: flaskFormData.getHeaders() }
       );
@@ -131,7 +131,7 @@ router.get('/status/:sessionId', async (req: Request, res: Response) => {
 router.get('/report/:sessionId', async (req, res) => {
   try {
     const response = await axios.get(
-      `http://localhost:5001/api/report/${req.params.sessionId}`
+     `${FLASK_API_URL}/api/report/${req.params.sessionId}`
     );
     res.json(response.data);
   } catch (error) {
@@ -147,7 +147,7 @@ router.get('/report/:sessionId', async (req, res) => {
 router.get('/report/html/:sessionId', async (req, res) => {
   try {
     const response = await axios.get(
-      `http://localhost:5001/api/report/html/${req.params.sessionId}`,
+     `${FLASK_API_URL}/api/report/html/${req.params.sessionId}`,
       { responseType: 'stream' }
     );
     response.data.pipe(res);
