@@ -110,7 +110,7 @@ export default function ClashConfigModal({
             </DialogTitle>
             <DialogDescription>
               {intraMode 
-                ? "Analysez les conflits au sein d'un même modèle" 
+                ? "Analysez les conflits au sein d&apos;un même modèle" 
                 : "Sélectionnez les modèles à comparer"}
             </DialogDescription>
           </DialogHeader>
@@ -130,7 +130,7 @@ export default function ClashConfigModal({
               className="flex-1"
             >
               <FileStack className="mr-2 h-4 w-4" />
-              Au sein d'un modèle
+              Au sein d&apos;un modèle
             </Button>
           </div>
 
@@ -141,7 +141,7 @@ export default function ClashConfigModal({
                 <div className="border rounded-lg p-4 max-h-64 overflow-y-auto">
                   {models.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      Aucun modèle chargé. Chargez d'abord un modèle.
+                      Aucun modèle chargé. Chargez d&apos;abord un modèle.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -208,11 +208,11 @@ export default function ClashConfigModal({
                       htmlFor="use-ai-intra" 
                       className="font-medium cursor-pointer"
                     >
-                      Utiliser l'intelligence artificielle
+                      Utiliser l&apos;intelligence artificielle
                     </label>
                     <p className="text-sm text-gray-600 mt-1">
-                      L'IA est particulièrement efficace pour la détection intra-modèle, 
-                      permettant d'identifier rapidement les conflits entre éléments de même discipline.
+                      L&apos;IA est particulièrement efficace pour la détection intra-modèle, 
+                      permettant d&apos;identifier rapidement les conflits entre éléments de même discipline.
                     </p>
                   </div>
                 </div>
@@ -264,7 +264,7 @@ export default function ClashConfigModal({
                 <div className="border rounded-lg p-4 max-h-64 overflow-y-auto">
                   {models.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      Aucun modèle chargé. Chargez d'abord des modèles.
+                      Aucun modèle chargé. Chargez d&apos;abord des modèles.
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -342,11 +342,11 @@ export default function ClashConfigModal({
                         htmlFor="use-ai" 
                         className="font-medium cursor-pointer"
                       >
-                        Utiliser l'intelligence artificielle
+                        Utiliser l&apos;intelligence artificielle
                       </label>
                       <p className="text-sm text-gray-600 mt-1">
                         Accélère la détection en utilisant un modèle prédictif pour éliminer 
-                        rapidement les paires d'éléments sans conflit.
+                        rapidement les paires d&apos;éléments sans conflit.
                       </p>
                     </div>
                   </div>
@@ -382,7 +382,7 @@ export default function ClashConfigModal({
                   ) : (
                     <CrosshairIcon className="h-4 w-4 mr-2" />
                   )}
-                  {intraMode ? "Lancer l'analyse intra-modèle" : "Lancer la détection"}
+                  {intraMode ? "Lancer l&apos;analyse intra-modèle" : "Lancer la détection"}
                   {useAI && (
                     <span className="ml-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
                       IA
@@ -406,12 +406,12 @@ export default function ClashConfigModal({
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="font-bold text-blue-700 flex items-center gap-2">
                 <Info className="h-5 w-5" />
-                Comment fonctionne l'optimisation IA ?
+                Comment fonctionne l&apos;optimisation IA ?
               </h3>
               <p className="mt-2 text-gray-700">
-                Notre système utilise un modèle d'apprentissage automatique entraîné sur des milliers 
-                de cas de clashs pour prédire rapidement quelles paires d'éléments ont une forte 
-                probabilité d'être en conflit.
+                Notre système utilise un modèle d&apos;apprentissage automatique entraîné sur des milliers 
+                de cas de clashs pour prédire rapidement quelles paires d&apos;éléments ont une forte 
+                probabilité d&apos;être en conflit.
               </p>
             </div>
             
@@ -420,7 +420,7 @@ export default function ClashConfigModal({
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <span className="bg-green-100 text-green-800 rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">✓</span>
-                  <span>Réduction jusqu'à 70% du temps de calcul</span>
+                  <span>Réduction jusqu&apos;à 70% du temps de calcul</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="bg-green-100 text-green-800 rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">✓</span>
@@ -436,8 +436,8 @@ export default function ClashConfigModal({
             <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
               <h4 className="font-medium text-yellow-700">Note importante :</h4>
               <p className="text-sm text-yellow-600 mt-1">
-                L'IA agit comme un filtre préliminaire. Tous les conflits potentiels détectés 
-                par l'IA sont ensuite vérifiés par la méthode traditionnelle pour garantir 
+                L&apos;IA agit comme un filtre préliminaire. Tous les conflits potentiels détectés 
+                par l&apos;IA sont ensuite vérifiés par la méthode traditionnelle pour garantir 
                 une précision de 100%.
               </p>
             </div>

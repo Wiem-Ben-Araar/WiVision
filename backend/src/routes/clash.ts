@@ -11,7 +11,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
 });
-const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
+const FLASK_API_URL = process.env.FLASK_API_URL || '';
 // Route pour la détection inter-modèles
 router.post(
   '/detect',

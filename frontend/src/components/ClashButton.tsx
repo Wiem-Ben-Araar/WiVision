@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Button } from '@/components/ui/button';
 import { CrosshairIcon, Loader2, FileIcon, FileStack } from 'lucide-react';
 import ClashConfigModal from '@/components/ClashConfigModal';
 import { ClashReport } from '@/components/ClashReport';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface LoadedModel {
   id: string;
@@ -51,6 +51,20 @@ interface IntraClashResponse {
   session_id?: string;
 }
 
+interface ApiErrorResponse {
+  error?: string;
+}
+
+interface StatusResponse {
+  clashes?: ClashResult[];
+  model_name?: string;
+  element_count?: number;
+  clashing_element_count?: number;
+  ai_used?: boolean;
+  status?: string;
+  error?: string;
+}
+
 export default function ClashButton({ loadedModels }: { loadedModels: LoadedModel[] }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -90,7 +104,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       setPollingStatus('Envoi des modèles au serveur...');
       
       const { data } = await axios.post<ClashResponse>(
-        `${API_BASE_URL}/api/clash/detect`, 
+        `${API_BASE_URL}/clash/detect`, 
         formData,
         {
           headers: {
@@ -105,22 +119,23 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       if (data.session_id) {
         setPollingStatus('Analyse des clashs en cours...');
         const result = await pollResults(data.session_id);
-        setResults(result.clashes);
+        setResults(result.clashes ?? null);
         setModalOpen(false);
       } else {
         throw new Error('Session ID manquant dans la réponse');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erreur détectée:', err);
       let errorMsg = 'Erreur lors de la détection des clashs';
       
       if (axios.isAxiosError(err)) {
-        if (err.response?.data?.error) {
-          errorMsg = err.response.data.error;
+        const axiosError = err as AxiosError<ApiErrorResponse>;
+        if (axiosError.response?.data?.error) {
+          errorMsg = axiosError.response.data.error;
         } else {
-          errorMsg = `Erreur de connexion: ${err.message}`;
+          errorMsg = `Erreur de connexion: ${axiosError.message}`;
         }
-      } else if (err.message) {
+      } else if (err instanceof Error && err.message) {
         errorMsg = err.message;
       }
       
@@ -154,7 +169,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       setPollingStatus('Analyse intra-modèle en cours...');
       
       const { data } = await axios.post<IntraClashResponse>(
-        `${API_BASE_URL}/api/clash/detect_intra`, 
+        `${API_BASE_URL}/clash/detect_intra`, 
         formData,
         {
           headers: {
@@ -166,23 +181,33 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       if (data.session_id) {
         setPollingStatus('Analyse intra-modèle en cours...');
         const result = await pollResults(data.session_id);
-        setIntraResults(result);
+        setIntraResults({
+          clashes: result.clashes ?? [],
+          model_name: result.model_name ?? '',
+          element_count: result.element_count ?? 0,
+          clashing_element_count: result.clashing_element_count ?? 0,
+          ai_used: result.ai_used ?? false,
+          status: result.status,
+          error: result.error,
+          session_id: data.session_id
+        });
         setIntraMode(true);
         setModalOpen(false);
       } else {
         throw new Error('Session ID manquant dans la réponse');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erreur détectée:', err);
       let errorMsg = "Erreur lors de l'analyse intra-modèle";
       
       if (axios.isAxiosError(err)) {
-        if (err.response?.data?.error) {
-          errorMsg = err.response.data.error;
+        const axiosError = err as AxiosError<ApiErrorResponse>;
+        if (axiosError.response?.data?.error) {
+          errorMsg = axiosError.response.data.error;
         } else {
-          errorMsg = `Erreur de connexion: ${err.message}`;
+          errorMsg = `Erreur de connexion: ${axiosError.message}`;
         }
-      } else if (err.message) {
+      } else if (err instanceof Error && err.message) {
         errorMsg = err.message;
       }
       
@@ -193,7 +218,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
     }
   };
 
-  const pollResults = async (sessionId: string): Promise<any> => {
+  const pollResults = async (sessionId: string): Promise<StatusResponse> => {
     const MAX_ATTEMPTS = 60;
     const DELAY = 3000;
 
@@ -202,8 +227,8 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
         setPollingStatus(`Analyse en cours... ${progress}%`);
         
-        const { data } = await axios.get(
-          `${API_BASE_URL}/api/clash/status/${sessionId}`
+        const { data } = await axios.get<StatusResponse>(
+          `${API_BASE_URL}/clash/status/${sessionId}`
         );
         
         if (data.error) {
@@ -221,9 +246,10 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         }
         
         await new Promise(resolve => setTimeout(resolve, DELAY));
-      } catch (err: any) {
+      } catch (err) {
         if (axios.isAxiosError(err)) {
-          if (err.response?.status === 404 || err.response?.status === 202) {
+          const axiosError = err as AxiosError;
+          if (axiosError.response?.status === 404 || axiosError.response?.status === 202) {
             await new Promise(resolve => setTimeout(resolve, DELAY));
             continue;
           }
