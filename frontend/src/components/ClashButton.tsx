@@ -121,6 +121,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         const result = await pollResults(data.session_id);
         setResults(result.clashes ?? null);
         setModalOpen(false);
+          window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
       } else {
         throw new Error('Session ID manquant dans la réponse');
       }
@@ -193,6 +194,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         });
         setIntraMode(true);
         setModalOpen(false);
+         window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
       } else {
         throw new Error('Session ID manquant dans la réponse');
       }
@@ -219,7 +221,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
   };
 
   const pollResults = async (sessionId: string): Promise<StatusResponse> => {
-    const MAX_ATTEMPTS = 60;
+    const MAX_ATTEMPTS = 120;
     const DELAY = 3000;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -323,19 +325,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
             reportTitle="Rapport de Clashs Inter-Modèles"
             reportSubtitle={`${results.length} conflits détectés`}
           />
-          {sessionId && (
-            <div className="fixed bottom-16 right-4 bg-blue-100 p-2 rounded-md shadow-md">
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={openHtmlReport} 
-                className="flex items-center gap-2 text-blue-700"
-              >
-                <FileIcon className="h-4 w-4" />
-                Voir rapport HTML
-              </Button>
-            </div>
-          )}
+    
         </>
       )}
 
