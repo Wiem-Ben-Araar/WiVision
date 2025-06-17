@@ -220,53 +220,44 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
     }
   };
 
-  const pollResults = async (sessionId: string): Promise<StatusResponse> => {
-    const MAX_ATTEMPTS = 120;
-    const DELAY = 3000;
+const pollResults = async (sessionId: string): Promise<StatusResponse> => {
+  const MAX_ATTEMPTS = 300; // 300 tentatives (15 minutes)
+  const DELAY = 3000;
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      try {
-        const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
-        setPollingStatus(`Analyse en cours... ${progress}%`);
-        
-        const { data } = await axios.get<StatusResponse>(
-          `${API_BASE_URL}/clash/status/${sessionId}`
-        );
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        if (data.clashes || data.model_name) {
-          setPollingStatus('Récupération du rapport...');
-          return data;
-        }
-        
-        if (data.status === 'processing') {
-          await new Promise(resolve => setTimeout(resolve, DELAY));
-          continue;
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, DELAY));
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          const axiosError = err as AxiosError;
-          if (axiosError.response?.status === 404 || axiosError.response?.status === 202) {
-            await new Promise(resolve => setTimeout(resolve, DELAY));
-            continue;
-          }
-        }
-        throw err;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
+      setPollingStatus(`Analyse en cours... ${progress}%`);
+      
+      const { data } = await axios.get<StatusResponse>(
+        `${API_BASE_URL}/clash/status/${sessionId}`,
+        { timeout: 10000 } // 10s timeout par requête
+      );
+      
+      if (data.error) {
+        throw new Error(data.error);
       }
+      
+      if (data.status === 'completed' || data.clashes) {
+        return data;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, DELAY));
+      
+    } catch (err) {
+      // Ignorer les erreurs de timeout et continuer
+      if (axios.isAxiosError(err) && err.code === 'ECONNABORTED') {
+        await new Promise(resolve => setTimeout(resolve, DELAY));
+        continue;
+      }
+      
+      throw err;
     }
-    throw new Error('Délai dépassé pour la détection');
-  };
+  }
+  throw new Error('Délai dépassé pour la détection');
+};
   
-  const openHtmlReport = () => {
-    if (sessionId) {
-      window.open(`${API_BASE_URL}/api/report/html/${sessionId}`, '_blank');
-    }
-  };
+
 
   return (
     <>

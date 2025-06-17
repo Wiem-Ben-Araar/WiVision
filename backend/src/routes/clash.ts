@@ -1,18 +1,18 @@
 // src/routes/clash.ts
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import axios, { AxiosResponse } from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import FormData from 'form-data';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
 });
-
-// URL de base du serveur Flask déployé sur Render
-const FLASK_API_URL = 'https://wivisionflask.onrender.com';
-
+const FLASK_API_URL = process.env.FLASK_API_URL || '';
+const FLASK_TIMEOUT = 300000; // 5 minutes
 // Route pour la détection inter-modèles
 router.post(
   '/detect',
@@ -60,10 +60,10 @@ router.post(
   }
 );
 
-// Route pour la détection intra-modèle
+// Nouvelle route pour la détection intra-modèle
 router.post(
   '/detect_intra',
-  upload.single('model'),
+  upload.single('model'), // Notez le changement ici pour un seul fichier
   async (req, res): Promise<void> => {
     try {
       const tolerance = req.body.tolerance || 0.01;
@@ -88,12 +88,21 @@ router.post(
       flaskFormData.append('use_ai', use_ai);
 
       // Envoi à Flask
-      const response = await axios.post(
-        `${FLASK_API_URL}/api/clash/detect_intra`,
-        flaskFormData,
-        { headers: flaskFormData.getHeaders() }
-      );
+      const config: AxiosRequestConfig = {
+        method: 'post',
+        url: `${FLASK_API_URL}/api/clash/detect_intra`,
+        data: flaskFormData,
+        headers: {
+          ...flaskFormData.getHeaders(),
+          'Content-Length': req.file?.size?.toString() || '0'
+        },
+        timeout: FLASK_TIMEOUT,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      };
 
+      const response = await axios(config);
+      res.json(response.data);
       res.json(response.data);
 
     } catch (error: any) {
@@ -106,66 +115,58 @@ router.post(
   }
 );
 
-// Proxy pour toutes les autres routes
-router.all('/*', async (req: Request, res: Response) => {
+router.get('/status/:sessionId', async (req: Request, res: Response) => {
+  const sessionId = req.params.sessionId;
+  const reportsFolder = 'C:\\Users\\wiemb\\Desktop\\flask-ifc-clashdetection\\app\\static\\reports';
+  const reportPath = path.join(reportsFolder, sessionId, 'report.json');
+  const errorPath = path.join(reportsFolder, sessionId, 'error.json');
+
   try {
-    const method = req.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete' | 'patch';
-    const url = `${FLASK_API_URL}${req.originalUrl}`;
-    
-    const config: any = {
-      method,
-      url,
-      responseType: 'stream',
-      headers: { ...req.headers, host: new URL(FLASK_API_URL).host }
-    };
-
-    // Gérer les données de requête
-    if (['post', 'put', 'patch'].includes(method)) {
-      if (req.headers['content-type']?.includes('multipart/form-data')) {
-        // Gérer FormData
-        const formData = new FormData();
-        for (const [key, value] of Object.entries(req.body)) {
-          formData.append(key, value);
-        }
-        config.data = formData;
-        config.headers = {
-          ...config.headers,
-          ...formData.getHeaders()
-        };
-      } else {
-        // Gérer JSON
-        config.data = req.body;
-      }
-    }
-
-    const response = await axios(config);
-    
-    // Transférer les en-têtes
-    Object.entries(response.headers).forEach(([key, value]) => {
-      res.setHeader(key, value as string);
-    });
-    
-    // Transférer le statut
-    res.status(response.status);
-    
-    // Transférer le corps de la réponse
-    response.data.pipe(res);
-  } catch (error: any) {
-    console.error('Erreur de proxy:', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        res.status(error.response.status)
-           .json(error.response.data);
-      } else {
-        res.status(500).json({
-          error: 'Erreur de communication avec le serveur de détection'
-        });
-      }
+    if (fs.existsSync(reportPath)) {
+      const data = fs.readFileSync(reportPath, 'utf-8');
+      const report = JSON.parse(data);
+      res.json(report);
+    } else if (fs.existsSync(errorPath)) {
+      const data = fs.readFileSync(errorPath, 'utf-8');
+      res.status(500).json(JSON.parse(data));
     } else {
-      res.status(500).json({
-        error: 'Erreur interne du proxy'
-      });
+      res.status(202).json({ status: 'processing' });
+    }
+  } catch (err) {
+    console.error("Erreur de lecture de statut:", err);
+    res.status(500).json({ error: 'Erreur de lecture du statut' });
+  }
+});
+
+router.get('/report/:sessionId', async (req, res) => {
+  try {
+    const response = await axios.get(
+     `${FLASK_API_URL}/api/report/${req.params.sessionId}`
+    );
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erreur de communication avec Flask:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      res.status(500).json({ error: 'Erreur de communication avec Flask' });
+    }
+  }
+});
+
+router.get('/report/html/:sessionId', async (req, res) => {
+  try {
+    const response = await axios.get(
+     `${FLASK_API_URL}/api/report/html/${req.params.sessionId}`,
+      { responseType: 'stream' }
+    );
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('Erreur de communication avec Flask:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      res.status(error.response.status).send('Rapport HTML non trouvé');
+    } else {
+      res.status(500).send('Erreur lors de la récupération du rapport HTML');
     }
   }
 });
