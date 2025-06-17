@@ -1,4 +1,4 @@
-// src/routes/clash.ts
+// src/routes/clash.ts - Fixed version
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios, { AxiosRequestConfig } from 'axios';
@@ -13,6 +13,7 @@ const upload = multer({
 });
 const FLASK_API_URL = process.env.FLASK_API_URL || '';
 const FLASK_TIMEOUT = 300000; // 5 minutes
+
 // Route pour la détection inter-modèles
 router.post(
   '/detect',
@@ -45,7 +46,12 @@ router.post(
       const response = await axios.post(
         `${FLASK_API_URL}/api/clash/detect`,
         flaskFormData,
-        { headers: flaskFormData.getHeaders() }
+        { 
+          headers: flaskFormData.getHeaders(),
+          timeout: FLASK_TIMEOUT,
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        }
       );
 
       res.json(response.data);
@@ -60,23 +66,40 @@ router.post(
   }
 );
 
-// Nouvelle route pour la détection intra-modèle
+// Route pour la détection intra-modèle - FIXED
 router.post(
   '/detect_intra',
-  upload.single('model'), // Notez le changement ici pour un seul fichier
+  upload.single('model'), // Un seul fichier pour intra-modèle
   async (req, res): Promise<void> => {
     try {
+      console.log('=== DEBUG INTRA ROUTE ===');
+      console.log('Request body:', req.body);
+      console.log('Request file:', req.file ? {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      } : 'No file');
+      console.log('========================');
+
       const tolerance = req.body.tolerance || 0.01;
       const use_ai = req.body.use_ai || 'true';
       const file = req.file;
 
-      // Validation
+      // Validation améliorée
       if (!file) {
+        console.error('ERROR: No file received');
         res.status(400).json({ 
-          error: "Un fichier IFC est requis pour la détection intra-modèle"
+          error: "Un fichier IFC est requis pour la détection intra-modèle",
+          debug: {
+            hasFile: !!file,
+            bodyKeys: Object.keys(req.body),
+            contentType: req.headers['content-type']
+          }
         });
         return;
       }
+
+      console.log(`Processing file: ${file.originalname}, size: ${file.size} bytes`);
 
       // Préparation pour Flask
       const flaskFormData = new FormData();
@@ -84,17 +107,22 @@ router.post(
         filename: file.originalname,
         contentType: 'application/octet-stream'
       });
-      flaskFormData.append('tolerance', tolerance);
-      flaskFormData.append('use_ai', use_ai);
+      flaskFormData.append('tolerance', tolerance.toString());
+      flaskFormData.append('use_ai', use_ai.toString());
 
-      // Envoi à Flask
+      console.log('Sending to Flask with params:', {
+        tolerance,
+        use_ai,
+        filename: file.originalname
+      });
+
+      // Configuration Axios améliorée
       const config: AxiosRequestConfig = {
         method: 'post',
         url: `${FLASK_API_URL}/api/clash/detect_intra`,
         data: flaskFormData,
         headers: {
           ...flaskFormData.getHeaders(),
-          'Content-Length': req.file?.size?.toString() || '0'
         },
         timeout: FLASK_TIMEOUT,
         maxContentLength: Infinity,
@@ -102,14 +130,31 @@ router.post(
       };
 
       const response = await axios(config);
-      res.json(response.data);
+      
+      console.log('Flask response received, status:', response.status);
+      
+      // FIXED: Remove duplicate res.json() call
       res.json(response.data);
 
     } catch (error: any) {
       console.error('Erreur détection intra-modèle:', error);
+      
+      // Enhanced error logging
+      if (error.response) {
+        console.error('Flask error response:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
+      
       res.status(500).json({
         error: 'Échec de la détection intra-modèle',
-        details: error.response?.data || error.message
+        details: error.response?.data || error.message,
+        debug: {
+          flaskUrl: `${FLASK_API_URL}/api/clash/detect_intra`,
+          hasFlaskUrl: !!FLASK_API_URL
+        }
       });
     }
   }
