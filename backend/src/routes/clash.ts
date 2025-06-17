@@ -162,7 +162,7 @@ router.post(
 
 router.get('/status/:sessionId', async (req: Request, res: Response) => {
   const sessionId = req.params.sessionId;
-  const reportsFolder = 'C:\\Users\\wiemb\\Desktop\\flask-ifc-clashdetection\\app\\static\\reports';
+  const reportsFolder = '/opt/render/project/src/app/static/reports';
   const reportPath = path.join(reportsFolder, sessionId, 'report.json');
   const errorPath = path.join(reportsFolder, sessionId, 'error.json');
 
