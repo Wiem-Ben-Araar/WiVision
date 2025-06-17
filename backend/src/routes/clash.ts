@@ -11,9 +11,130 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 * 1024 } // 2GB
 });
+
 const FLASK_API_URL = process.env.FLASK_API_URL || '';
 const FLASK_TIMEOUT = 300000; // 5 minutes
+const sessionCache = new Map<string, any>();
 
+router.post(
+  '/detect_intra',
+  upload.single('model'),
+  async (req, res): Promise<void> => {
+    try {
+      const tolerance = req.body.tolerance || 0.01;
+      const use_ai = req.body.use_ai || 'true';
+      const file = req.file;
+
+      if (!file) {
+        res.status(400).json({ 
+          error: "Un fichier IFC est requis pour la détection intra-modèle"
+        });
+        return;
+      }
+
+      const flaskFormData = new FormData();
+      flaskFormData.append('model', file.buffer, {
+        filename: file.originalname,
+        contentType: 'application/octet-stream'
+      });
+      flaskFormData.append('tolerance', tolerance.toString());
+      flaskFormData.append('use_ai', use_ai.toString());
+
+      const { data } = await axios.post(
+        `${FLASK_API_URL}/api/clash/detect_intra`, 
+        flaskFormData,
+        {
+          headers: flaskFormData.getHeaders(),
+          timeout: FLASK_TIMEOUT
+        }
+      );
+      
+      // Stocker les résultats dans le cache immédiatement
+      if (data.session_id) {
+        sessionCache.set(data.session_id, {
+          status: 'completed',
+          ...data
+        });
+      }
+
+      res.json(data);
+
+    } catch (error: any) {
+      console.error('Erreur détection intra-modèle:', error);
+      res.status(500).json({
+        error: 'Échec de la détection intra-modèle',
+        details: error.response?.data || error.message
+      });
+    }
+  }
+);
+
+router.get('/status/:sessionId', async (req: Request, res: Response) => {
+  const sessionId = req.params.sessionId;
+
+  // 1. Vérifier le cache en premier
+  if (sessionCache.has(sessionId)) {
+    res.json(sessionCache.get(sessionId));
+    return;
+  }
+
+  // 2. Vérifier le système de fichiers
+  const reportsFolder = '/opt/render/project/src/app/static/reports';
+  const reportPath = path.join(reportsFolder, sessionId, 'report.json');
+  const errorPath = path.join(reportsFolder, sessionId, 'error.json');
+
+  try {
+    if (fs.existsSync(reportPath)) {
+      const data = fs.readFileSync(reportPath, 'utf-8');
+      const report = JSON.parse(data);
+
+      // Mettre en cache pour les prochaines requêtes
+      sessionCache.set(sessionId, report);
+
+      res.json(report);
+      return;
+    }
+
+    if (fs.existsSync(errorPath)) {
+      const data = fs.readFileSync(errorPath, 'utf-8');
+      const errorReport = JSON.parse(data);
+
+      // Mettre en cache pour les prochaines requêtes
+      sessionCache.set(sessionId, errorReport);
+
+      res.status(500).json(errorReport);
+      return;
+    }
+
+    // 3. Vérifier si le traitement est en cours dans Flask
+    try {
+      const flaskStatus = await axios.get(
+        `${FLASK_API_URL}/api/status/${sessionId}`,
+        { timeout: 5000 }
+      );
+
+      if (flaskStatus.data.status === 'completed') {
+        // Si Flask a terminé mais qu'on n'a pas encore le fichier
+        res.status(202).json({ status: 'processing' });
+        return;
+      }
+
+      res.json(flaskStatus.data);
+      return;
+    } catch (flaskErr) {
+      res.status(202).json({
+        status: 'processing',
+        message: "L'analyse est en cours..."
+      });
+      return;
+    }
+
+  } catch (err) {
+    console.error("Erreur de lecture de statut:", err);
+    res.status(500).json({ error: 'Erreur de lecture du statut' });
+    return;
+  }
+});
 // Route pour la détection inter-modèles
 router.post(
   '/detect',
@@ -66,122 +187,7 @@ router.post(
   }
 );
 
-// Route pour la détection intra-modèle - FIXED
-router.post(
-  '/detect_intra',
-  upload.single('model'), // Un seul fichier pour intra-modèle
-  async (req, res): Promise<void> => {
-    try {
-      console.log('=== DEBUG INTRA ROUTE ===');
-      console.log('Request body:', req.body);
-      console.log('Request file:', req.file ? {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size
-      } : 'No file');
-      console.log('========================');
 
-      const tolerance = req.body.tolerance || 0.01;
-      const use_ai = req.body.use_ai || 'true';
-      const file = req.file;
-
-      // Validation améliorée
-      if (!file) {
-        console.error('ERROR: No file received');
-        res.status(400).json({ 
-          error: "Un fichier IFC est requis pour la détection intra-modèle",
-          debug: {
-            hasFile: !!file,
-            bodyKeys: Object.keys(req.body),
-            contentType: req.headers['content-type']
-          }
-        });
-        return;
-      }
-
-      console.log(`Processing file: ${file.originalname}, size: ${file.size} bytes`);
-
-      // Préparation pour Flask
-      const flaskFormData = new FormData();
-      flaskFormData.append('model', file.buffer, {
-        filename: file.originalname,
-        contentType: 'application/octet-stream'
-      });
-      flaskFormData.append('tolerance', tolerance.toString());
-      flaskFormData.append('use_ai', use_ai.toString());
-
-      console.log('Sending to Flask with params:', {
-        tolerance,
-        use_ai,
-        filename: file.originalname
-      });
-
-      // Configuration Axios améliorée
-      const config: AxiosRequestConfig = {
-        method: 'post',
-        url: `${FLASK_API_URL}/api/clash/detect_intra`,
-        data: flaskFormData,
-        headers: {
-          ...flaskFormData.getHeaders(),
-        },
-        timeout: FLASK_TIMEOUT,
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity
-      };
-
-      const response = await axios(config);
-      
-      console.log('Flask response received, status:', response.status);
-      
-      // FIXED: Remove duplicate res.json() call
-      res.json(response.data);
-
-    } catch (error: any) {
-      console.error('Erreur détection intra-modèle:', error);
-      
-      // Enhanced error logging
-      if (error.response) {
-        console.error('Flask error response:', {
-          status: error.response.status,
-          data: error.response.data,
-          headers: error.response.headers
-        });
-      }
-      
-      res.status(500).json({
-        error: 'Échec de la détection intra-modèle',
-        details: error.response?.data || error.message,
-        debug: {
-          flaskUrl: `${FLASK_API_URL}/api/clash/detect_intra`,
-          hasFlaskUrl: !!FLASK_API_URL
-        }
-      });
-    }
-  }
-);
-
-router.get('/status/:sessionId', async (req: Request, res: Response) => {
-  const sessionId = req.params.sessionId;
-  const reportsFolder = '/opt/render/project/src/app/static/reports';
-  const reportPath = path.join(reportsFolder, sessionId, 'report.json');
-  const errorPath = path.join(reportsFolder, sessionId, 'error.json');
-
-  try {
-    if (fs.existsSync(reportPath)) {
-      const data = fs.readFileSync(reportPath, 'utf-8');
-      const report = JSON.parse(data);
-      res.json(report);
-    } else if (fs.existsSync(errorPath)) {
-      const data = fs.readFileSync(errorPath, 'utf-8');
-      res.status(500).json(JSON.parse(data));
-    } else {
-      res.status(202).json({ status: 'processing' });
-    }
-  } catch (err) {
-    console.error("Erreur de lecture de statut:", err);
-    res.status(500).json({ error: 'Erreur de lecture du statut' });
-  }
-});
 
 router.get('/report/:sessionId', async (req, res) => {
   try {
