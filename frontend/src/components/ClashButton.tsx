@@ -3,9 +3,7 @@
 import { useState } from 'react';
 import axios, { AxiosError } from 'axios';
 import { Button } from '@/components/ui/button';
-import { CrosshairIcon, Loader2, FileIcon, FileStack } from 'lucide-react';
-import ClashConfigModal from '@/components/ClashConfigModal';
-import { ClashReport } from '@/components/ClashReport';
+import { CrosshairIcon, Loader2, FileStack, Download } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -33,15 +31,18 @@ interface ClashResult {
   overlap_volume?: number;
 }
 
-interface ClashResponse {
-  clashes: ClashResult[];
-  status?: string;
-  error?: string;
-  session_id?: string;
-  clash_count?: number;
-  settings?: any;
-  model_stats?: any;
-  debug_stats?: any;
+interface ClashSettings {
+  tolerance?: number;
+  use_ai?: boolean;
+  debug?: boolean;
+  [key: string]: unknown;
+}
+
+interface ModelStats {
+  elements_count?: number;
+  models_processed?: number;
+  processing_time?: number;
+  [key: string]: unknown;
 }
 
 interface IntraClashResponse {
@@ -50,8 +51,8 @@ interface IntraClashResponse {
   status?: string;
   error?: string;
   session_id?: string;
-  settings?: any;
-  model_stats?: any;
+  settings?: ClashSettings;
+  model_stats?: ModelStats;
 }
 
 interface ApiErrorResponse {
@@ -72,164 +73,58 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ClashResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [pollingStatus, setPollingStatus] = useState('');
-  const [aiMetrics, setAiMetrics] = useState<{used: boolean; accuracy?: string}>({used: false});
-  const [intraResults, setIntraResults] = useState<IntraClashResponse | null>(null);
-  const [intraMode, setIntraMode] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [tolerance, setTolerance] = useState(0.01);
 
-  const handleDetect = async (config: { 
-    modelUrls: string[]; 
-    tolerance: number;
-    useAI: boolean;
-  }) => {
-    setLoading(true);
-    setError(null);
-    setPollingStatus('Préparation des modèles...');
-
-    try {
-      const formData = new FormData();
-      const files = await Promise.all(
-        config.modelUrls.map(async (url, index) => {
-          setPollingStatus(`Chargement du modèle ${index + 1}/${config.modelUrls.length}...`);
-          const response = await fetch(url);
-          return await response.blob();
-        })
-      );
-
-      files.forEach((file, index) => {
-        formData.append('models', file, `model${index + 1}.ifc`);
-      });
-      formData.append('tolerance', config.tolerance.toString());
-      formData.append('use_ai', config.useAI.toString());
-
-      setPollingStatus('Envoi des modèles au serveur...');
-      
-      const { data } = await axios.post<ClashResponse>(
-        `${API_BASE_URL}/api/clash/detect`, 
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          },
-          timeout: 300000 // 5 minutes
-        }
-      );
-      
-      setSessionId(data.session_id || null);
-      setAiMetrics({used: config.useAI});
-      
-      if (data.session_id) {
-        setPollingStatus('Analyse des clashs en cours...');
-        const result = await pollResults(data.session_id);
-        setResults(result.clashes ?? null);
-        setModalOpen(false);
-        
-        // Ouvrir le rapport HTML si disponible
-        if (data.session_id) {
-          window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
-        }
-      } else if (data.clashes) {
-        // Résultat immédiat
-        setResults(data.clashes);
-        setModalOpen(false);
-      } else {
-        throw new Error('Aucun résultat ou session ID dans la réponse');
-      }
-    } catch (err) {
-      console.error('Erreur détectée:', err);
-      let errorMsg = 'Erreur lors de la détection des clashs';
-      
-      if (axios.isAxiosError(err)) {
-        const axiosError = err as AxiosError<ApiErrorResponse>;
-        if (axiosError.response?.data?.error) {
-          errorMsg = axiosError.response.data.error;
-          if (axiosError.response.data.details) {
-            errorMsg += `: ${axiosError.response.data.details}`;
-          }
-        } else {
-          errorMsg = `Erreur de connexion: ${axiosError.message}`;
-        }
-      } else if (err instanceof Error && err.message) {
-        errorMsg = err.message;
-      }
-      
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-      setPollingStatus('');
+  const handleDetect = async () => {
+    if (!selectedModel) {
+      setError('Sélectionnez un modèle');
+      return;
     }
-  };
 
-  const handleDetectIntra = async (config: { 
-    modelUrl: string; 
-    tolerance: number;
-    useAI: boolean;
-  }) => {
+    const useAI = true; // Toujours activé
+
     setLoading(true);
     setError(null);
     setPollingStatus('Préparation du modèle...');
+    setModalOpen(false);
 
     try {
       const formData = new FormData();
       
       setPollingStatus('Téléchargement du modèle...');
-      const response = await fetch(config.modelUrl);
+      const response = await fetch(selectedModel);
       const fileBlob = await response.blob();
       
-      // Utiliser 'file' comme nom de champ pour correspondre au backend
       formData.append('file', fileBlob, 'model.ifc');
-      formData.append('tolerance', config.tolerance.toString());
-      formData.append('use_ai', config.useAI.toString());
-      formData.append('debug', 'false'); // Ajouter le paramètre debug
+      formData.append('tolerance', tolerance.toString());
+      formData.append('use_ai', useAI.toString());
+      formData.append('debug', 'false');
 
-      setPollingStatus('Analyse intra-modèle en cours...');
+      setPollingStatus('Analyse des conflits en cours...');
       
       const { data } = await axios.post<IntraClashResponse>(
         `${API_BASE_URL}/api/clash/detect_intra_ultra`, 
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 300000 // 5 minutes timeout
+          timeout: 300000
         }
       );
-      
-      setSessionId(data.session_id || null);
-      setAiMetrics({used: config.useAI});
       
       if (data.session_id) {
         setPollingStatus('Récupération des résultats...');
         const result = await pollResults(data.session_id);
-        setIntraResults({
-          clashes: result.clashes ?? [],
-          clash_count: result.clash_count ?? 0,
-          status: result.status,
-          error: result.error,
-          session_id: data.session_id
-        });
-        setIntraMode(true);
-        setModalOpen(false);
-        
-        // Ouvrir le rapport HTML si disponible
-        if (data.session_id) {
-          window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
-        }
+        setResults(result.clashes ?? []);
       } else if (data.clashes) {
-        // Résultat immédiat
-        setIntraResults({
-          clashes: data.clashes,
-          clash_count: data.clash_count,
-          status: data.status,
-          session_id: undefined
-        });
-        setIntraMode(true);
-        setModalOpen(false);
+        setResults(data.clashes);
       } else {
         throw new Error('Aucun résultat dans la réponse');
       }
     } catch (err) {
       console.error('Erreur détectée:', err);
-      let errorMsg = "Erreur lors de l'analyse intra-modèle";
+      let errorMsg = "Erreur lors de l'analyse du modèle";
       
       if (axios.isAxiosError(err)) {
         const axiosError = err as AxiosError<ApiErrorResponse>;
@@ -253,8 +148,8 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
   };
 
   const pollResults = async (sessionId: string): Promise<StatusResponse> => {
-    const MAX_ATTEMPTS = 60; // 60 tentatives (3 minutes max)
-    const DELAY = 3000; // 3 secondes entre les requêtes
+    const MAX_ATTEMPTS = 60;
+    const DELAY = 3000;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
@@ -263,7 +158,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         
         const { data } = await axios.get<StatusResponse>(
           `${API_BASE_URL}/api/clash/status_ultra/${sessionId}`,
-          { timeout: 10000 } // 10s timeout
+          { timeout: 10000 }
         );
         
         if (data.error) {
@@ -274,28 +169,58 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
           return data;
         }
         
-        // Attendre avant la prochaine tentative
         await new Promise(resolve => setTimeout(resolve, DELAY));
         
       } catch (err) {
         if (axios.isAxiosError(err)) {
           if (err.code === 'ECONNABORTED') {
-            // Timeout - continuer le polling
             continue;
           }
           if (err.response?.status === 404) {
-            // Session non trouvée, attendre un peu plus
             await new Promise(resolve => setTimeout(resolve, DELAY));
             continue;
           }
         }
         
-        // Pour les autres erreurs, attendre avant de réessayer
         await new Promise(resolve => setTimeout(resolve, DELAY));
       }
     }
     
     throw new Error('Délai dépassé pour la détection');
+  };
+
+  const downloadReport = () => {
+    if (!results) return;
+    
+    const reportData = {
+      date: new Date().toISOString(),
+      clash_count: results.length,
+      tolerance: tolerance,
+      clashes: results.map((clash, index) => ({
+        id: index + 1,
+        element_a: clash.element_a,
+        element_b: clash.element_b,
+        distance: clash.distance,
+        position: clash.position,
+        overlap_volume: clash.overlap_volume
+      }))
+    };
+    
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport-conflits-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCancel = () => {
+    setModalOpen(false);
+    setSelectedModel('');
+    setTolerance(0.01);
   };
 
   return (
@@ -304,8 +229,8 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         variant="ghost"
         size="icon"
         onClick={() => setModalOpen(true)}
-        disabled={loadedModels.length < 1 || loading}
-        title="Détection de clash"
+        disabled={loadedModels.length === 0 || loading}
+        title="Détecter les conflits"
         className="relative group"
       >
         {loading ? (
@@ -320,50 +245,140 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         )}
       </Button>
 
-      <ClashConfigModal
-        models={loadedModels}
-        open={modalOpen}
-        onOpenChange={(open) => {
-          setModalOpen(open);
-          setError(null);
-          setIntraMode(false);
-        }}
-        onDetect={handleDetect}
-        onDetectIntra={handleDetectIntra}
-        intraMode={intraMode}
-        setIntraMode={setIntraMode}
-      />
+      {/* Modal de sélection */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50">
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+              <h2 className="text-xl font-bold mb-4">Détection des Conflits</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Modèle à analyser</label>
+                  <select 
+                    value={selectedModel} 
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">Sélectionnez un modèle</option>
+                    {loadedModels.map((model) => (
+                      <option key={model.id} value={model.url}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tolérance (mètres)</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    value={tolerance}
+                    onChange={(e) => setTolerance(Number(e.target.value))}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Valeur recommandée: 0.005 - 0.02 m</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <Button 
+                  variant="outline"
+                  onClick={handleCancel}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button 
+                  onClick={handleDetect}
+                  disabled={!selectedModel}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <CrosshairIcon className="h-4 w-4 mr-2" />
+                  Analyser
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && pollingStatus && (
         <div className="fixed top-4 right-4 bg-blue-100 text-blue-800 p-4 rounded-lg shadow-lg z-50 flex items-center">
           <Loader2 className="h-4 w-4 animate-spin mr-2" />
           <span>{pollingStatus}</span>
-          {aiMetrics.used && (
-            <span className="ml-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-              IA activée
-            </span>
-          )}
         </div>
       )}
 
       {results && (
-        <ClashReport 
-          data={results} 
-          onClose={() => setResults(null)}
-          aiUsed={aiMetrics.used}
-          reportTitle="Rapport de Clashs Inter-Modèles"
-          reportSubtitle={`${results.length} conflits détectés`}
-        />
-      )}
-
-      {intraResults && (
-        <ClashReport 
-          data={intraResults.clashes} 
-          onClose={() => setIntraResults(null)}
-          aiUsed={aiMetrics.used}
-          reportTitle="Détection Intra-Modèle"
-          reportSubtitle={`${intraResults.clash_count} conflits détectés`}
-        />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50">
+          <div className="fixed right-0 top-0 h-screen w-full max-w-4xl bg-white shadow-lg overflow-auto">
+            <div className="p-6 space-y-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-2xl font-bold">Détection des Conflits</h1>
+                  <p className="text-gray-600 mt-1">{results.length} conflits détectés</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={downloadReport}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Télécharger le rapport
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setResults(null)}>
+                    <span className="text-xl">&times;</span>
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="grid gap-4">
+                {results.map((clash, index) => (
+                  <div key={index} className="border rounded-lg p-4 bg-white">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded bg-green-50 border border-green-200">
+                        <h3 className="font-semibold text-green-700 mb-2">Élément A</h3>
+                        <div className="space-y-1 text-sm">
+                          <p><span className="font-medium">Type:</span> {clash.element_a.type}</p>
+                          <p><span className="font-medium">Nom:</span> {clash.element_a.name}</p>
+                          <p><span className="font-medium">GUID:</span> {clash.element_a.guid}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 rounded bg-red-50 border border-red-200">
+                        <h3 className="font-semibold text-red-700 mb-2">Élément B</h3>
+                        <div className="space-y-1 text-sm">
+                          <p><span className="font-medium">Type:</span> {clash.element_b.type}</p>
+                          <p><span className="font-medium">Nom:</span> {clash.element_b.name}</p>
+                          <p><span className="font-medium">GUID:</span> {clash.element_b.guid}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Distance:</span> {clash.distance.toFixed(3)} m
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-medium">Position:</span>
+                        {clash.position.map((coord, i) => (
+                          <span key={i} className="ml-2">
+                            {['X', 'Y', 'Z'][i]}: {coord.toFixed(3)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {error && (
