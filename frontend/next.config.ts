@@ -31,10 +31,15 @@ const nextConfig: NextConfig = {
   // Réécritures uniquement pour l'API
   async rewrites() {
     return [
+            {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
       },
+
     ];
   },
 
@@ -61,20 +66,6 @@ const nextConfig: NextConfig = {
               "base-uri 'self'",
               "frame-ancestors 'none'",
             ].join('; ')
-          }
-        ]
-      },
-      // En-tête spécifique pour les fichiers WASM
-      {
-        source: '/wasm/:file*',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/wasm',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
           }
         ]
       }
