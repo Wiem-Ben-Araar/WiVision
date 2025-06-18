@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  // Remove WASM-specific webpack rules
+  // Configuration Webpack critique pour WASM
   webpack: (config) => {
     config.experiments = {
       asyncWebAssembly: true,
@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       topLevelAwait: true,
     };
 
+    // Résolution des modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -27,17 +28,22 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // API rewrites only
+  // Réécritures uniquement pour l'API
   async rewrites() {
     return [
+            {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
       },
+
     ];
   },
 
-  // Security headers
+  // Headers CSP modifiés avec wasm-unsafe-eval
   async headers() {
     return [
       {
@@ -60,20 +66,6 @@ const nextConfig: NextConfig = {
               "base-uri 'self'",
               "frame-ancestors 'none'",
             ].join('; ')
-          }
-        ]
-      },
-      // WASM-specific headers
-      {
-        source: '/wasm/:file*',
-        headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/wasm',
-          },
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
           }
         ]
       }
