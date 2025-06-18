@@ -9,25 +9,7 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
   
-  // Configuration CSP modifiée
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            // Autorise les scripts inline et eval nécessaires pour WASM
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; worker-src blob:;"
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY"
-          }
-        ]
-      }
-    ];
-  },
+
   
   // Configuration WASM
   webpack: (config, { isServer }) => {
