@@ -56,7 +56,9 @@ function ViewerPageContent() {
   const [selectedElement, setSelectedElement] = useState<number | null>(null)
   const [selectedModelID, setSelectedModelID] = useState<number | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
-
+const wasmPath = process.env.NODE_ENV === 'production' 
+  ? 'https://wi-vision.vercel.app/wasm/' 
+  : '/wasm/';
   // États pour les outils
   const [activeTool, setActiveTool] = useState<string | null>(null)
   const activeToolRef = useRef(activeTool)
@@ -188,7 +190,7 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("/wasm/")
+        await viewer.IFC.setWasmPath(wasmPath)
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
