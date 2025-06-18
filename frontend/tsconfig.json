@@ -24,7 +24,15 @@
       "components/*": ["components/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../backend/src/config/firebase.ts", "../backend/src/config/email.ts"],
-  "exclude": ["node_modules"],
- 
+  "include": [
+    "next-env.d.ts", 
+    "**/*.ts", 
+    "**/*.tsx", 
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "../backend/**/*",
+    "../backend"
+  ]
 }

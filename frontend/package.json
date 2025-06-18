@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postbuild": "cp node_modules/web-ifc/web-ifc.wasm .next/static/chunks/"
+    "postinstall": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ || true"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",
