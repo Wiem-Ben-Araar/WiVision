@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// Obtenez l'URL de l'API de manière sécurisée
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://wivision.onrender.com";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 300,
@@ -15,7 +18,6 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  // Configuration WASM critique
   webpack: (config) => {
     config.experiments = {
       asyncWebAssembly: true,
@@ -23,7 +25,6 @@ const nextConfig: NextConfig = {
       topLevelAwait: true,
     };
 
-    // Résolution des modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -34,14 +35,12 @@ const nextConfig: NextConfig = {
     return config;
   },
 
-  // Réécritures importantes
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+        destination: `${API_URL}/api/:path*`,
       },
-      // Redirection WASM pour web-ifc
       {
         source: "/_next/static/chunks/wasm/web-ifc.wasm",
         destination: "/wasm/web-ifc.wasm",
@@ -53,7 +52,6 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Headers CSP modifiés
   async headers() {
     return [
       {
