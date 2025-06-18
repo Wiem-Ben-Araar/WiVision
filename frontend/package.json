@@ -2,12 +2,12 @@
   "name": "plateforme-bim",
   "version": "0.1.0",
   "private": true,
- "scripts": {
-    "dev": "next dev",
+  "scripts": {
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "postinstall": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ && cp node_modules/web-ifc/web-ifc-mt.wasm public/wasm/",
-    "vercel-build": "npm run postinstall && next build"
+    "lint": "next lint"
+    
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",
@@ -68,9 +68,5 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
     "web-ifc-viewer": "^1.0.218"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
   }
 }
