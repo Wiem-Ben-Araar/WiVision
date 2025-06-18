@@ -2,13 +2,12 @@
   "name": "plateforme-bim",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+ "scripts": {
     "dev": "next dev",
-    "build": "npm run copy-wasm && next build",
+    "build": "next build",
     "start": "next start",
-    "copy-wasm": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ && cp node_modules/web-ifc/web-ifc-mt.wasm public/wasm/ || true",
-    "postinstall": "npm run copy-wasm",
-    "vercel-build": "npm run copy-wasm && next build"
+    "postinstall": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ && cp node_modules/web-ifc/web-ifc-mt.wasm public/wasm/",
+    "vercel-build": "npm run postinstall && next build"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",

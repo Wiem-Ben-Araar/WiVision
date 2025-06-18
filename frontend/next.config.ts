@@ -1,4 +1,4 @@
-import type { NextConfig } from "next"
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -15,40 +15,45 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  // Configuration WASM pour Vercel
-  webpack: (config, { isServer, buildId }) => {
+  // Configuration WASM critique
+  webpack: (config) => {
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
-    }
+      topLevelAwait: true,
+    };
 
-    // Configuration spécifique pour les fichiers WASM
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "asset/resource",
-      generator: {
-        filename: "static/wasm/[name].[hash][ext]",
-      },
-    })
-
-    // Résolution des modules pour éviter les erreurs côté client
+    // Résolution des modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       path: false,
       crypto: false,
-    }
+    };
 
-    // Configuration pour web-ifc spécifiquement
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      "web-ifc": "web-ifc/web-ifc-api.js",
-    }
-
-    return config
+    return config;
   },
 
-  // Headers CSP pour Vercel
+  // Réécritures importantes
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+      },
+      // Redirection WASM pour web-ifc
+      {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
+      {
+        source: "/_next/static/chunks/wasm/web-ifc-mt.wasm",
+        destination: "/wasm/web-ifc-mt.wasm",
+      },
+    ];
+  },
+
+  // Headers CSP modifiés
   async headers() {
     return [
       {
@@ -58,7 +63,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
+              "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data: https://fonts.gstatic.com",
@@ -74,17 +79,8 @@ const nextConfig: NextConfig = {
           }
         ]
       }
-    ]
+    ];
   },
+};
 
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL || ""}/api/:path*`,
-      },
-    ]
-  },
-}
-
-export default nextConfig
+export default nextConfig;
