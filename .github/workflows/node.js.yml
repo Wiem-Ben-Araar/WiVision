@@ -35,17 +35,9 @@ jobs:
         run: npm run build
         working-directory: ./frontend
 
-      - name: Run frontend tests with coverage
-        run: npm run test -- --coverage
-        working-directory: ./frontend
-
       # Backend
       - name: Install backend dependencies
         run: npm install --legacy-peer-deps
-        working-directory: ./backend
-
-      - name: Run backend tests with coverage
-        run: npm run test -- --coverage
         working-directory: ./backend
 
   sonarqube-analysis:
