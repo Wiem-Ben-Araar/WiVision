@@ -15,13 +15,14 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  // Configuration WASM
+  // Configuration WASM pour Vercel
   webpack: (config, { isServer }) => {
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
     }
 
+    // Configuration spécifique pour Vercel
     config.output.webassemblyModuleFilename = isServer
       ? "../static/wasm/[modulehash].wasm"
       : "static/wasm/[modulehash].wasm"
@@ -29,6 +30,15 @@ const nextConfig: NextConfig = {
     config.module.rules.push({
       test: /\.wasm$/,
       type: "webassembly/async",
+    })
+
+    // Copier les fichiers WASM vers le dossier public
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+      generator: {
+        filename: "static/wasm/[name][ext]",
+      },
     })
 
     config.resolve.fallback = {
@@ -40,7 +50,7 @@ const nextConfig: NextConfig = {
     return config
   },
 
-  // Headers CSP corrigés pour Vercel
+  // Headers CSP pour Vercel
   async headers() {
     return [
       {
@@ -71,9 +81,14 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
+      // Servir les fichiers WASM depuis le dossier public
       {
-        source: "/_next/static/chunks/web-ifc.wasm",
-        destination: "/wasm/web-ifc.wasm",
+        source: "/_next/static/chunks/wasm/:path*",
+        destination: "/wasm/:path*",
+      },
+      {
+        source: "/static/wasm/:path*", 
+        destination: "/wasm/:path*",
       },
       {
         source: "/api/:path*",
