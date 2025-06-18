@@ -38,31 +38,33 @@ interface ClashResponse {
   status?: string;
   error?: string;
   session_id?: string;
+  clash_count?: number;
+  settings?: any;
+  model_stats?: any;
+  debug_stats?: any;
 }
 
 interface IntraClashResponse {
   clashes: ClashResult[];
-  model_name: string;
-  element_count: number;
-  clashing_element_count: number;
-  ai_used: boolean;
+  clash_count: number;
   status?: string;
   error?: string;
   session_id?: string;
+  settings?: any;
+  model_stats?: any;
 }
 
 interface ApiErrorResponse {
   error?: string;
+  details?: string;
 }
 
 interface StatusResponse {
   clashes?: ClashResult[];
-  model_name?: string;
-  element_count?: number;
-  clashing_element_count?: number;
-  ai_used?: boolean;
+  clash_count?: number;
   status?: string;
   error?: string;
+  from_cache?: boolean;
 }
 
 export default function ClashButton({ loadedModels }: { loadedModels: LoadedModel[] }) {
@@ -104,12 +106,13 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       setPollingStatus('Envoi des modèles au serveur...');
       
       const { data } = await axios.post<ClashResponse>(
-        `${API_BASE_URL}/clash/detect`, 
+        `${API_BASE_URL}/api/clash/detect`, 
         formData,
         {
           headers: {
             'Content-Type': 'multipart/form-data'
-          }
+          },
+          timeout: 300000 // 5 minutes
         }
       );
       
@@ -121,9 +124,17 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         const result = await pollResults(data.session_id);
         setResults(result.clashes ?? null);
         setModalOpen(false);
+        
+        // Ouvrir le rapport HTML si disponible
+        if (data.session_id) {
           window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
+        }
+      } else if (data.clashes) {
+        // Résultat immédiat
+        setResults(data.clashes);
+        setModalOpen(false);
       } else {
-        throw new Error('Session ID manquant dans la réponse');
+        throw new Error('Aucun résultat ou session ID dans la réponse');
       }
     } catch (err) {
       console.error('Erreur détectée:', err);
@@ -133,6 +144,9 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         const axiosError = err as AxiosError<ApiErrorResponse>;
         if (axiosError.response?.data?.error) {
           errorMsg = axiosError.response.data.error;
+          if (axiosError.response.data.details) {
+            errorMsg += `: ${axiosError.response.data.details}`;
+          }
         } else {
           errorMsg = `Erreur de connexion: ${axiosError.message}`;
         }
@@ -163,44 +177,55 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       const response = await fetch(config.modelUrl);
       const fileBlob = await response.blob();
       
-      formData.append('model', fileBlob, 'model.ifc');
+      // Utiliser 'file' comme nom de champ pour correspondre au backend
+      formData.append('file', fileBlob, 'model.ifc');
       formData.append('tolerance', config.tolerance.toString());
       formData.append('use_ai', config.useAI.toString());
+      formData.append('debug', 'false'); // Ajouter le paramètre debug
 
       setPollingStatus('Analyse intra-modèle en cours...');
       
-     const { data } = await axios.post<IntraClashResponse>(
-      `${API_BASE_URL}/clash/detect_intra`, 
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 300000 // 5 minutes timeout
-      }
-    );
+      const { data } = await axios.post<IntraClashResponse>(
+        `${API_BASE_URL}/api/clash/detect_intra_ultra`, 
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 300000 // 5 minutes timeout
+        }
+      );
       
-        if (data.session_id) {
-      setSessionId(data.session_id);
-      setPollingStatus('Analyse intra-modèle en cours...');
+      setSessionId(data.session_id || null);
+      setAiMetrics({used: config.useAI});
       
-      // Réduire le temps d'attente initial
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const result = await pollResults(data.session_id);
+      if (data.session_id) {
+        setPollingStatus('Récupération des résultats...');
+        const result = await pollResults(data.session_id);
         setIntraResults({
           clashes: result.clashes ?? [],
-          model_name: result.model_name ?? '',
-          element_count: result.element_count ?? 0,
-          clashing_element_count: result.clashing_element_count ?? 0,
-          ai_used: result.ai_used ?? false,
+          clash_count: result.clash_count ?? 0,
           status: result.status,
           error: result.error,
           session_id: data.session_id
         });
         setIntraMode(true);
         setModalOpen(false);
-         window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
+        
+        // Ouvrir le rapport HTML si disponible
+        if (data.session_id) {
+          window.open(`${API_BASE_URL}/api/report/html/${data.session_id}`, '_blank');
+        }
+      } else if (data.clashes) {
+        // Résultat immédiat
+        setIntraResults({
+          clashes: data.clashes,
+          clash_count: data.clash_count,
+          status: data.status,
+          session_id: undefined
+        });
+        setIntraMode(true);
+        setModalOpen(false);
       } else {
-        throw new Error('Session ID manquant dans la réponse');
+        throw new Error('Aucun résultat dans la réponse');
       }
     } catch (err) {
       console.error('Erreur détectée:', err);
@@ -210,6 +235,9 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         const axiosError = err as AxiosError<ApiErrorResponse>;
         if (axiosError.response?.data?.error) {
           errorMsg = axiosError.response.data.error;
+          if (axiosError.response.data.details) {
+            errorMsg += `: ${axiosError.response.data.details}`;
+          }
         } else {
           errorMsg = `Erreur de connexion: ${axiosError.message}`;
         }
@@ -224,47 +252,51 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
     }
   };
 
-const pollResults = async (sessionId: string): Promise<StatusResponse> => {
-  const MAX_ATTEMPTS = 100; // 100 tentatives (5 minutes max)
-  const DELAY = 3000; // 3 secondes entre les requêtes
+  const pollResults = async (sessionId: string): Promise<StatusResponse> => {
+    const MAX_ATTEMPTS = 60; // 60 tentatives (3 minutes max)
+    const DELAY = 3000; // 3 secondes entre les requêtes
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
-      setPollingStatus(`Analyse en cours... ${progress}%`);
-      
-      const { data } = await axios.get<StatusResponse>(
-        `${API_BASE_URL}/clash/status/${sessionId}`,
-        { timeout: 10000 } // 10s timeout
-      );
-      
-      if (data.error) {
-        throw new Error(data.error);
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const progress = Math.min(100, Math.round((attempt / MAX_ATTEMPTS) * 100));
+        setPollingStatus(`Analyse en cours... ${progress}%`);
+        
+        const { data } = await axios.get<StatusResponse>(
+          `${API_BASE_URL}/api/clash/status_ultra/${sessionId}`,
+          { timeout: 10000 } // 10s timeout
+        );
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        if (data.status === 'completed' || data.clashes || data.from_cache) {
+          return data;
+        }
+        
+        // Attendre avant la prochaine tentative
+        await new Promise(resolve => setTimeout(resolve, DELAY));
+        
+      } catch (err) {
+        if (axios.isAxiosError(err)) {
+          if (err.code === 'ECONNABORTED') {
+            // Timeout - continuer le polling
+            continue;
+          }
+          if (err.response?.status === 404) {
+            // Session non trouvée, attendre un peu plus
+            await new Promise(resolve => setTimeout(resolve, DELAY));
+            continue;
+          }
+        }
+        
+        // Pour les autres erreurs, attendre avant de réessayer
+        await new Promise(resolve => setTimeout(resolve, DELAY));
       }
-      
-      if (data.status === 'completed' || data.clashes) {
-        return data;
-      }
-      
-      // Réduire le délai si le traitement est rapide
-      const waitTime = attempt < 10 ? 1000 : DELAY;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.code === 'ECONNABORTED') {
-        // Timeout - continuer le polling
-        continue;
-      }
-      
-      // Pour les autres erreurs
-      await new Promise(resolve => setTimeout(resolve, DELAY));
     }
-  }
-  
-  throw new Error('Délai dépassé pour la détection');
-};
-  
-
+    
+    throw new Error('Délai dépassé pour la détection');
+  };
 
   return (
     <>
@@ -315,25 +347,22 @@ const pollResults = async (sessionId: string): Promise<StatusResponse> => {
       )}
 
       {results && (
-        <>
-          <ClashReport 
-            data={results} 
-            onClose={() => setResults(null)}
-            aiUsed={aiMetrics.used}
-            reportTitle="Rapport de Clashs Inter-Modèles"
-            reportSubtitle={`${results.length} conflits détectés`}
-          />
-    
-        </>
+        <ClashReport 
+          data={results} 
+          onClose={() => setResults(null)}
+          aiUsed={aiMetrics.used}
+          reportTitle="Rapport de Clashs Inter-Modèles"
+          reportSubtitle={`${results.length} conflits détectés`}
+        />
       )}
 
       {intraResults && (
         <ClashReport 
           data={intraResults.clashes} 
           onClose={() => setIntraResults(null)}
-          aiUsed={intraResults.ai_used}
-          reportTitle={`Détection Intra-Modèle: ${intraResults.model_name}`}
-          reportSubtitle={`${intraResults.clashing_element_count} éléments en conflit sur ${intraResults.element_count}`}
+          aiUsed={aiMetrics.used}
+          reportTitle="Détection Intra-Modèle"
+          reportSubtitle={`${intraResults.clash_count} conflits détectés`}
         />
       )}
 
