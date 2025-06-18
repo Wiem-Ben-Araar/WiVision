@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run copy-wasm && next build",
     "start": "next start",
-    "postinstall": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ || true",
-    "vercel-build": "npm run build"
+    "copy-wasm": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/ && cp node_modules/web-ifc/web-ifc-mt.wasm public/wasm/ || true",
+    "postinstall": "npm run copy-wasm",
+    "vercel-build": "npm run copy-wasm && next build"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",

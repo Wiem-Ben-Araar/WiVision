@@ -16,35 +16,33 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   // Configuration WASM pour Vercel
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, buildId }) => {
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
     }
 
-    // Configuration spécifique pour Vercel
-    config.output.webassemblyModuleFilename = isServer
-      ? "../static/wasm/[modulehash].wasm"
-      : "static/wasm/[modulehash].wasm"
-
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "webassembly/async",
-    })
-
-    // Copier les fichiers WASM vers le dossier public
+    // Configuration spécifique pour les fichiers WASM
     config.module.rules.push({
       test: /\.wasm$/,
       type: "asset/resource",
       generator: {
-        filename: "static/wasm/[name][ext]",
+        filename: "static/wasm/[name].[hash][ext]",
       },
     })
 
+    // Résolution des modules pour éviter les erreurs côté client
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       path: false,
+      crypto: false,
+    }
+
+    // Configuration pour web-ifc spécifiquement
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "web-ifc": "web-ifc/web-ifc-api.js",
     }
 
     return config
@@ -81,15 +79,6 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
-      // Servir les fichiers WASM depuis le dossier public
-      {
-        source: "/_next/static/chunks/wasm/:path*",
-        destination: "/wasm/:path*",
-      },
-      {
-        source: "/static/wasm/:path*", 
-        destination: "/wasm/:path*",
-      },
       {
         source: "/api/:path*",
         destination: `${process.env.NEXT_PUBLIC_API_URL || ""}/api/:path*`,
