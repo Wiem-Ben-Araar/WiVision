@@ -34,8 +34,10 @@ export default function Home() {
   useEffect(() => {
     setIsMounted(true)
 
-    // Authentication check
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`, {
+    // Authentication check - Updated with correct API path
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://wivision.onrender.com'
+    
+    fetch(`${backendUrl}/api/auth/status`, {
       method: "GET",
       credentials: "include",
     })
@@ -43,7 +45,8 @@ export default function Home() {
     .then((data) => {
       setAuth({ authenticated: data.authenticated, name: data.user?.name })
     })
-    .catch(() => {
+    .catch((error) => {
+      console.error('Auth status check failed:', error)
       setAuth({ authenticated: false })
     })
   }, [])
@@ -60,7 +63,7 @@ export default function Home() {
     {
       icon: Users,
       title: "Collaboration en équipe",
-      description: "Travaillez en équipe sur vos projets avec des outils de partage et d&apos;annotation en temps réel.",
+      description: "Travaillez en équipe sur vos projets avec des outils de partage et d'annotation en temps réel.",
     },
     {
       icon: FileBox,
