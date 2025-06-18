@@ -45,10 +45,7 @@ export default function IFCViewer() {
     const newControls = new OrbitControls(newCamera, newRenderer.domElement);
     newControls.enableDamping = true;
     newControls.dampingFactor = 0.05;
-      const isProduction = process.env.NODE_ENV === 'production';
-   const wasmPath = isProduction
-      ? 'https://wi-vision.vercel.app/wasm/'
-      : '/wasm/';
+  
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -61,7 +58,7 @@ export default function IFCViewer() {
   
     // IFC Loader setup
     const newIfcLoader = new IFCLoader();
-   newIfcLoader.ifcManager.setWasmPath(wasmPath);
+    newIfcLoader.ifcManager.setWasmPath("/wasm/");
   
     setCamera(newCamera);
     setRenderer(newRenderer);
