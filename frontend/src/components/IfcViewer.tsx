@@ -58,7 +58,11 @@ export default function IFCViewer() {
   
     // IFC Loader setup
     const newIfcLoader = new IFCLoader();
-    newIfcLoader.ifcManager.setWasmPath("/wasm/");
+   const wasmPath = process.env.NODE_ENV === "production" 
+  ? "/_next/static/wasm/web-ifc.wasm" 
+  : "/wasm/web-ifc.wasm";
+
+newIfcLoader.ifcManager.setWasmPath(wasmPath);
   
     setCamera(newCamera);
     setRenderer(newRenderer);
