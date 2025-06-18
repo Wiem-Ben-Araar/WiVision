@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
     return config
   },
 
-  // Headers CSP pour résoudre le problème
+  // Headers CSP corrigés pour Vercel
   async headers() {
     return [
       {
@@ -50,17 +50,18 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'sha256-8bcKvbDeduRkqa/HuxGIQ8i1BX3DbPCZL6eHFmyhZZQ=' 'sha256-OBTN3RiyCV4Bq7dFqZ5a2pAXjnCcCYeTJMO2I/LYKeo=' 'sha256-NaOyxdjgPKA2N2xmLG2eb2ouGsa8+gkhmYlnSSegjIg=' 'sha256-7addXVn0RQVKV9+yi8LsJw6UwS6Gi0HQ8ALCg6Z63jo=' 'sha256-jDbYAWOyNR0emqAfeBqkWMCeh6+pT62/qCL2SbI3lHY=' 'sha256-I4hLx33ZSkaB4f6KmGXbdq6s/znqX7LczpLaVbG+PYg=' 'sha256-3QLoG1QSbzRTfQIMi7+wo8D/b5gZiHymhh5foKjHvCQ='",
-              "style-src 'self' 'unsafe-inline'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
-              "font-src 'self' data:",
-              "connect-src 'self' https:",
+              "font-src 'self' data: https://fonts.gstatic.com",
+              "connect-src 'self' https: wss: https://*.vercel.app",
               "media-src 'self'",
               "object-src 'none'",
-              "child-src 'self'",
+              "child-src 'self' blob:",
               "worker-src 'self' blob:",
               "form-action 'self'",
               "base-uri 'self'",
+              "frame-ancestors 'none'",
             ].join('; ')
           }
         ]
