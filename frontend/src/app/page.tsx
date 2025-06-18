@@ -35,9 +35,9 @@ export default function Home() {
     setIsMounted(true)
 
     // Authentication check - Updated with correct API path
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://wivision.onrender.com'
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL  || 'https://wivision.onrender.com/api'
     
-    fetch(`${backendUrl}/api/auth/status`, {
+    fetch(`${backendUrl}/auth/status`, {
       method: "GET",
       credentials: "include",
     })
@@ -68,7 +68,7 @@ export default function Home() {
     {
       icon: FileBox,
       title: "Gestion de fichiers IFC",
-      description: "Importez, organisez et gérez facilement vos fichiers IFC dans un espace sécurisé.",
+      description: "Importez, organisez et gérez facilement vos/projects fichiers IFC dans un espace sécurisé.",
     },
     {
       icon: Clock,
