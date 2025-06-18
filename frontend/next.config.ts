@@ -1,17 +1,15 @@
-// next.config.js
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 120, // Augmentez le timeout pour les gros builds
+  staticPageGenerationTimeout: 300,
   images: {
-    domains: ["lh3.googleusercontent.com"], 
-    unoptimized: true, // Important pour Vercel
+    domains: ["lh3.googleusercontent.com"],
+    unoptimized: true,
   },
-  // Ajoutez la configuration de sortie standalone
   output: "standalone",
   
-  // Utilisez async headers() pour les en-têtes de sécurité
+  // Configuration CSP modifiée
   async headers() {
     return [
       {
@@ -19,7 +17,8 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+            // Autorise les scripts inline et eval nécessaires pour WASM
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; worker-src blob:;"
           },
           {
             key: "X-Frame-Options",
@@ -30,15 +29,27 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Configuration des redirections
+  // Configuration WASM
+  webpack: (config, { isServer }) => {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+    };
+    
+    // Important pour les builds Vercel
+    config.output.webassemblyModuleFilename = isServer
+      ? "../static/wasm/[modulehash].wasm"
+      : "static/wasm/[modulehash].wasm";
+
+    return config;
+  },
+  
   async rewrites() {
     return [
-      // Solution WASM pour Vercel
       {
         source: "/_next/static/chunks/web-ifc.wasm",
-        destination: "/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
       },
-      // Réécriture API relative
       {
         source: "/api/:path*",
         destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
