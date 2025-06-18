@@ -169,19 +169,23 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
 
       setPollingStatus('Analyse intra-modèle en cours...');
       
-      const { data } = await axios.post<IntraClashResponse>(
-        `${API_BASE_URL}/clash/detect_intra`, 
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
+     const { data } = await axios.post<IntraClashResponse>(
+      `${API_BASE_URL}/clash/detect_intra`, 
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000 // 5 minutes timeout
+      }
+    );
       
-      if (data.session_id) {
-        setPollingStatus('Analyse intra-modèle en cours...');
-        const result = await pollResults(data.session_id);
+        if (data.session_id) {
+      setSessionId(data.session_id);
+      setPollingStatus('Analyse intra-modèle en cours...');
+      
+      // Réduire le temps d'attente initial
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const result = await pollResults(data.session_id);
         setIntraResults({
           clashes: result.clashes ?? [],
           model_name: result.model_name ?? '',
@@ -221,8 +225,8 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
   };
 
 const pollResults = async (sessionId: string): Promise<StatusResponse> => {
-  const MAX_ATTEMPTS = 300; // 300 tentatives (15 minutes)
-  const DELAY = 3000;
+  const MAX_ATTEMPTS = 100; // 100 tentatives (5 minutes max)
+  const DELAY = 3000; // 3 secondes entre les requêtes
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
@@ -231,7 +235,7 @@ const pollResults = async (sessionId: string): Promise<StatusResponse> => {
       
       const { data } = await axios.get<StatusResponse>(
         `${API_BASE_URL}/clash/status/${sessionId}`,
-        { timeout: 10000 } // 10s timeout par requête
+        { timeout: 10000 } // 10s timeout
       );
       
       if (data.error) {
@@ -242,18 +246,21 @@ const pollResults = async (sessionId: string): Promise<StatusResponse> => {
         return data;
       }
       
-      await new Promise(resolve => setTimeout(resolve, DELAY));
+      // Réduire le délai si le traitement est rapide
+      const waitTime = attempt < 10 ? 1000 : DELAY;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
       
     } catch (err) {
-      // Ignorer les erreurs de timeout et continuer
       if (axios.isAxiosError(err) && err.code === 'ECONNABORTED') {
-        await new Promise(resolve => setTimeout(resolve, DELAY));
+        // Timeout - continuer le polling
         continue;
       }
       
-      throw err;
+      // Pour les autres erreurs
+      await new Promise(resolve => setTimeout(resolve, DELAY));
     }
   }
+  
   throw new Error('Délai dépassé pour la détection');
 };
   
