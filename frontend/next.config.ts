@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  // WebAssembly configuration
+  // Remove WASM-specific webpack rules
   webpack: (config) => {
     config.experiments = {
       asyncWebAssembly: true,
@@ -24,25 +24,10 @@ const nextConfig: NextConfig = {
       crypto: false,
     };
 
-    // Add rule to serve WASM files
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "javascript/auto",
-      use: [
-        {
-          loader: "file-loader",
-          options: {
-            name: "static/wasm/[name].[hash].[ext]",
-            publicPath: "/_next/",
-          },
-        },
-      ],
-    });
-
     return config;
   },
 
-  // API rewrites
+  // API rewrites only
   async rewrites() {
     return [
       {
@@ -80,7 +65,7 @@ const nextConfig: NextConfig = {
       },
       // WASM-specific headers
       {
-        source: '/static/wasm/:file*',
+        source: '/wasm/:file*',
         headers: [
           {
             key: 'Content-Type',

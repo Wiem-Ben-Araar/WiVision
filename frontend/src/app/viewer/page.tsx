@@ -188,11 +188,7 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        const wasmPath = process.env.NODE_ENV === "production" 
-  ? "/_next/static/wasm/web-ifc.wasm" 
-  : "/wasm/web-ifc.wasm";
-
-await viewer.IFC.setWasmPath(wasmPath);
+        await viewer.IFC.setWasmPath("/wasm/web-ifc.wasm");
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
