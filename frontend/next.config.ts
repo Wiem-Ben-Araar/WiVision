@@ -8,16 +8,14 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-        {
-      source: "/api/:path*",
-      destination: "https://wivision.onrender.com/api/:path*",
-    },
-    // Add this new rule for WASM files
-    {
-      source: "/wasm/:path*",
-      destination: "/wasm/:path*", // Keep local WASM files
-    },
-
+      {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
+      {
+        source: "/api/:path*",
+        destination: "https://wivision.onrender.com/api/:path*",
+      },
     ];
   },
    async headers() {
