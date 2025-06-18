@@ -2,23 +2,44 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 60,
+  staticPageGenerationTimeout: 300,
   images: {
-    domains: ["lh3.googleusercontent.com"], 
+    domains: ["lh3.googleusercontent.com"],
+    unoptimized: true,
   },
+  output: "standalone",
+
+  // Configuration Webpack critique pour WASM
+  webpack: (config) => {
+    config.experiments = {
+      asyncWebAssembly: true,
+      layers: true,
+      topLevelAwait: true,
+    };
+
+    // Résolution des modules
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+
+    return config;
+  },
+
+  // Réécritures uniquement pour l'API
   async rewrites() {
     return [
-      {
-        source: "/_next/static/chunks/wasm/web-ifc.wasm",
-        destination: "/wasm/web-ifc.wasm",
-      },
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
       },
     ];
   },
-   async headers() {
+
+  // Headers CSP modifiés avec wasm-unsafe-eval
+  async headers() {
     return [
       {
         source: '/(.*)',
@@ -27,7 +48,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
+              "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data: https://fonts.gstatic.com",
@@ -42,8 +63,22 @@ const nextConfig: NextConfig = {
             ].join('; ')
           }
         ]
+      },
+      // En-tête spécifique pour les fichiers WASM
+      {
+        source: '/wasm/:file*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/wasm',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          }
+        ]
       }
-    ]
+    ];
   },
 };
 
