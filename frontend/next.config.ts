@@ -92,7 +92,7 @@ const nextConfig: NextConfig = {
        {
       source: '/_next/static/chunks/web-ifc.wasm',
       destination: '/wasm/web-ifc.wasm',
-      permanent: true,
+      permanent: false,
     },
       
     ];
