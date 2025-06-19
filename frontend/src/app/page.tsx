@@ -34,10 +34,8 @@ export default function Home() {
   useEffect(() => {
     setIsMounted(true)
 
-    // Authentication check - Updated with correct API path
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL  || 'https://wivision.onrender.com/api'
-    
-    fetch(`${backendUrl}/auth/status`, {
+    // Authentication check
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/status`, {
       method: "GET",
       credentials: "include",
     })
@@ -45,8 +43,7 @@ export default function Home() {
     .then((data) => {
       setAuth({ authenticated: data.authenticated, name: data.user?.name })
     })
-    .catch((error) => {
-      console.error('Auth status check failed:', error)
+    .catch(() => {
       setAuth({ authenticated: false })
     })
   }, [])
@@ -63,12 +60,12 @@ export default function Home() {
     {
       icon: Users,
       title: "Collaboration en équipe",
-      description: "Travaillez en équipe sur vos projets avec des outils de partage et d'annotation en temps réel.",
+      description: "Travaillez en équipe sur vos projets avec des outils de partage et d&apos;annotation en temps réel.",
     },
     {
       icon: FileBox,
       title: "Gestion de fichiers IFC",
-      description: "Importez, organisez et gérez facilement vos/projects fichiers IFC dans un espace sécurisé.",
+      description: "Importez, organisez et gérez facilement vos fichiers IFC dans un espace sécurisé.",
     },
     {
       icon: Clock,
