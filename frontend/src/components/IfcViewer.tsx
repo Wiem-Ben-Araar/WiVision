@@ -57,7 +57,7 @@ export default function IFCViewer() {
  
     const newIfcLoader = new IFCLoader()
     // Utiliser le chemin absolu correct
-    newIfcLoader.ifcManager.setWasmPath('/wasm/')
+   // newIfcLoader.ifcManager.setWasmPath('/wasm/')
 
     setCamera(newCamera)
     setRenderer(newRenderer)
