@@ -54,10 +54,10 @@ export default function IFCViewer() {
     const grid = new THREE.GridHelper(50, 50)
     newScene.add(grid)
 
-    // IFC Loader setup - CORRECTION DU CHEMIN WASM
+ 
     const newIfcLoader = new IFCLoader()
     // Utiliser le chemin absolu correct
-    newIfcLoader.ifcManager.setWasmPath('/wasm/')
+    newIfcLoader.ifcManager.setWasmPath('wasm/')
 
     setCamera(newCamera)
     setRenderer(newRenderer)
