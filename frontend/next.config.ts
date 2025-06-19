@@ -31,10 +31,7 @@ const nextConfig: NextConfig = {
   // Réécritures uniquement pour l'API
   async rewrites() {
     return [
-            {
-        source: "/_next/static/chunks/wasm/web-ifc.wasm",
-        destination: "/wasm/web-ifc.wasm",
-      },
+      
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
@@ -53,7 +50,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
+              "script-src 'self' 'unsafe-eval'  'unsafe-inline' https://vercel.live https://*.vercel.app",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data: https://fonts.gstatic.com",
