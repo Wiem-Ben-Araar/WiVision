@@ -57,9 +57,12 @@ export default function IFCViewer() {
     newScene.add(grid);
   
     // IFC Loader setup
-    const newIfcLoader = new IFCLoader();
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    newIfcLoader.ifcManager.setWasmPath(`${baseUrl}/static/wasm/`);
+const ifcLoader = new IFCLoader();
+
+if (typeof window !== "undefined") {
+  const baseUrl = window.location.origin;
+  ifcLoader.ifcManager.setWasmPath(`${baseUrl}/static/wasm/`);
+}
   
     setCamera(newCamera);
     setRenderer(newRenderer);
