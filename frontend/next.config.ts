@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       topLevelAwait: true,
     }
 
-    // Configuration spéciale pour web-ifc WASM
+    // Configuration WASM optimisée
     config.output.webassemblyModuleFilename = isServer
       ? "../static/wasm/[modulehash].wasm"
       : "static/wasm/[modulehash].wasm"
@@ -39,14 +39,19 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
-      // 🎯 SOLUTION: Couvrir TOUS les chemins WASM possibles
+      // 🎯 SOLUTION SPÉCIFIQUE: Capturer le chemin exact utilisé par web-ifc
       {
-        source: "/_next/static/chunks/wasm/:path*",
-        destination: "/wasm/:path*",
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
       },
       {
-        source: "/_next/static/chunks/app/viewer/wasm/:path*",
-        destination: "/wasm/:path*",
+        source: "/_next/static/chunks/wasm/web-ifc-mt.wasm",
+        destination: "/wasm/web-ifc-mt.wasm",
+      },
+      // Patterns génériques pour d'autres cas
+      {
+        source: "/_next/static/chunks/:path*wasm/:file*.wasm",
+        destination: "/wasm/:file*.wasm",
       },
       {
         source: "/_next/static/wasm/:path*",
