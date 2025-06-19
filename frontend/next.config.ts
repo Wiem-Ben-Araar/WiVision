@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/_next/static/chunks/:path*/web-ifc.wasm',
+         source: "/_next/static/chunks/wasm/web-ifc.wasm",
         destination: '/wasm/web-ifc.wasm',
       },
       // Réécriture API relative
