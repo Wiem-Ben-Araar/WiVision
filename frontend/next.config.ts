@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
       // Solution WASM pour Vercel
       {
         source: "/_next/static/chunks/web-ifc.wasm",
-        destination: "/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
       },
       // Réécriture API relative
       {

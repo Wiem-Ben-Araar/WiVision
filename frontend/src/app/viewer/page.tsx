@@ -187,7 +187,7 @@ function ViewerPageContent() {
         renderer.outputColorSpace = THREE.SRGBColorSpace
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
-
+console.log("Setting WASM path to:", "/wasm/");
         await viewer.IFC.setWasmPath("wasm/")
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
