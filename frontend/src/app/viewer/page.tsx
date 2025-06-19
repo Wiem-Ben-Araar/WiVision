@@ -187,8 +187,11 @@ function ViewerPageContent() {
         renderer.outputColorSpace = THREE.SRGBColorSpace
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
-console.log("Setting WASM path to:", "/wasm/");
-        await viewer.IFC.setWasmPath("/wasm/")
+const absoluteWasmPath = window.location.origin + "/wasm/";
+console.log("Forcing WASM path to:", absoluteWasmPath);
+
+await viewer.IFC.setWasmPath(absoluteWasmPath);
+console.log("WASM path set successfully to:", absoluteWasmPath);
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
