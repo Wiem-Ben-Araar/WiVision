@@ -89,6 +89,11 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
       },
+      {
+      source: '/_next/static/chunks/app/viewer/wasm/web-ifc.wasm',
+      destination: '/wasm/web-ifc.wasm',
+      permanent: true,
+    },
     ];
   },
 };
