@@ -1,16 +1,15 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 60,
   async rewrites() {
     return [
       {
-        source: '/_next/static/chunks/wasm/web-ifc.wasm', // Chemin demandé par Web-IFC
-        destination: '/wasm/web-ifc.wasm', // Fichier réellement présent dans public/wasm/
+        source: '/_next/static/chunks/:path*/wasm/web-ifc.wasm', // <- catch‑all
+        destination: '/wasm/web-ifc.wasm',
       },
     ];
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
