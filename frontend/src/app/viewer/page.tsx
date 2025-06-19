@@ -192,7 +192,7 @@ viewer.IFC.setWasmPath = function(path) {
   console.log("[DEBUG] Overridden setWasmPath called with:", path);
   return originalSetWasmPath.call(this, path);
 };
-viewer.IFC.setWasmPath("/wasm/");
+viewer.IFC.setWasmPath("wasm/");
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
