@@ -188,9 +188,7 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-      const wasmFullUrl = "https://wi-vision.vercel.app/wasm/";
-
-await viewer.IFC.setWasmPath(wasmFullUrl);
+        await viewer.IFC.setWasmPath("static/wasm/");
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,

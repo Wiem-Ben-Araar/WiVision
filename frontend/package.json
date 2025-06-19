@@ -6,6 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "copy-wasm": "cpy ../node_modules/web-ifc/web-ifc.wasm .",
     "lint": "next lint"
     
   },
