@@ -55,11 +55,11 @@ export default function IFCViewer() {
     // Grid helper
     const grid = new THREE.GridHelper(50, 50);
     newScene.add(grid);
-
-const ifcLoader = new IFCLoader();
-
-const wasmPath = "/wasm/";
-
+  
+    // IFC Loader setup
+    const newIfcLoader = new IFCLoader();
+    
+    newIfcLoader.ifcManager.setWasmPath("/wasm/");
   
     setCamera(newCamera);
     setRenderer(newRenderer);
