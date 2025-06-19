@@ -58,7 +58,7 @@ export default function IFCViewer() {
 
 const ifcLoader = new IFCLoader();
 
-const wasmPath = "/wasm/";
+const wasmPath = "wasm/";
 console.log("Setting ifcManager path to:", wasmPath);
 
 ifcLoader.ifcManager.setWasmPath(wasmPath);
