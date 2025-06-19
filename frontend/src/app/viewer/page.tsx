@@ -1,97 +1,115 @@
-"use client"
-import { useEffect, useRef, useState, useCallback, Suspense } from "react"
-import type React from "react"
+"use client";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import type React from "react";
 
-import { IfcViewerAPI } from "web-ifc-viewer"
-import { Button } from "@/components/ui/button"
-import { useSearchParams } from "next/navigation"
-import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { ArrowLeft, ClipboardList, Home } from "lucide-react"
-import PropertySidebar from "@/components/PropertySidebar"
-import { Scissors, Ruler, Eye, EyeOff, MessageSquare, Download } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import * as THREE from "three"
-import { toast } from "sonner"
-import { useRouter } from "next/navigation"
-import CameraControls from "camera-controls"
-import SectionTool from "@/components/SectionTool"
-import { MeasurementTool, type Measurement } from "@/components/MeasurementTool"
-import { AnnotationSystem } from "@/components/AnnotationSystem"
-import { getTodosCount, TodoManager } from "@/components/TodoManager"
-import { useAuth } from "@/hooks/use-auth"
-import ClashButton from "@/components/ClashButton"
-import axios from "axios"
-import { LoadingProgress } from "@/components/LoadingProgress"
-import Image from "next/image"
-import { WasmInterceptor } from "@/components/wasm-interceptor"
+import { IfcViewerAPI } from "web-ifc-viewer";
+import { Button } from "@/components/ui/button";
+import { useSearchParams } from "next/navigation";
+import { CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { ArrowLeft, ClipboardList, Home } from "lucide-react";
+import PropertySidebar from "@/components/PropertySidebar";
+import {
+  Scissors,
+  Ruler,
+  Eye,
+  EyeOff,
+  MessageSquare,
+  Download,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import * as THREE from "three";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import CameraControls from "camera-controls";
+import SectionTool from "@/components/SectionTool";
+import {
+  MeasurementTool,
+  type Measurement,
+} from "@/components/MeasurementTool";
+import { AnnotationSystem } from "@/components/AnnotationSystem";
+import { getTodosCount, TodoManager } from "@/components/TodoManager";
+import { useAuth } from "@/hooks/use-auth";
+import ClashButton from "@/components/ClashButton";
+import axios from "axios";
+import { LoadingProgress } from "@/components/LoadingProgress";
+import Image from "next/image";
+import { WasmInterceptor } from "@/components/wasm-interceptor";
+µ;
 
-
-type ViewStyle = "shaded" | "wireframe" | "hidden-line"
-type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
-type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
+type ViewStyle = "shaded" | "wireframe" | "hidden-line";
+type ViewDirection =
+  | "top"
+  | "bottom"
+  | "front"
+  | "back"
+  | "left"
+  | "right"
+  | "iso";
+type MeasurementMode = "none" | "distance" | "perpendicular" | "angle";
 
 interface LoadedModel {
-  id: string
-  name: string
-  url: string
-  visible: boolean
-  bbox?: THREE.Box3
+  id: string;
+  name: string;
+  url: string;
+  visible: boolean;
+  bbox?: THREE.Box3;
 }
 
 interface LoadingProgressState {
-  isVisible: boolean
-  currentFile: string
-  currentFileIndex: number
-  totalFiles: number
-  progress: number
-  loadedModels: string[]
+  isVisible: boolean;
+  currentFile: string;
+  currentFileIndex: number;
+  totalFiles: number;
+  progress: number;
+  loadedModels: string[];
 }
 
 interface IfcModel {
-  modelID: number
-  mesh?: THREE.Mesh
+  modelID: number;
+  mesh?: THREE.Mesh;
 }
 
 function ViewerPageContent() {
   // États pour les propriétés des éléments
-  const [selectedElement, setSelectedElement] = useState<number | null>(null)
-  const [selectedModelID, setSelectedModelID] = useState<number | null>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
+  const [selectedElement, setSelectedElement] = useState<number | null>(null);
+  const [selectedModelID, setSelectedModelID] = useState<number | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
   // États pour les outils
-  const [activeTool, setActiveTool] = useState<string | null>(null)
-  const activeToolRef = useRef(activeTool)
-  const { user } = useAuth()
-  const userRole = user?.role
-  const isBIMModeleur = userRole === "BIM Modeleur"
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const activeToolRef = useRef(activeTool);
+  const { user } = useAuth();
+  const userRole = user?.role;
+  const isBIMModeleur = userRole === "BIM Modeleur";
 
   // États pour les styles et modèles
-  const [activeStyle, setActiveStyle] = useState<ViewStyle | null>(null)
-  const [loadedModels, setLoadedModels] = useState<LoadedModel[]>([])
+  const [activeStyle, setActiveStyle] = useState<ViewStyle | null>(null);
+  const [loadedModels, setLoadedModels] = useState<LoadedModel[]>([]);
 
   // Références
-  const containerRef = useRef<HTMLDivElement>(null!)
-  const viewerRef = useRef<IfcViewerAPI | null>(null)
-  const initializedRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null!);
+  const viewerRef = useRef<IfcViewerAPI | null>(null);
+  const initializedRef = useRef(false);
 
   // États pour les erreurs et le chargement
-  const [error, setError] = useState<string | null>(null)
-  const searchParams = useSearchParams()
+  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
   // États pour les mesures
-  const [measurementMode, setMeasurementMode] = useState<MeasurementMode>("none")
+  const [measurementMode, setMeasurementMode] =
+    useState<MeasurementMode>("none");
 
   // États pour l'isolation
-  const [isIsolationActive, setIsIsolationActive] = useState(false)
+  const [isIsolationActive, setIsIsolationActive] = useState(false);
 
   // États pour la caméra
-  const [camera, setCamera] = useState<THREE.Camera | null>(null)
-  const [controls, setControls] = useState<unknown>(null)
+  const [camera, setCamera] = useState<THREE.Camera | null>(null);
+  const [controls, setControls] = useState<unknown>(null);
 
-  const router = useRouter()
+  const router = useRouter();
 
   // États pour le TodoManager
-  const [todosCount, setTodosCount] = useState(0)
+  const [todosCount, setTodosCount] = useState(0);
 
   // État pour la progression du chargement
   const [loadingProgress, setLoadingProgress] = useState<LoadingProgressState>({
@@ -101,179 +119,195 @@ function ViewerPageContent() {
     totalFiles: 0,
     progress: 0,
     loadedModels: [],
-  })
+  });
 
   // Configuration d'Axios
   useEffect(() => {
-    axios.defaults.withCredentials = true
+    axios.defaults.withCredentials = true;
 
     const interceptor = axios.interceptors.response.use(
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          document.cookie = "token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;"
-          router.push("/sign-in")
+          document.cookie =
+            "token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+          router.push("/sign-in");
         }
-        return Promise.reject(error)
-      },
-    )
+        return Promise.reject(error);
+      }
+    );
 
-    return () => axios.interceptors.response.eject(interceptor)
-  }, [router])
+    return () => axios.interceptors.response.eject(interceptor);
+  }, [router]);
 
   // Surveillance des modifications du TodoManager
   useEffect(() => {
-    if (isBIMModeleur) return
+    if (isBIMModeleur) return;
 
     const interval = setInterval(() => {
-      const count = getTodosCount()
-      setTodosCount(count)
-    }, 500)
+      const count = getTodosCount();
+      setTodosCount(count);
+    }, 500);
 
-    return () => clearInterval(interval)
-  }, [isBIMModeleur])
+    return () => clearInterval(interval);
+  }, [isBIMModeleur]);
 
   // Mise à jour de la référence de l'outil actif
   useEffect(() => {
-    activeToolRef.current = activeTool
-  }, [activeTool])
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
 
-  // Initialisation du visualiseur - VERSION CORRIGÉE
+  // Initialisation du visualiseur - VERSION CORRIGÉE POUR COMPATIBILITÉ WASM
   useEffect(() => {
     const initViewer = async () => {
-      if (!containerRef.current || initializedRef.current) return
+      if (!containerRef.current || initializedRef.current) return;
 
       try {
-        console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...")
-        initializedRef.current = true
+        console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...");
+        initializedRef.current = true;
 
-        console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...")
+        console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...");
         const viewer = new IfcViewerAPI({
           container: containerRef.current,
           backgroundColor: new THREE.Color(0xeeeeee),
-        })
+        });
 
-        console.log("💡 [VIEWER-PAGE] Configuration de la scène...")
+        console.log("💡 [VIEWER-PAGE] Configuration de la scène...");
         // Configuration de la scène
-        const scene = viewer.context.getScene()
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-        scene.add(ambientLight)
+        const scene = viewer.context.getScene();
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
 
-        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8)
-        directionalLight1.position.set(1, 2, 3)
-        scene.add(directionalLight1)
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight1.position.set(1, 2, 3);
+        scene.add(directionalLight1);
 
-        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5)
-        directionalLight2.position.set(-1, 1, -2)
-        scene.add(directionalLight2)
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight2.position.set(-1, 1, -2);
+        scene.add(directionalLight2);
 
-        const renderer = viewer.context.getRenderer()
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-        renderer.outputColorSpace = THREE.SRGBColorSpace
-        renderer.shadowMap.enabled = true
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap
+        const renderer = viewer.context.getRenderer();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // 🔧 CONFIGURATION WASM CORRIGÉE
-        console.log("🔧 [VIEWER-PAGE] Configuration WASM corrigée...")
+        // 🔧 CONFIGURATION WASM COMPATIBLE
+        console.log("🔧 [VIEWER-PAGE] Configuration WASM compatible...");
 
         try {
-          // 1. Utiliser directement le CDN sans chemin local
-          console.log("🔧 [VIEWER-PAGE] Configuration chemin WASM...")
-          await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.57/")
+          // 1. Utiliser la version 0.0.44 qui est stable et compatible
+          console.log("🔧 [VIEWER-PAGE] Configuration chemin WASM stable...");
+          await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/");
 
-          // 2. Attendre que le WASM soit complètement chargé
-          console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...")
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          // 2. Attendre plus longtemps pour l'initialisation WASM
+          console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...");
+          await new Promise((resolve) => setTimeout(resolve, 3000));
 
           // 3. Configuration des options IFC APRÈS le chargement WASM
-          console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...")
-          viewer.clipper.active = true
+          console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...");
+          viewer.clipper.active = true;
 
-          // 4. Configuration avancée du manager IFC
+          // 4. Configuration avancée du manager IFC avec options compatibles
           viewer.IFC.loader.ifcManager.applyWebIfcConfig({
             COORDINATE_TO_ORIGIN: true,
             USE_FAST_BOOLS: false,
-          })
+          });
 
-          console.log("✅ [VIEWER-PAGE] WASM configuré avec succès")
+          console.log("✅ [VIEWER-PAGE] WASM configuré avec succès");
         } catch (wasmError) {
-          console.warn("⚠️ [VIEWER-PAGE] Erreur configuration WASM:", wasmError)
+          console.warn(
+            "⚠️ [VIEWER-PAGE] Erreur configuration WASM:",
+            wasmError
+          );
 
-          // Fallback avec version plus ancienne et stable
+          // Fallback avec version encore plus ancienne
           try {
-            console.log("🔧 [VIEWER-PAGE] Tentative avec version fallback...")
-            await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/")
-            await new Promise((resolve) => setTimeout(resolve, 3000))
+            console.log("🔧 [VIEWER-PAGE] Tentative avec version legacy...");
+            await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.36/");
+            await new Promise((resolve) => setTimeout(resolve, 4000));
 
             viewer.IFC.loader.ifcManager.applyWebIfcConfig({
               COORDINATE_TO_ORIGIN: true,
               USE_FAST_BOOLS: false,
-            })
+            });
 
-            console.log("✅ [VIEWER-PAGE] WASM configur�� avec version fallback")
+            console.log("✅ [VIEWER-PAGE] WASM configuré avec version legacy");
           } catch (fallbackError) {
-            console.error("❌ [VIEWER-PAGE] Échec configuration WASM:", fallbackError)
-            throw new Error("Impossible de charger le module WASM")
+            console.error(
+              "❌ [VIEWER-PAGE] Échec configuration WASM:",
+              fallbackError
+            );
+            throw new Error("Impossible de charger le module WASM compatible");
           }
         }
 
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
-            if (isBIMModeleur) return
+            if (isBIMModeleur) return;
             if (
               activeToolRef.current === "section" ||
               activeToolRef.current === "hide" ||
               activeToolRef.current === "comment" ||
               activeToolRef.current === "notes"
             )
-              return
+              return;
 
             try {
-              const result = await viewer.IFC.selector.pickIfcItem(false)
+              const result = await viewer.IFC.selector.pickIfcItem(false);
 
               if (!result) {
-                viewer.IFC.selector.unpickIfcItems()
-                setSelectedElement(null)
-                setSelectedModelID(null)
-                setIsSidebarOpen(false)
-                return
+                viewer.IFC.selector.unpickIfcItems();
+                setSelectedElement(null);
+                setSelectedModelID(null);
+                setIsSidebarOpen(false);
+                return;
               }
 
-              const modelID = result.modelID
-              const ifcManager = viewer.IFC.loader.ifcManager
+              const modelID = result.modelID;
+              const ifcManager = viewer.IFC.loader.ifcManager;
 
-              if (!ifcManager || !ifcManager.state || !ifcManager.state.models) {
-                console.warn("IFC Manager ou son état n'est pas disponible")
-                return
+              if (
+                !ifcManager ||
+                !ifcManager.state ||
+                !ifcManager.state.models
+              ) {
+                console.warn("IFC Manager ou son état n'est pas disponible");
+                return;
               }
 
-              const model = ifcManager.state.models[modelID]
+              const model = ifcManager.state.models[modelID];
 
               if (model && model.mesh && model.mesh.visible) {
-                setSelectedElement(result.id)
-                setSelectedModelID(modelID)
-                setIsSidebarOpen(true)
+                setSelectedElement(result.id);
+                setSelectedModelID(modelID);
+                setIsSidebarOpen(true);
               } else {
-                viewer.IFC.selector.unpickIfcItems()
-                console.log("Sélection ignorée: le modèle est masqué ou invalide")
+                viewer.IFC.selector.unpickIfcItems();
+                console.log(
+                  "Sélection ignorée: le modèle est masqué ou invalide"
+                );
               }
             } catch (err) {
-              console.error("Erreur lors de la sélection:", err)
-              setSelectedElement(null)
-              setSelectedModelID(null)
-              setIsSidebarOpen(false)
+              console.error("Erreur lors de la sélection:", err);
+              setSelectedElement(null);
+              setSelectedModelID(null);
+              setIsSidebarOpen(false);
             }
-          }
+          };
         }
 
         // Chargement des fichiers avec gestion d'erreur améliorée
-        console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...")
-        const filesParam = searchParams.get("files")
+        console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...");
+        const filesParam = searchParams.get("files");
         if (filesParam) {
-          const fileURLs = JSON.parse(filesParam)
-          const totalFiles = fileURLs.length
-          console.log(`📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`, fileURLs)
+          const fileURLs = JSON.parse(filesParam);
+          const totalFiles = fileURLs.length;
+          console.log(
+            `📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`,
+            fileURLs
+          );
 
           setLoadingProgress({
             isVisible: true,
@@ -282,91 +316,110 @@ function ViewerPageContent() {
             totalFiles: totalFiles,
             progress: 0,
             loadedModels: [],
-          })
+          });
 
-          const newModels = []
-          const loadedModelNames: string[] = []
+          const newModels = [];
+          const loadedModelNames: string[] = [];
 
           for (let i = 0; i < fileURLs.length; i++) {
-            const url = fileURLs[i]
+            const url = fileURLs[i];
 
-            const decodedUrl = decodeURIComponent(decodeURIComponent(url))
-            const filenamePart = decodedUrl.split("/").pop() || ""
+            const decodedUrl = decodeURIComponent(decodeURIComponent(url));
+            const filenamePart = decodedUrl.split("/").pop() || "";
             const displayName = filenamePart
               .replace(/(\d+_)/, "")
               .replace(/\?.*/, "")
               .replace(/\.ifc$/, "")
-              .replace(/_/g, " ")
+              .replace(/_/g, " ");
 
-            console.log(`📄 [VIEWER-PAGE] Chargement du fichier ${i + 1}/${totalFiles}: ${displayName}`)
+            console.log(
+              `📄 [VIEWER-PAGE] Chargement du fichier ${
+                i + 1
+              }/${totalFiles}: ${displayName}`
+            );
 
             setLoadingProgress((prev) => ({
               ...prev,
               currentFile: displayName,
               currentFileIndex: i,
               progress: 0,
-            }))
+            }));
 
             try {
               const progressInterval = setInterval(() => {
                 setLoadingProgress((prev) => ({
                   ...prev,
                   progress: Math.min(prev.progress + Math.random() * 15, 90),
-                }))
-              }, 200)
+                }));
+              }, 200);
 
-              // Chargement avec retry en cas d'échec
-              let model = null
-              let retryCount = 0
-              const maxRetries = 3
+              // Chargement avec retry et délais plus longs
+              let model = null;
+              let retryCount = 0;
+              const maxRetries = 3;
 
               while (retryCount < maxRetries && !model) {
                 try {
-                  console.log(`📄 [VIEWER-PAGE] Tentative ${retryCount + 1}/${maxRetries} pour ${displayName}`)
+                  console.log(
+                    `📄 [VIEWER-PAGE] Tentative ${
+                      retryCount + 1
+                    }/${maxRetries} pour ${displayName}`
+                  );
 
-                  // Attendre un peu plus longtemps pour s'assurer que WASM est prêt
+                  // Attendre plus longtemps pour s'assurer que WASM est complètement prêt
                   if (retryCount > 0) {
-                    await new Promise((resolve) => setTimeout(resolve, 2000))
+                    await new Promise((resolve) => setTimeout(resolve, 3000));
+                  } else {
+                    // Première tentative : attendre que WASM soit vraiment prêt
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
                   }
 
-                  model = await viewer.IFC.loadIfcUrl(url)
-                  break
+                  model = await viewer.IFC.loadIfcUrl(url);
+                  break;
                 } catch (loadError) {
-                  retryCount++
-                  console.warn(`⚠️ [VIEWER-PAGE] Échec tentative ${retryCount}:`, loadError)
+                  retryCount++;
+                  console.warn(
+                    `⚠️ [VIEWER-PAGE] Échec tentative ${retryCount}:`,
+                    loadError
+                  );
                   if (retryCount < maxRetries) {
-                    await new Promise((resolve) => setTimeout(resolve, 1000))
+                    await new Promise((resolve) => setTimeout(resolve, 2000));
                   }
                 }
               }
 
-              clearInterval(progressInterval)
+              clearInterval(progressInterval);
 
               if (model?.mesh && model.modelID !== undefined) {
-                const cleanName = displayName || `Modèle-${model.modelID}`
-                console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName}`)
+                const cleanName = displayName || `Modèle-${model.modelID}`;
+                console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName}`);
 
                 newModels.push({
                   id: String(model.modelID),
                   name: cleanName,
                   url: url,
                   visible: true,
-                })
+                });
 
-                loadedModelNames.push(cleanName)
+                loadedModelNames.push(cleanName);
 
                 setLoadingProgress((prev) => ({
                   ...prev,
                   progress: 100,
                   loadedModels: [...loadedModelNames],
-                }))
+                }));
 
-                await new Promise((resolve) => setTimeout(resolve, 300))
+                await new Promise((resolve) => setTimeout(resolve, 300));
               } else {
-                console.error(`❌ [VIEWER-PAGE] Échec du chargement après ${maxRetries} tentatives: ${url}`)
+                console.error(
+                  `❌ [VIEWER-PAGE] Échec du chargement après ${maxRetries} tentatives: ${url}`
+                );
               }
             } catch (loadError) {
-              console.error(`❌ [VIEWER-PAGE] Erreur critique lors du chargement: ${url}`, loadError)
+              console.error(
+                `❌ [VIEWER-PAGE] Erreur critique lors du chargement: ${url}`,
+                loadError
+              );
             }
           }
 
@@ -374,50 +427,55 @@ function ViewerPageContent() {
             ...prev,
             currentFileIndex: totalFiles,
             progress: 100,
-          }))
+          }));
 
           setTimeout(() => {
             setLoadingProgress((prev) => ({
               ...prev,
               isVisible: false,
-            }))
-          }, 1000)
+            }));
+          }, 1000);
 
-          setLoadedModels(newModels)
-          console.log(`✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`)
+          setLoadedModels(newModels);
+          console.log(
+            `✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`
+          );
 
           // Configuration de la caméra
           if (newModels.length > 0) {
             try {
-              scene.updateMatrixWorld(true)
-              const bbox = new THREE.Box3()
+              scene.updateMatrixWorld(true);
+              const bbox = new THREE.Box3();
 
               scene.traverse((object) => {
                 if (object instanceof THREE.Mesh && object.geometry) {
-                  bbox.expandByObject(object)
+                  bbox.expandByObject(object);
                 }
-              })
+              });
 
               if (bbox.isEmpty()) {
-                bbox.set(new THREE.Vector3(-5, -5, -5), new THREE.Vector3(5, 5, 5))
+                bbox.set(
+                  new THREE.Vector3(-5, -5, -5),
+                  new THREE.Vector3(5, 5, 5)
+                );
               }
 
-              const center = new THREE.Vector3()
-              const size = new THREE.Vector3()
-              bbox.getCenter(center)
-              bbox.getSize(size)
-              const maxDim = Math.max(size.x, size.y, size.z)
+              const center = new THREE.Vector3();
+              const size = new THREE.Vector3();
+              bbox.getCenter(center);
+              bbox.getSize(size);
+              const maxDim = Math.max(size.x, size.y, size.z);
 
-              const camera = viewer.context.getCamera()
+              const camera = viewer.context.getCamera();
               if (camera instanceof THREE.PerspectiveCamera) {
-                camera.near = Math.max(0.1, maxDim * 0.001)
-                camera.far = Math.max(1000, maxDim * 10)
-                camera.updateProjectionMatrix()
+                camera.near = Math.max(0.1, maxDim * 0.001);
+                camera.far = Math.max(1000, maxDim * 10);
+                camera.updateProjectionMatrix();
               }
 
-              const cameraOffsetX = center.x + maxDim
-              const cameraOffsetY = center.y + maxDim * 0.5
-              const cameraOffsetZ = center.z + maxDim
+              const cameraOffsetX = center.x + maxDim;
+              const cameraOffsetY = center.y + maxDim * 0.5;
+              const cameraOffsetZ = center.z + maxDim;
 
               if (
                 isFinite(cameraOffsetX) &&
@@ -434,168 +492,195 @@ function ViewerPageContent() {
                   center.x,
                   center.y,
                   center.z,
-                  true,
-                )
+                  true
+                );
               } else {
-                viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+                viewer.context.ifcCamera.cameraControls.setLookAt(
+                  10,
+                  10,
+                  10,
+                  0,
+                  0,
+                  0,
+                  true
+                );
               }
             } catch (cameraError) {
-              console.error("Error setting up camera:", cameraError)
-              viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+              console.error("Error setting up camera:", cameraError);
+              viewer.context.ifcCamera.cameraControls.setLookAt(
+                10,
+                10,
+                10,
+                0,
+                0,
+                0,
+                true
+              );
             }
           } else {
-            setError("Aucun modèle n'a pu être chargé")
-            setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
+            setError("Aucun modèle n'a pu être chargé");
+            setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
           }
         }
 
-        viewerRef.current = viewer
-        console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!")
+        viewerRef.current = viewer;
+        console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!");
       } catch (initError) {
-        console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError)
+        console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError);
         setError(
           "Échec de l'initialisation du visualiseur: " +
-            (initError instanceof Error ? initError.message : String(initError)),
-        )
-        initializedRef.current = false
-        setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
+            (initError instanceof Error ? initError.message : String(initError))
+        );
+        initializedRef.current = false;
+        setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
       }
-    }
+    };
 
-    initViewer()
+    initViewer();
 
     return () => {
       if (viewerRef.current) {
         try {
-          console.log("🧹 [VIEWER-PAGE] Nettoyage du visualiseur...")
-          viewerRef.current.dispose()
+          console.log("🧹 [VIEWER-PAGE] Nettoyage du visualiseur...");
+          viewerRef.current.dispose();
         } catch (cleanupError) {
-          console.error("Erreur lors du nettoyage:", cleanupError)
+          console.error("Erreur lors du nettoyage:", cleanupError);
         }
-        viewerRef.current = null
-        initializedRef.current = false
+        viewerRef.current = null;
+        initializedRef.current = false;
       }
-    }
-  }, [searchParams, isBIMModeleur])
+    };
+  }, [searchParams, isBIMModeleur]);
 
   // Configuration des contrôles de caméra
   useEffect(() => {
-    if (!viewerRef.current?.context) return
+    if (!viewerRef.current?.context) return;
 
-    const viewer = viewerRef.current
-    const controls = viewer.context.ifcCamera.cameraControls
+    const viewer = viewerRef.current;
+    const controls = viewer.context.ifcCamera.cameraControls;
 
-    controls.maxDistance = 1000
-    controls.minDistance = 0.1
-    controls.infinityDolly = false
-    controls.dollyToCursor = true
-    controls.dollySpeed = 1.0
-    controls.truckSpeed = 2.0
+    controls.maxDistance = 1000;
+    controls.minDistance = 0.1;
+    controls.infinityDolly = false;
+    controls.dollyToCursor = true;
+    controls.dollySpeed = 1.0;
+    controls.truckSpeed = 2.0;
 
     controls.mouseButtons = {
       left: CameraControls.ACTION.TRUCK,
       middle: CameraControls.ACTION.DOLLY,
       right: CameraControls.ACTION.ROTATE,
       wheel: CameraControls.ACTION.DOLLY,
-    }
+    };
 
-    let lastTime = 0
-    const targetFPS = 60
-    const minFrameTime = 1000 / targetFPS
+    let lastTime = 0;
+    const targetFPS = 60;
+    const minFrameTime = 1000 / targetFPS;
 
     const updateControls = (time: number) => {
-      const delta = time - lastTime
+      const delta = time - lastTime;
       if (delta >= minFrameTime) {
-        controls.update(delta / 1000)
-        lastTime = time
+        controls.update(delta / 1000);
+        lastTime = time;
       }
-      requestAnimationFrame(updateControls)
-    }
+      requestAnimationFrame(updateControls);
+    };
 
-    requestAnimationFrame(updateControls)
-  }, [])
+    requestAnimationFrame(updateControls);
+  }, []);
 
   // Configuration de la caméra et des contrôles
   useEffect(() => {
-    if (!viewerRef.current?.context) return
+    if (!viewerRef.current?.context) return;
 
-    const viewer = viewerRef.current
-    const camera = viewer.context.getCamera()
-    setCamera(camera)
+    const viewer = viewerRef.current;
+    const camera = viewer.context.getCamera();
+    setCamera(camera);
 
-    const cameraControls = viewer.context?.ifcCamera?.cameraControls
+    const cameraControls = viewer.context?.ifcCamera?.cameraControls;
     if (cameraControls) {
-      setControls(cameraControls as unknown)
+      setControls(cameraControls as unknown);
 
-      cameraControls.mouseButtons.left = CameraControls.ACTION.TRUCK
-      cameraControls.mouseButtons.right = CameraControls.ACTION.ROTATE
+      cameraControls.mouseButtons.left = CameraControls.ACTION.TRUCK;
+      cameraControls.mouseButtons.right = CameraControls.ACTION.ROTATE;
     }
-  }, [])
+  }, []);
 
   // Configuration anti-vibration
   useEffect(() => {
-    if (!viewerRef.current?.context) return
+    if (!viewerRef.current?.context) return;
 
-    const viewer = viewerRef.current
-    const controls = viewer.context.ifcCamera.cameraControls
+    const viewer = viewerRef.current;
+    const controls = viewer.context.ifcCamera.cameraControls;
 
-    controls.dampingFactor = 0.25
-    controls.draggingDampingFactor = 0.25
-    controls.azimuthRotateSpeed = 0.5
-    controls.polarRotateSpeed = 0.5
-    controls.truckSpeed = 1.0
-    controls.maxDistance = 1000
-    controls.minDistance = 0.1
+    controls.dampingFactor = 0.25;
+    controls.draggingDampingFactor = 0.25;
+    controls.azimuthRotateSpeed = 0.5;
+    controls.polarRotateSpeed = 0.5;
+    controls.truckSpeed = 1.0;
+    controls.maxDistance = 1000;
+    controls.minDistance = 0.1;
 
-    const renderer = viewer.context.getRenderer()
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-    renderer.outputColorSpace = THREE.SRGBColorSpace
-  }, [])
+    const renderer = viewer.context.getRenderer();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  }, []);
 
   // Réinitialisation des mesures quand l'outil change
   useEffect(() => {
     if (activeTool !== "measure") {
-      setMeasurementMode("none")
+      setMeasurementMode("none");
     }
-  }, [activeTool])
+  }, [activeTool]);
 
   // Fonction pour revenir en arrière
   const handleGoBack = useCallback(() => {
-    router.back()
-  }, [router])
+    router.back();
+  }, [router]);
 
   // Fonction pour basculer l'outil actif
   const toggleTool = useCallback(
     (tool: string) => {
-      setActiveTool(activeTool === tool ? null : tool)
+      setActiveTool(activeTool === tool ? null : tool);
     },
-    [activeTool],
-  )
+    [activeTool]
+  );
 
   // Fonction pour basculer la visibilité des modèles
-  const toggleModelVisibility = useCallback((modelId: string, visible: boolean) => {
-    if (!viewerRef.current) return
+  const toggleModelVisibility = useCallback(
+    (modelId: string, visible: boolean) => {
+      if (!viewerRef.current) return;
 
-    const ifcManager = viewerRef.current.IFC.loader.ifcManager
-    const model = Object.values(ifcManager.state.models).find((m: IfcModel) => String(m.modelID) === modelId)
+      const ifcManager = viewerRef.current.IFC.loader.ifcManager;
+      const model = Object.values(ifcManager.state.models).find(
+        (m: IfcModel) => String(m.modelID) === modelId
+      );
 
-    if (model?.mesh) {
-      model.mesh.visible = visible
-      setLoadedModels((prev) => prev.map((m) => (m.id === modelId ? { ...m, visible } : m)))
+      if (model?.mesh) {
+        model.mesh.visible = visible;
+        setLoadedModels((prev) =>
+          prev.map((m) => (m.id === modelId ? { ...m, visible } : m))
+        );
 
-      const scene = viewerRef.current.context.getScene()
-      const camera = viewerRef.current.context.getCamera()
-      viewerRef.current.context.getRenderer().render(scene, camera)
-    }
-  }, [])
+        const scene = viewerRef.current.context.getScene();
+        const camera = viewerRef.current.context.getCamera();
+        viewerRef.current.context.getRenderer().render(scene, camera);
+      }
+    },
+    []
+  );
 
   // Composant de liste des modèles
   const ModelList = useCallback(
     () => (
       <div className="absolute right-0 top-0 h-full w-64 bg-white dark:bg-gray-800 p-4 shadow-lg z-20 border-l border-gray-200 dark:border-gray-700">
-        <h3 className="font-bold mb-2 text-gray-900 dark:text-gray-100">Modèles chargés</h3>
+        <h3 className="font-bold mb-2 text-gray-900 dark:text-gray-100">
+          Modèles chargés
+        </h3>
         {loadedModels.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">Aucun modèle disponible</p>
+          <p className="text-gray-500 dark:text-gray-400">
+            Aucun modèle disponible
+          </p>
         ) : (
           loadedModels.map((model) => (
             <div key={model.id} className="flex items-center gap-2 mb-2">
@@ -606,139 +691,169 @@ function ViewerPageContent() {
                 title={model.visible ? "Masquer" : "Afficher"}
                 className="flex-shrink-0 text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
               >
-                {model.visible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {model.visible ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
               </Button>
-              <span className="text-sm flex-1 break-words text-xs text-gray-700 dark:text-gray-300">{model.name}</span>
+              <span className="text-sm flex-1 break-words text-xs text-gray-700 dark:text-gray-300">
+                {model.name}
+              </span>
             </div>
           ))
         )}
       </div>
     ),
-    [loadedModels, toggleModelVisibility],
-  )
+    [loadedModels, toggleModelVisibility]
+  );
 
   // Fonction pour calculer la distance de la caméra
   const calculateCameraDistance = useCallback((bbox: THREE.Box3) => {
-    const size = bbox.getSize(new THREE.Vector3())
-    return Math.max(size.x, size.y, size.z) * 2.5
-  }, [])
+    const size = bbox.getSize(new THREE.Vector3());
+    return Math.max(size.x, size.y, size.z) * 2.5;
+  }, []);
 
   // Fonction pour définir la vue
   const setView = useCallback(
     (direction: ViewDirection) => {
-      const viewer = viewerRef.current
-      if (!viewer) return
+      const viewer = viewerRef.current;
+      if (!viewer) return;
 
-      viewer.clipper.deleteAllPlanes()
+      viewer.clipper.deleteAllPlanes();
 
-      const controls = viewer.context.ifcCamera.cameraControls
-      const bbox = new THREE.Box3()
+      const controls = viewer.context.ifcCamera.cameraControls;
+      const bbox = new THREE.Box3();
 
-      Object.values(viewer.IFC.loader.ifcManager.state.models).forEach((model: IfcModel) => {
-        if (model.mesh) {
-          model.mesh.updateMatrixWorld(true)
-          const modelBBox = new THREE.Box3().setFromObject(model.mesh)
-          bbox.union(modelBBox)
+      Object.values(viewer.IFC.loader.ifcManager.state.models).forEach(
+        (model: IfcModel) => {
+          if (model.mesh) {
+            model.mesh.updateMatrixWorld(true);
+            const modelBBox = new THREE.Box3().setFromObject(model.mesh);
+            bbox.union(modelBBox);
+          }
         }
-      })
+      );
 
-      const distance = bbox.isEmpty() ? 50 : calculateCameraDistance(bbox)
-      const center = bbox.isEmpty() ? new THREE.Vector3() : bbox.getCenter(new THREE.Vector3())
+      const distance = bbox.isEmpty() ? 50 : calculateCameraDistance(bbox);
+      const center = bbox.isEmpty()
+        ? new THREE.Vector3()
+        : bbox.getCenter(new THREE.Vector3());
 
-      const size = bbox.getSize(new THREE.Vector3())
-      center.z = bbox.min.z + size.z / 2
+      const size = bbox.getSize(new THREE.Vector3());
+      center.z = bbox.min.z + size.z / 2;
 
-      const position = new THREE.Vector3()
-      const up = new THREE.Vector3(0, 0, 1)
+      const position = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 0, 1);
 
       switch (direction) {
         case "top":
-          position.set(center.x, center.y + distance, center.z)
-          up.set(0, 0, 1)
-          break
+          position.set(center.x, center.y + distance, center.z);
+          up.set(0, 0, 1);
+          break;
         case "bottom":
-          position.set(center.x, center.y - distance, center.z)
-          up.set(0, 0, 1)
-          break
+          position.set(center.x, center.y - distance, center.z);
+          up.set(0, 0, 1);
+          break;
         case "front":
-          position.set(center.x, center.y, center.z + distance)
-          up.set(0, 1, 0)
-          break
+          position.set(center.x, center.y, center.z + distance);
+          up.set(0, 1, 0);
+          break;
         case "back":
-          position.set(center.x, center.y, center.z - distance)
-          up.set(0, 1, 0)
-          break
+          position.set(center.x, center.y, center.z - distance);
+          up.set(0, 1, 0);
+          break;
         case "left":
-          position.set(center.x - distance, center.y, center.z)
-          up.set(0, 1, 0)
-          break
+          position.set(center.x - distance, center.y, center.z);
+          up.set(0, 1, 0);
+          break;
         case "right":
-          position.set(center.x + distance, center.y, center.z)
-          up.set(0, 1, 0)
-          break
+          position.set(center.x + distance, center.y, center.z);
+          up.set(0, 1, 0);
+          break;
         case "iso":
-          position.set(center.x + distance * 0.7, center.y + distance * 0.7, center.z + distance * 0.7)
-          up.set(0, 1, 0)
-          break
+          position.set(
+            center.x + distance * 0.7,
+            center.y + distance * 0.7,
+            center.z + distance * 0.7
+          );
+          up.set(0, 1, 0);
+          break;
       }
 
-      controls.setLookAt(position.x, position.y, position.z, center.x, center.y, center.z, true)
+      controls.setLookAt(
+        position.x,
+        position.y,
+        position.z,
+        center.x,
+        center.y,
+        center.z,
+        true
+      );
 
-      controls.update(0)
-      viewer.context.getRenderer().render(viewer.context.getScene(), viewer.context.getCamera())
+      controls.update(0);
+      viewer.context
+        .getRenderer()
+        .render(viewer.context.getScene(), viewer.context.getCamera());
     },
-    [calculateCameraDistance],
-  )
+    [calculateCameraDistance]
+  );
 
   // Fonction pour réinitialiser l'isolation
   const resetIsolation = useCallback(() => {
-    if (!viewerRef.current) return
-    const scene = viewerRef.current.context.getScene()
+    if (!viewerRef.current) return;
+    const scene = viewerRef.current.context.getScene();
     scene.traverse((object) => {
-      object.visible = true
-    })
-    setIsIsolationActive(false)
-  }, [])
+      object.visible = true;
+    });
+    setIsIsolationActive(false);
+  }, []);
 
   // Référence pour les matériaux initiaux
-  const initialMaterials = useRef(new WeakMap<THREE.Object3D, THREE.Material | THREE.Material[]>())
+  const initialMaterials = useRef(
+    new WeakMap<THREE.Object3D, THREE.Material | THREE.Material[]>()
+  );
 
   // Fonction pour définir le style de vue
   const setViewStyleMode = useCallback(
     (style: "shaded" | "wireframe" | "hidden-line" | null) => {
-      if (!viewerRef.current) return
+      if (!viewerRef.current) return;
 
-      const scene = viewerRef.current.context.getScene()
+      const scene = viewerRef.current.context.getScene();
 
       if (activeStyle === style) {
         scene.traverse((object) => {
           if (object instanceof THREE.Mesh) {
-            const original = initialMaterials.current.get(object)
+            const original = initialMaterials.current.get(object);
 
             if (original) {
-              object.material = original
-              object.material.needsUpdate = true
+              object.material = original;
+              object.material.needsUpdate = true;
               if (Array.isArray(object.material)) {
-                object.material.forEach((m) => (m.needsUpdate = true))
+                object.material.forEach((m) => (m.needsUpdate = true));
               }
             }
 
-            const edges = object.children.filter((child) => child instanceof THREE.LineSegments)
-            edges.forEach((edge) => object.remove(edge))
+            const edges = object.children.filter(
+              (child) => child instanceof THREE.LineSegments
+            );
+            edges.forEach((edge) => object.remove(edge));
           }
-        })
-        setActiveStyle(null)
-        return
+        });
+        setActiveStyle(null);
+        return;
       }
 
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           if (!initialMaterials.current.has(object)) {
-            initialMaterials.current.set(object, object.material)
+            initialMaterials.current.set(object, object.material);
           }
 
-          const edges = object.children.filter((child) => child instanceof THREE.LineSegments)
-          edges.forEach((edge) => object.remove(edge))
+          const edges = object.children.filter(
+            (child) => child instanceof THREE.LineSegments
+          );
+          edges.forEach((edge) => object.remove(edge));
 
           const createNewMaterial = () => {
             switch (style) {
@@ -746,82 +861,82 @@ function ViewerPageContent() {
                 return new THREE.MeshPhongMaterial({
                   color: 0xffffff,
                   flatShading: false,
-                })
+                });
               case "wireframe":
                 return new THREE.MeshBasicMaterial({
                   wireframe: true,
                   color: 0x000000,
-                })
+                });
               case "hidden-line":
-                return new THREE.MeshBasicMaterial({ color: 0xffffff })
+                return new THREE.MeshBasicMaterial({ color: 0xffffff });
               default:
-                return null
+                return null;
             }
-          }
+          };
 
-          const newMaterial = createNewMaterial()
-          if (!newMaterial) return
+          const newMaterial = createNewMaterial();
+          if (!newMaterial) return;
 
           if (Array.isArray(object.material)) {
-            object.material = object.material.map(() => newMaterial.clone())
+            object.material = object.material.map(() => newMaterial.clone());
           } else {
-            object.material = newMaterial.clone()
+            object.material = newMaterial.clone();
           }
 
           if (style === "hidden-line") {
-            const edgesGeometry = new THREE.EdgesGeometry(object.geometry)
+            const edgesGeometry = new THREE.EdgesGeometry(object.geometry);
             const edgesMaterial = new THREE.LineBasicMaterial({
               color: 0x000000,
-            })
-            const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial)
-            object.add(edges)
+            });
+            const edges = new THREE.LineSegments(edgesGeometry, edgesMaterial);
+            object.add(edges);
           }
         }
-      })
+      });
 
-      setActiveStyle(style)
+      setActiveStyle(style);
     },
-    [activeStyle],
-  )
+    [activeStyle]
+  );
 
   // Gestionnaire pour les mesures complétées
   const handleMeasurementComplete = (measurement: Measurement) => {
-    console.log("Measurement completed:", measurement)
-  }
+    console.log("Measurement completed:", measurement);
+  };
 
   // Gestionnaire pour effacer toutes les mesures
   const handleClearMeasurements = useCallback(() => {
-    if (!viewerRef.current) return
+    if (!viewerRef.current) return;
 
-    const scene = viewerRef.current.context.getScene()
-    const renderer = viewerRef.current.context.getRenderer()
+    const scene = viewerRef.current.context.getScene();
+    const renderer = viewerRef.current.context.getRenderer();
 
-    const toRemove: (THREE.Object3D | CSS2DObject)[] = []
+    const toRemove: (THREE.Object3D | CSS2DObject)[] = [];
 
     scene.traverse((object) => {
       if (object instanceof THREE.Line || object instanceof CSS2DObject) {
-        toRemove.push(object)
+        toRemove.push(object);
 
         if (object instanceof CSS2DObject && object.element.parentNode) {
-          object.element.parentNode.removeChild(object.element)
+          object.element.parentNode.removeChild(object.element);
         }
       }
-    })
+    });
 
-    toRemove.forEach((obj) => scene.remove(obj))
+    toRemove.forEach((obj) => scene.remove(obj));
 
     if (renderer) {
-      renderer.domElement.innerHTML = ""
+      renderer.domElement.innerHTML = "";
     }
-  }, [])
+  }, []);
 
   // Gestionnaire pour la vue isométrique
   const handleIsoView = useCallback(() => {
-    setView("iso")
-  }, [setView])
+    setView("iso");
+  }, [setView]);
 
   // Vérification du projectId
-  const projectId = searchParams.get("projectId")
+  const projectId = searchParams.get("projectId");
   if (!projectId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -829,7 +944,7 @@ function ViewerPageContent() {
           <AlertDescription>Project ID manquant</AlertDescription>
         </Alert>
       </div>
-    )
+    );
   }
 
   return (
@@ -853,7 +968,7 @@ function ViewerPageContent() {
           disabled={isBIMModeleur}
           onClick={() => {
             if (!isBIMModeleur) {
-              setActiveTool(activeTool === "section" ? null : "section")
+              setActiveTool(activeTool === "section" ? null : "section");
             }
           }}
           title="Plan de coupe"
@@ -861,8 +976,8 @@ function ViewerPageContent() {
             isBIMModeleur
               ? "text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50"
               : activeTool === "section"
-                ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
-                : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
+              ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
+              : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
           }
         >
           <Scissors className="h-5 w-5" />
@@ -873,11 +988,11 @@ function ViewerPageContent() {
           size="icon"
           onClick={() => {
             if (activeTool === "measure") {
-              setActiveTool(null)
-              setMeasurementMode("none")
+              setActiveTool(null);
+              setMeasurementMode("none");
             } else {
-              setActiveTool("measure")
-              setMeasurementMode("distance")
+              setActiveTool("measure");
+              setMeasurementMode("distance");
             }
           }}
           title="Mesurer"
@@ -948,7 +1063,13 @@ function ViewerPageContent() {
               : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
           }
         >
-          <Image src="/images/LigneCaché.png" alt="Icône ombrée" width={24} height={24} className="h-6 w-6" />
+          <Image
+            src="/images/LigneCaché.png"
+            alt="Icône ombrée"
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
         </Button>
 
         <Button
@@ -962,7 +1083,13 @@ function ViewerPageContent() {
               : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
           }
         >
-          <Image src="/images/Image-Filaire.png" alt="Image filaire" width={24} height={24} className="h-6 w-6" />
+          <Image
+            src="/images/Image-Filaire.png"
+            alt="Image filaire"
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
         </Button>
 
         <Button
@@ -976,7 +1103,13 @@ function ViewerPageContent() {
               : "text-gray-700 dark:text-gray-300 hover:text-[#005CA9] dark:hover:text-[#3b82f6]"
           }
         >
-          <Image src="/images/Ligne cachée.png" alt="Ligne cachée" width={24} height={24} className="h-6 w-6" />
+          <Image
+            src="/images/Ligne cachée.png"
+            alt="Ligne cachée"
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
         </Button>
 
         <Button
@@ -986,12 +1119,15 @@ function ViewerPageContent() {
           onClick={() => {
             if (
               typeof window !== "undefined" &&
-              (window as { todoManager?: { exportBCF?: () => void } }).todoManager?.exportBCF
+              (window as { todoManager?: { exportBCF?: () => void } })
+                .todoManager?.exportBCF
             ) {
-              ;(window as { todoManager: { exportBCF: () => void } }).todoManager.exportBCF()
+              (
+                window as { todoManager: { exportBCF: () => void } }
+              ).todoManager.exportBCF();
             } else {
-              console.error("exportBCF function not available")
-              alert("BCF Export functionality is not available.")
+              console.error("exportBCF function not available");
+              alert("BCF Export functionality is not available.");
             }
           }}
           className="flex items-center gap-2 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:text-[#005CA9] dark:hover:border-[#3b82f6] hover:border-[#005CA9] dark:hover:border-[#3b82f6]"
@@ -1026,7 +1162,10 @@ function ViewerPageContent() {
 
       {/* Zone principale du visualiseur */}
       <div className="flex-1 relative">
-        <div ref={containerRef} className="absolute inset-0 bg-white dark:bg-gray-800" />
+        <div
+          ref={containerRef}
+          className="absolute inset-0 bg-white dark:bg-gray-800"
+        />
 
         <div className="absolute top-4 right-4 flex flex-col gap-3 z-20">
           <Button
@@ -1061,7 +1200,7 @@ function ViewerPageContent() {
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
             isActive={activeTool === "section"}
             onSectionCreated={(plane) => {
-              console.log("Nouveau plan de coupe créé:", plane)
+              console.log("Nouveau plan de coupe créé:", plane);
             }}
           />
         )}
@@ -1093,7 +1232,9 @@ function ViewerPageContent() {
                 Mesure d&apos;angle
               </Button>
               <Button
-                variant={measurementMode === "perpendicular" ? "default" : "ghost"}
+                variant={
+                  measurementMode === "perpendicular" ? "default" : "ghost"
+                }
                 onClick={() => setMeasurementMode("perpendicular")}
                 className={
                   measurementMode === "perpendicular"
@@ -1126,7 +1267,12 @@ function ViewerPageContent() {
           />
         )}
 
-        <TodoManager viewerRef={viewerRef} toast={toast} activeTool={activeTool} setActiveTool={setActiveTool} />
+        <TodoManager
+          viewerRef={viewerRef}
+          toast={toast}
+          activeTool={activeTool}
+          setActiveTool={setActiveTool}
+        />
 
         <AnnotationSystem
           viewerRef={viewerRef}
@@ -1136,12 +1282,12 @@ function ViewerPageContent() {
           controls={
             controls as
               | {
-                  target?: THREE.Vector3
-                  target0?: THREE.Vector3
-                  center?: THREE.Vector3
-                  object?: { target?: THREE.Vector3 }
-                  _target?: THREE.Vector3
-                  getTarget?: () => THREE.Vector3
+                  target?: THREE.Vector3;
+                  target0?: THREE.Vector3;
+                  center?: THREE.Vector3;
+                  object?: { target?: THREE.Vector3 };
+                  _target?: THREE.Vector3;
+                  getTarget?: () => THREE.Vector3;
                 }
               | undefined
           }
@@ -1158,13 +1304,19 @@ function ViewerPageContent() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default function ViewerPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Chargement...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          Chargement...
+        </div>
+      }
+    >
       <ViewerPageContent />
     </Suspense>
-  )
+  );
 }

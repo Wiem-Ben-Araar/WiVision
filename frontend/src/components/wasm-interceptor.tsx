@@ -11,24 +11,26 @@ export function WasmInterceptor() {
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
 
-      // Rediriger les requêtes WASM avec logs détaillés
+      // Rediriger les requêtes WASM avec version compatible
       if (url.includes(".wasm")) {
         const filename = url.split("/").pop()
 
-        // Utiliser le CDN unpkg directement pour éviter les problèmes de chemin
-        const newUrl = `https://unpkg.com/web-ifc@0.0.57/${filename}`
+        // Utiliser une version stable et compatible
+        const newUrl = `https://unpkg.com/web-ifc@0.0.44/${filename}`
 
         console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
 
-        // Ajouter des headers pour éviter les problèmes CORS
+        // Headers optimisés pour WASM
         const newInit = {
           ...init,
           headers: {
             ...init?.headers,
             "Cache-Control": "no-cache",
-            Accept: "application/wasm",
+            Accept: "application/wasm,*/*",
+            "Content-Type": "application/wasm",
           },
           mode: "cors" as RequestMode,
+          credentials: "omit" as RequestCredentials,
         }
 
         return originalFetch.call(this, newUrl, newInit)
