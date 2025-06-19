@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-     "postbuild": "cp public/wasm/web-ifc.wasm .next/static/chunks/app/viewer/wasm/web-ifc.wasm",
+     "postbuild": "cp public/wasm/web-ifc.wasm .next/static/chunks/wasm/web-ifc.wasm",
     "lint": "next lint"
     
   },
