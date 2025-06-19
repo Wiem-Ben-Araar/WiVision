@@ -44,6 +44,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+   webpack(config) {
+    // Optionnel : pour que le .wasm soit réellement copié dans .next
+    config.module.rules.push({
+      test: /web-ifc\.wasm$/,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/chunks/wasm/[name][ext]',
+      },
+    });
+    return config;
+  },
 };
 
 export default nextConfig;
