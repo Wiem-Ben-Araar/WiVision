@@ -11,14 +11,23 @@ export function WasmInterceptor() {
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
 
-      // Rediriger les requêtes WASM
+      // Rediriger les requêtes WASM avec logs détaillés
       if (url.includes(".wasm")) {
         const filename = url.split("/").pop()
         const newUrl = `/wasm/${filename}`
 
-        console.log(`🔄 [WASM-INTERCEPT] Redirection: ${url} -> ${newUrl}`)
+        console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
 
-        return originalFetch.call(this, newUrl, init)
+        // Ajouter des headers pour éviter les problèmes CORS
+        const newInit = {
+          ...init,
+          headers: {
+            ...init?.headers,
+            "Cache-Control": "no-cache",
+          },
+        }
+
+        return originalFetch.call(this, newUrl, newInit)
       }
 
       // Requête normale
