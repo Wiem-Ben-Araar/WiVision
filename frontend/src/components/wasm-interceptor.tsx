@@ -14,7 +14,9 @@ export function WasmInterceptor() {
       // Rediriger les requêtes WASM avec logs détaillés
       if (url.includes(".wasm")) {
         const filename = url.split("/").pop()
-        const newUrl = `/wasm/${filename}`
+
+        // Utiliser le CDN unpkg directement pour éviter les problèmes de chemin
+        const newUrl = `https://unpkg.com/web-ifc@0.0.57/${filename}`
 
         console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
 
@@ -24,7 +26,9 @@ export function WasmInterceptor() {
           headers: {
             ...init?.headers,
             "Cache-Control": "no-cache",
+            Accept: "application/wasm",
           },
+          mode: "cors" as RequestMode,
         }
 
         return originalFetch.call(this, newUrl, newInit)
