@@ -178,330 +178,323 @@ function ViewerPageContent() {
   }, [activeTool]);
 
   // Initialisation du visualiseur
-  useEffect(() => {
-    const initViewer = async () => {
-      if (!containerRef.current || initializedRef.current) return;
+// Initialisation du visualiseur - VERSION CORRIGÉE
+useEffect(() => {
+  const initViewer = async () => {
+    if (!containerRef.current || initializedRef.current) return;
+
+    try {
+      console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...");
+      initializedRef.current = true;
+
+      console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...");
+      const viewer = new IfcViewerAPI({
+        container: containerRef.current,
+        backgroundColor: new THREE.Color(0xeeeeee),
+      });
+
+      console.log("💡 [VIEWER-PAGE] Configuration de la scène...");
+      // Configuration de la scène
+      const scene = viewer.context.getScene();
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight1.position.set(1, 2, 3);
+      scene.add(directionalLight1);
+
+      const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight2.position.set(-1, 1, -2);
+      scene.add(directionalLight2);
+
+      const renderer = viewer.context.getRenderer();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // 🔧 CONFIGURATION WASM CORRIGÉE
+      console.log("🔧 [VIEWER-PAGE] Configuration WASM corrigée...");
 
       try {
-        console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...");
-        initializedRef.current = true;
-
-        // Test des chemins WASM disponibles
-        console.log("🔍 [VIEWER-PAGE] Test des chemins WASM disponibles:");
-        const wasmPaths = ["/wasm/web-ifc.wasm", "/static/wasm/web-ifc.wasm"];
-
-        let wasmFound = false;
-        for (const path of wasmPaths) {
-          try {
-            console.log(`   [VIEWER-PAGE] Tentative: ${path}`);
-            const response = await fetch(path, { method: "HEAD" });
-            if (response.ok) {
-              console.log(`   ✅ [VIEWER-PAGE] TROUVÉ: ${path}`);
-              wasmFound = true;
-              break;
-            }
-          } catch (e) {
-            console.log(`   ❌ [VIEWER-PAGE] ÉCHEC: ${path}`);
-          }
-        }
-
-        if (wasmFound) {
-          console.log("✅ [VIEWER-PAGE] WASM accessible: /wasm/web-ifc.wasm");
-        } else {
-          console.warn(
-            "⚠️ [VIEWER-PAGE] Aucun fichier WASM trouvé, mais on continue..."
-          );
-        }
-
-        console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...");
-        const viewer = new IfcViewerAPI({
-          container: containerRef.current,
-          backgroundColor: new THREE.Color(0xeeeeee),
-        });
-
-        console.log("💡 [VIEWER-PAGE] Configuration de la scène...");
-        // Configuration de la scène
-        const scene = viewer.context.getScene();
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight1.position.set(1, 2, 3);
-        scene.add(directionalLight1);
-
-        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight2.position.set(-1, 1, -2);
-        scene.add(directionalLight2);
-
-        const renderer = viewer.context.getRenderer();
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        // 🔧 CONFIGURATION WASM AVANCÉE avec gestion d'erreurs
-        console.log("🔧 [VIEWER-PAGE] Configuration WASM avancée...");
-
-        // Configuration standard du chemin WASM avec fallback
-        try {
-          console.log(
-            "🔧 [VIEWER-PAGE] Tentative de configuration WASM: /wasm/"
-          );
-          viewer.IFC.setWasmPath("/wasm/");
-          console.log("✅ [VIEWER-PAGE] WASM configuré avec succès: /wasm/");
-        } catch (wasmError) {
-          console.warn(
-            "⚠️ [VIEWER-PAGE] Erreur configuration WASM:",
-            wasmError
-          );
-
-          // Fallback: essayer avec un chemin différent
-          try {
-            viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/");
-            console.log("✅ [VIEWER-PAGE] WASM configuré avec fallback CDN");
-          } catch (fallbackError) {
-            console.error(
-              "❌ [VIEWER-PAGE] Échec configuration WASM:",
-              fallbackError
-            );
-          }
-        }
-
+        // 1. Définir le chemin WASM avec version stable
+        console.log("🔧 [VIEWER-PAGE] Configuration chemin WASM...");
+        await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.57/");
+        
+        // 2. Configuration des options IFC AVANT le chargement
         console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...");
         viewer.clipper.active = true;
+        
+        // 3. Attendre que le WASM soit prêt
+        console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 4. Configuration avancée du manager IFC
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         });
 
-        // Gestionnaire de clic
-        if (containerRef.current) {
-          containerRef.current.onclick = async () => {
-            if (isBIMModeleur) return;
-            if (
-              activeToolRef.current === "section" ||
-              activeToolRef.current === "hide" ||
-              activeToolRef.current === "comment" ||
-              activeToolRef.current === "notes"
-            )
-              return;
+        console.log("✅ [VIEWER-PAGE] WASM configuré avec succès");
 
-            try {
-              const result = await viewer.IFC.selector.pickIfcItem(false);
+      } catch (wasmError) {
+        console.warn("⚠️ [VIEWER-PAGE] Erreur configuration WASM:", wasmError);
+        
+        // Fallback avec version plus ancienne
+        try {
+          console.log("🔧 [VIEWER-PAGE] Tentative avec version fallback...");
+          await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/");
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          viewer.IFC.loader.ifcManager.applyWebIfcConfig({
+            COORDINATE_TO_ORIGIN: true,
+            USE_FAST_BOOLS: false,
+          });
+          
+          console.log("✅ [VIEWER-PAGE] WASM configuré avec version fallback");
+        } catch (fallbackError) {
+          console.error("❌ [VIEWER-PAGE] Échec configuration WASM:", fallbackError);
+          throw new Error("Impossible de charger le module WASM");
+        }
+      }
 
-              if (!result) {
-                viewer.IFC.selector.unpickIfcItems();
-                setSelectedElement(null);
-                setSelectedModelID(null);
-                setIsSidebarOpen(false);
-                return;
-              }
+      // Gestionnaire de clic (reste identique)
+      if (containerRef.current) {
+        containerRef.current.onclick = async () => {
+          if (isBIMModeleur) return;
+          if (
+            activeToolRef.current === "section" ||
+            activeToolRef.current === "hide" ||
+            activeToolRef.current === "comment" ||
+            activeToolRef.current === "notes"
+          )
+            return;
 
-              const modelID = result.modelID;
-              const ifcManager = viewer.IFC.loader.ifcManager;
+          try {
+            const result = await viewer.IFC.selector.pickIfcItem(false);
 
-              if (
-                !ifcManager ||
-                !ifcManager.state ||
-                !ifcManager.state.models
-              ) {
-                console.warn("IFC Manager ou son état n'est pas disponible");
-                return;
-              }
-
-              const model = ifcManager.state.models[modelID] as IfcModel;
-
-              if (model && model.mesh && model.mesh.visible) {
-                setSelectedElement(result.id);
-                setSelectedModelID(modelID);
-                setIsSidebarOpen(true);
-              } else {
-                viewer.IFC.selector.unpickIfcItems();
-                console.log(
-                  "Sélection ignorée: le modèle est masqué ou invalide"
-                );
-              }
-            } catch (err) {
-              console.error("Erreur lors de la sélection:", err);
+            if (!result) {
+              viewer.IFC.selector.unpickIfcItems();
               setSelectedElement(null);
               setSelectedModelID(null);
               setIsSidebarOpen(false);
+              return;
             }
-          };
-        }
 
-        // Chargement des fichiers avec progression
-        console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...");
-        const filesParam = searchParams.get("files");
-        if (filesParam) {
-          const fileURLs = JSON.parse(filesParam) as string[];
-          const totalFiles = fileURLs.length;
-          console.log(
-            `📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`,
-            fileURLs
-          );
+            const modelID = result.modelID;
+            const ifcManager = viewer.IFC.loader.ifcManager;
 
-          setLoadingProgress({
-            isVisible: true,
-            currentFile: "",
-            currentFileIndex: 0,
-            totalFiles: totalFiles,
-            progress: 0,
-            loadedModels: [],
-          });
+            if (
+              !ifcManager ||
+              !ifcManager.state ||
+              !ifcManager.state.models
+            ) {
+              console.warn("IFC Manager ou son état n'est pas disponible");
+              return;
+            }
 
-          const newModels = [];
-          const loadedModelNames: string[] = [];
+            const model = ifcManager.state.models[modelID];
 
-          for (let i = 0; i < fileURLs.length; i++) {
-            const url = fileURLs[i];
-
-            const decodedUrl = decodeURIComponent(decodeURIComponent(url));
-            const filenamePart = decodedUrl.split("/").pop() || "";
-            const displayName = filenamePart
-              .replace(/(\d+_)/, "")
-              .replace(/\?.*/, "")
-              .replace(/\.ifc$/, "")
-              .replace(/_/g, " ");
-
-            console.log(
-              `📄 [VIEWER-PAGE] Chargement du fichier ${
-                i + 1
-              }/${totalFiles}: ${displayName}`
-            );
-
-            setLoadingProgress((prev) => ({
-              ...prev,
-              currentFile: displayName,
-              currentFileIndex: i,
-              progress: 0,
-            }));
-
-            try {
-              const progressInterval = setInterval(() => {
-                setLoadingProgress((prev) => ({
-                  ...prev,
-                  progress: Math.min(prev.progress + Math.random() * 15, 90),
-                }));
-              }, 200);
-
-              const model = await viewer.IFC.loadIfcUrl(url);
-
-              clearInterval(progressInterval);
-
-              if (model?.mesh && model.modelID !== undefined) {
-                const cleanName = displayName || `Modèle-${model.modelID}`;
-                console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName}`);
-
-                newModels.push({
-                  id: String(model.modelID),
-                  name: cleanName,
-                  url: url,
-                  visible: true,
-                });
-
-                loadedModelNames.push(cleanName);
-
-                setLoadingProgress((prev) => ({
-                  ...prev,
-                  progress: 100,
-                  loadedModels: [...loadedModelNames],
-                }));
-
-                await new Promise((resolve) => setTimeout(resolve, 300));
-              }
-            } catch (loadError) {
-              console.error(
-                `❌ [VIEWER-PAGE] Échec du chargement: ${url}`,
-                loadError
+            if (model && model.mesh && model.mesh.visible) {
+              setSelectedElement(result.id);
+              setSelectedModelID(modelID);
+              setIsSidebarOpen(true);
+            } else {
+              viewer.IFC.selector.unpickIfcItems();
+              console.log(
+                "Sélection ignorée: le modèle est masqué ou invalide"
               );
             }
+          } catch (err) {
+            console.error("Erreur lors de la sélection:", err);
+            setSelectedElement(null);
+            setSelectedModelID(null);
+            setIsSidebarOpen(false);
           }
+        };
+      }
+
+      // Chargement des fichiers avec gestion d'erreur améliorée
+      console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...");
+      const filesParam = searchParams.get("files");
+      if (filesParam) {
+        const fileURLs = JSON.parse(filesParam);
+        const totalFiles = fileURLs.length;
+        console.log(
+          `📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`,
+          fileURLs
+        );
+
+        setLoadingProgress({
+          isVisible: true,
+          currentFile: "",
+          currentFileIndex: 0,
+          totalFiles: totalFiles,
+          progress: 0,
+          loadedModels: [],
+        });
+
+        const newModels = [];
+        interface LoadedModelNames extends Array<string> {}
+        const loadedModelNames: LoadedModelNames = [];
+
+        for (let i = 0; i < fileURLs.length; i++) {
+          const url = fileURLs[i];
+
+          const decodedUrl = decodeURIComponent(decodeURIComponent(url));
+          const filenamePart = decodedUrl.split("/").pop() || "";
+          const displayName = filenamePart
+            .replace(/(\d+_)/, "")
+            .replace(/\?.*/, "")
+            .replace(/\.ifc$/, "")
+            .replace(/_/g, " ");
+
+          console.log(
+            `📄 [VIEWER-PAGE] Chargement du fichier ${
+              i + 1
+            }/${totalFiles}: ${displayName}`
+          );
 
           setLoadingProgress((prev) => ({
             ...prev,
-            currentFileIndex: totalFiles,
-            progress: 100,
+            currentFile: displayName,
+            currentFileIndex: i,
+            progress: 0,
           }));
 
-          setTimeout(() => {
-            setLoadingProgress((prev) => ({
-              ...prev,
-              isVisible: false,
-            }));
-          }, 1000);
+          try {
+            const progressInterval = setInterval(() => {
+              setLoadingProgress((prev) => ({
+                ...prev,
+                progress: Math.min(prev.progress + Math.random() * 15, 90),
+              }));
+            }, 200);
 
-          setLoadedModels(newModels);
-          console.log(
-            `✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`
-          );
+            // Chargement avec retry en cas d'échec
+            let model = null;
+            let retryCount = 0;
+            const maxRetries = 3;
 
-          // Configuration de la caméra
-          if (newModels.length > 0) {
-            try {
-              scene.updateMatrixWorld(true);
-              const bbox = new THREE.Box3();
-
-              scene.traverse((object) => {
-                if (object instanceof THREE.Mesh && object.geometry) {
-                  bbox.expandByObject(object);
+            while (retryCount < maxRetries && !model) {
+              try {
+                console.log(`📄 [VIEWER-PAGE] Tentative ${retryCount + 1}/${maxRetries} pour ${displayName}`);
+                model = await viewer.IFC.loadIfcUrl(url);
+                break;
+              } catch (loadError) {
+                retryCount++;
+                console.warn(`⚠️ [VIEWER-PAGE] Échec tentative ${retryCount}:`, loadError);
+                if (retryCount < maxRetries) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
                 }
+              }
+            }
+
+            clearInterval(progressInterval);
+
+            if (model?.mesh && model.modelID !== undefined) {
+              const cleanName = displayName || `Modèle-${model.modelID}`;
+              console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName}`);
+
+              newModels.push({
+                id: String(model.modelID),
+                name: cleanName,
+                url: url,
+                visible: true,
               });
 
-              if (bbox.isEmpty()) {
-                bbox.set(
-                  new THREE.Vector3(-5, -5, -5),
-                  new THREE.Vector3(5, 5, 5)
-                );
+              loadedModelNames.push(cleanName);
+
+              setLoadingProgress((prev) => ({
+                ...prev,
+                progress: 100,
+                loadedModels: [...loadedModelNames],
+              }));
+
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            } else {
+              console.error(`❌ [VIEWER-PAGE] Échec du chargement après ${maxRetries} tentatives: ${url}`);
+            }
+          } catch (loadError) {
+            console.error(
+              `❌ [VIEWER-PAGE] Erreur critique lors du chargement: ${url}`,
+              loadError
+            );
+          }
+        }
+
+        // Reste du code de configuration de la caméra identique...
+        setLoadingProgress((prev) => ({
+          ...prev,
+          currentFileIndex: totalFiles,
+          progress: 100,
+        }));
+
+        setTimeout(() => {
+          setLoadingProgress((prev) => ({
+            ...prev,
+            isVisible: false,
+          }));
+        }, 1000);
+
+        setLoadedModels(newModels);
+        console.log(
+          `✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`
+        );
+
+        // Configuration de la caméra (reste identique)
+        if (newModels.length > 0) {
+          try {
+            scene.updateMatrixWorld(true);
+            const bbox = new THREE.Box3();
+
+            scene.traverse((object) => {
+              if (object instanceof THREE.Mesh && object.geometry) {
+                bbox.expandByObject(object);
               }
+            });
 
-              const center = new THREE.Vector3();
-              const size = new THREE.Vector3();
-              bbox.getCenter(center);
-              bbox.getSize(size);
-              const maxDim = Math.max(size.x, size.y, size.z);
+            if (bbox.isEmpty()) {
+              bbox.set(
+                new THREE.Vector3(-5, -5, -5),
+                new THREE.Vector3(5, 5, 5)
+              );
+            }
 
-              const camera = viewer.context.getCamera();
-              if (camera instanceof THREE.PerspectiveCamera) {
-                camera.near = Math.max(0.1, maxDim * 0.001);
-                camera.far = Math.max(1000, maxDim * 10);
-                camera.updateProjectionMatrix();
-              }
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            bbox.getCenter(center);
+            bbox.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
 
-              const cameraOffsetX = center.x + maxDim;
-              const cameraOffsetY = center.y + maxDim * 0.5;
-              const cameraOffsetZ = center.z + maxDim;
+            const camera = viewer.context.getCamera();
+            if (camera instanceof THREE.PerspectiveCamera) {
+              camera.near = Math.max(0.1, maxDim * 0.001);
+              camera.far = Math.max(1000, maxDim * 10);
+              camera.updateProjectionMatrix();
+            }
 
-              if (
-                isFinite(cameraOffsetX) &&
-                isFinite(cameraOffsetY) &&
-                isFinite(cameraOffsetZ) &&
-                isFinite(center.x) &&
-                isFinite(center.y) &&
-                isFinite(center.z)
-              ) {
-                viewer.context.ifcCamera.cameraControls.setLookAt(
-                  cameraOffsetX,
-                  cameraOffsetY,
-                  cameraOffsetZ,
-                  center.x,
-                  center.y,
-                  center.z,
-                  true
-                );
-              } else {
-                viewer.context.ifcCamera.cameraControls.setLookAt(
-                  10,
-                  10,
-                  10,
-                  0,
-                  0,
-                  0,
-                  true
-                );
-              }
-            } catch (cameraError) {
-              console.error("Error setting up camera:", cameraError);
+            const cameraOffsetX = center.x + maxDim;
+            const cameraOffsetY = center.y + maxDim * 0.5;
+            const cameraOffsetZ = center.z + maxDim;
+
+            if (
+              isFinite(cameraOffsetX) &&
+              isFinite(cameraOffsetY) &&
+              isFinite(cameraOffsetZ) &&
+              isFinite(center.x) &&
+              isFinite(center.y) &&
+              isFinite(center.z)
+            ) {
+              viewer.context.ifcCamera.cameraControls.setLookAt(
+                cameraOffsetX,
+                cameraOffsetY,
+                cameraOffsetZ,
+                center.x,
+                center.y,
+                center.z,
+                true
+              );
+            } else {
               viewer.context.ifcCamera.cameraControls.setLookAt(
                 10,
                 10,
@@ -512,40 +505,52 @@ function ViewerPageContent() {
                 true
               );
             }
-          } else {
-            setError("Aucun modèle n'a pu être chargé");
-            setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
+          } catch (cameraError) {
+            console.error("Error setting up camera:", cameraError);
+            viewer.context.ifcCamera.cameraControls.setLookAt(
+              10,
+              10,
+              10,
+              0,
+              0,
+              0,
+              true
+            );
           }
+        } else {
+          setError("Aucun modèle n'a pu être chargé");
+          setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
         }
-
-        viewerRef.current = viewer;
-        console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!");
-      } catch (initError) {
-        console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError);
-        setError(
-          "Échec de l'initialisation du visualiseur: " +
-            (initError instanceof Error ? initError.message : String(initError))
-        );
-        initializedRef.current = false;
-        setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
       }
-    };
 
-    initViewer();
+      viewerRef.current = viewer;
+      console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!");
+    } catch (initError) {
+      console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError);
+      setError(
+        "Échec de l'initialisation du visualiseur: " +
+          (initError instanceof Error ? initError.message : String(initError))
+      );
+      initializedRef.current = false;
+      setLoadingProgress((prev) => ({ ...prev, isVisible: false }));
+    }
+  };
 
-    return () => {
-      if (viewerRef.current) {
-        try {
-          console.log("🧹 [VIEWER-PAGE] Nettoyage du visualiseur...");
-          viewerRef.current.dispose();
-        } catch (cleanupError) {
-          console.error("Erreur lors du nettoyage:", cleanupError);
-        }
-        viewerRef.current = null;
-        initializedRef.current = false;
+  initViewer();
+
+  return () => {
+    if (viewerRef.current) {
+      try {
+        console.log("🧹 [VIEWER-PAGE] Nettoyage du visualiseur...");
+        viewerRef.current.dispose();
+      } catch (cleanupError) {
+        console.error("Erreur lors du nettoyage:", cleanupError);
       }
-    };
-  }, [searchParams, isBIMModeleur]);
+      viewerRef.current = null;
+      initializedRef.current = false;
+    }
+  };
+}, [searchParams, isBIMModeleur]);
 
   // Configuration des contrôles de caméra
   useEffect(() => {
