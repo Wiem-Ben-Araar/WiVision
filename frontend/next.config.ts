@@ -8,10 +8,10 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   output: "standalone",
-
-  webpack: (config, { isServer }) => {
-    // Configuration expérimentale pour WASM
-    config.experiments = { 
+  
+  webpack: (config, { isServer, dev }) => {
+    // Configuration WASM complète
+    config.experiments = {
       asyncWebAssembly: true,
       layers: true,
       topLevelAwait: true,
@@ -25,22 +25,53 @@ const nextConfig: NextConfig = {
       crypto: false,
     };
 
-    // Règle unique pour les fichiers WASM
+    // Règle pour fichiers WASM - CORRIGÉE
     config.module.rules.push({
       test: /\.wasm$/,
       type: 'asset/resource',
       generator: {
-        filename: 'static/wasm/[name][ext]'
+        filename: 'static/wasm/[name].[hash][ext]'
       }
     });
+
+    // Règle pour copier les fichiers WASM depuis public
+    if (!isServer) {
+      config.module.rules.push({
+        test: /\.wasm$/,
+        use: {
+          loader: 'file-loader',
+          options: {
+            publicPath: '/_next/static/wasm/',
+            outputPath: 'static/wasm/',
+          },
+        },
+      });
+    }
 
     return config;
   },
 
-  // Configuration pour servir les fichiers WASM correctement
+  // Headers corrigés
   async headers() {
     return [
-      // Headers pour les fichiers WASM
+      // Headers pour WASM - TOUS LES CHEMINS POSSIBLES
+      {
+        source: '/wasm/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/wasm',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
       {
         source: '/static/wasm/:path*',
         headers: [
@@ -58,7 +89,24 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Headers CSP généraux
+      {
+        source: '/_next/static/wasm/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/wasm',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+      // CSP mis à jour
       {
         source: '/(.*)',
         headers: [
@@ -85,9 +133,15 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Réécritures pour API seulement
+  // Rewrites pour WASM ET API
   async rewrites() {
     return [
+      // Redirection pour fichiers WASM
+      {
+        source: '/wasm/:path*',
+        destination: '/static/wasm/:path*',
+      },
+      // API
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
