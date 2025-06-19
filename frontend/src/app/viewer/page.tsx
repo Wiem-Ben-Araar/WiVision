@@ -189,6 +189,7 @@ function ViewerPageContent() {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
         await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/");
+        //
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
