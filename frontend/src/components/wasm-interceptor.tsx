@@ -11,12 +11,10 @@ export function WasmInterceptor() {
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
 
-      // Rediriger les requêtes WASM avec version compatible
-      if (url.includes(".wasm")) {
-        const filename = url.split("/").pop()
-
-        // Utiliser une version stable et compatible
-        const newUrl = `https://unpkg.com/web-ifc@0.0.44/${filename}`
+      // Rediriger TOUTES les requêtes WASM vers la version compatible
+      if (url.includes(".wasm") || url.includes("web-ifc")) {
+        // Forcer la version 0.0.44 pour TOUS les fichiers WASM
+        const newUrl = "https://unpkg.com/web-ifc@0.0.44/web-ifc.wasm"
 
         console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
 
