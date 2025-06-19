@@ -5,20 +5,18 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { IFCLoader } from "web-ifc-three/IFCLoader";
 import { Button } from "@/components/ui/button";
-import {ZoomIn, ZoomOut, RotateCw, Home } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCw, Home } from "lucide-react";
 
 export default function IFCViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
- 
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
   const [controls, setControls] = useState<OrbitControls | null>(null);
-
   const [isAutoRotating, setIsAutoRotating] = useState(false);
   const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    const currentContainer = containerRef.current; // Stockez la référence actuelle
+    const currentContainer = containerRef.current;
   
     if (!currentContainer) return;
   
@@ -56,9 +54,16 @@ export default function IFCViewer() {
     const grid = new THREE.GridHelper(50, 50);
     newScene.add(grid);
   
-    // IFC Loader setup
+    // IFC Loader setup with corrected WASM path
     const newIfcLoader = new IFCLoader();
-    newIfcLoader.ifcManager.setWasmPath("/wasm/");
+    
+    // Try different WASM paths based on environment
+    const wasmPath = process.env.NODE_ENV === 'production' 
+      ? "/wasm/" 
+      : "/wasm/";
+    
+    console.log("Setting WASM path to:", wasmPath);
+    newIfcLoader.ifcManager.setWasmPath(wasmPath);
   
     setCamera(newCamera);
     setRenderer(newRenderer);
@@ -78,7 +83,9 @@ export default function IFCViewer() {
         cancelAnimationFrame(animationFrameId.current);
       }
       newRenderer.dispose();
-      currentContainer.removeChild(newRenderer.domElement);
+      if (currentContainer.contains(newRenderer.domElement)) {
+        currentContainer.removeChild(newRenderer.domElement);
+      }
     };
   }, []);
 

@@ -158,270 +158,277 @@ function ViewerPageContent() {
   }, [activeTool])
 
   // Initialisation du visualiseur
-  useEffect(() => {
-    const initViewer = async () => {
-      if (!containerRef.current || initializedRef.current) return
+useEffect(() => {
+  const initViewer = async () => {
+    if (!containerRef.current || initializedRef.current) return
 
-      try {
-        initializedRef.current = true
-        const viewer = new IfcViewerAPI({
-          container: containerRef.current,
-          backgroundColor: new THREE.Color(0xeeeeee),
-        })
+    try {
+      initializedRef.current = true
+      const viewer = new IfcViewerAPI({
+        container: containerRef.current,
+        backgroundColor: new THREE.Color(0xeeeeee),
+      })
 
-        // Configuration de la scène
-        const scene = viewer.context.getScene()
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-        scene.add(ambientLight)
+      // Configuration de la scène
+      const scene = viewer.context.getScene()
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+      scene.add(ambientLight)
 
-        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8)
-        directionalLight1.position.set(1, 2, 3)
-        scene.add(directionalLight1)
+      const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8)
+      directionalLight1.position.set(1, 2, 3)
+      scene.add(directionalLight1)
 
-        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5)
-        directionalLight2.position.set(-1, 1, -2)
-        scene.add(directionalLight2)
+      const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5)
+      directionalLight2.position.set(-1, 1, -2)
+      scene.add(directionalLight2)
 
-        const renderer = viewer.context.getRenderer()
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-        renderer.outputColorSpace = THREE.SRGBColorSpace
-        renderer.shadowMap.enabled = true
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      const renderer = viewer.context.getRenderer()
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+      renderer.outputColorSpace = THREE.SRGBColorSpace
+      renderer.shadowMap.enabled = true
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("wasm/")
-        viewer.clipper.active = true
-        viewer.IFC.loader.ifcManager.applyWebIfcConfig({
-          COORDINATE_TO_ORIGIN: true,
-          USE_FAST_BOOLS: false,
-        })
+      // Configuration WASM corrigée
+      const wasmPath = process.env.NODE_ENV === 'production' 
+        ? "/wasm/" 
+        : "/wasm/";
+      
+      console.log("Setting WASM path to:", wasmPath);
+      await viewer.IFC.setWasmPath(wasmPath)
+      
+      viewer.clipper.active = true
+      viewer.IFC.loader.ifcManager.applyWebIfcConfig({
+        COORDINATE_TO_ORIGIN: true,
+        USE_FAST_BOOLS: false,
+      })
 
-        // Gestionnaire de clic
-        if (containerRef.current) {
-          containerRef.current.onclick = async () => {
-            if (isBIMModeleur) return
-            if (
-              activeToolRef.current === "section" ||
-              activeToolRef.current === "hide" ||
-              activeToolRef.current === "comment" ||
-              activeToolRef.current === "notes"
-            )
-              return
+      // Gestionnaire de clic
+      if (containerRef.current) {
+        containerRef.current.onclick = async () => {
+          if (isBIMModeleur) return
+          if (
+            activeToolRef.current === "section" ||
+            activeToolRef.current === "hide" ||
+            activeToolRef.current === "comment" ||
+            activeToolRef.current === "notes"
+          )
+            return
 
-            try {
-              const result = await viewer.IFC.selector.pickIfcItem(false)
+          try {
+            const result = await viewer.IFC.selector.pickIfcItem(false)
 
-              if (!result) {
-                viewer.IFC.selector.unpickIfcItems()
-                setSelectedElement(null)
-                setSelectedModelID(null)
-                setIsSidebarOpen(false)
-                return
-              }
-
-              const modelID = result.modelID
-              const ifcManager = viewer.IFC.loader.ifcManager
-
-              if (!ifcManager || !ifcManager.state || !ifcManager.state.models) {
-                console.warn("IFC Manager ou son état n'est pas disponible")
-                return
-              }
-
-              const model = ifcManager.state.models[modelID] as IfcModel
-
-              if (model && model.mesh && model.mesh.visible) {
-                setSelectedElement(result.id)
-                setSelectedModelID(modelID)
-                setIsSidebarOpen(true)
-              } else {
-                viewer.IFC.selector.unpickIfcItems()
-                console.log("Sélection ignorée: le modèle est masqué ou invalide")
-              }
-            } catch (err) {
-              console.error("Erreur lors de la sélection:", err)
+            if (!result) {
+              viewer.IFC.selector.unpickIfcItems()
               setSelectedElement(null)
               setSelectedModelID(null)
               setIsSidebarOpen(false)
+              return
             }
+
+            const modelID = result.modelID
+            const ifcManager = viewer.IFC.loader.ifcManager
+
+            if (!ifcManager || !ifcManager.state || !ifcManager.state.models) {
+              console.warn("IFC Manager ou son état n'est pas disponible")
+              return
+            }
+
+            const model = ifcManager.state.models[modelID] as IfcModel
+
+            if (model && model.mesh && model.mesh.visible) {
+              setSelectedElement(result.id)
+              setSelectedModelID(modelID)
+              setIsSidebarOpen(true)
+            } else {
+              viewer.IFC.selector.unpickIfcItems()
+              console.log("Sélection ignorée: le modèle est masqué ou invalide")
+            }
+          } catch (err) {
+            console.error("Erreur lors de la sélection:", err)
+            setSelectedElement(null)
+            setSelectedModelID(null)
+            setIsSidebarOpen(false)
           }
         }
+      }
 
-        // Chargement des fichiers avec progression
-        const filesParam = searchParams.get("files")
-        if (filesParam) {
-          const fileURLs = JSON.parse(filesParam) as string[]
-          const totalFiles = fileURLs.length
+      // Chargement des fichiers avec progression
+      const filesParam = searchParams.get("files")
+      if (filesParam) {
+        const fileURLs = JSON.parse(filesParam) as string[]
+        const totalFiles = fileURLs.length
 
-          setLoadingProgress({
-            isVisible: true,
-            currentFile: "",
-            currentFileIndex: 0,
-            totalFiles: totalFiles,
-            progress: 0,
-            loadedModels: [],
-          })
+        setLoadingProgress({
+          isVisible: true,
+          currentFile: "",
+          currentFileIndex: 0,
+          totalFiles: totalFiles,
+          progress: 0,
+          loadedModels: [],
+        })
 
-          const newModels = []
-          const loadedModelNames: string[] = []
+        const newModels = []
+        const loadedModelNames: string[] = []
 
-          for (let i = 0; i < fileURLs.length; i++) {
-            const url = fileURLs[i]
+        for (let i = 0; i < fileURLs.length; i++) {
+          const url = fileURLs[i]
 
-            const decodedUrl = decodeURIComponent(decodeURIComponent(url))
-            const filenamePart = decodedUrl.split("/").pop() || ""
-            const displayName = filenamePart
-              .replace(/(\d+_)/, "")
-              .replace(/\?.*/, "")
-              .replace(/\.ifc$/, "")
-              .replace(/_/g, " ")
-
-            setLoadingProgress((prev) => ({
-              ...prev,
-              currentFile: displayName,
-              currentFileIndex: i,
-              progress: 0,
-            }))
-
-            try {
-              const progressInterval = setInterval(() => {
-                setLoadingProgress((prev) => ({
-                  ...prev,
-                  progress: Math.min(prev.progress + Math.random() * 15, 90),
-                }))
-              }, 200)
-
-              const model = await viewer.IFC.loadIfcUrl(url)
-
-              clearInterval(progressInterval)
-
-              if (model?.mesh && model.modelID !== undefined) {
-                const cleanName = displayName || `Modèle-${model.modelID}`
-
-                newModels.push({
-                  id: String(model.modelID),
-                  name: cleanName,
-                  url: url,
-                  visible: true,
-                })
-
-                loadedModelNames.push(cleanName)
-
-                setLoadingProgress((prev) => ({
-                  ...prev,
-                  progress: 100,
-                  loadedModels: [...loadedModelNames],
-                }))
-
-                await new Promise((resolve) => setTimeout(resolve, 300))
-              }
-            } catch (loadError) {
-              console.error(`Échec du chargement: ${url}`, loadError)
-            }
-          }
+          const decodedUrl = decodeURIComponent(decodeURIComponent(url))
+          const filenamePart = decodedUrl.split("/").pop() || ""
+          const displayName = filenamePart
+            .replace(/(\d+_)/, "")
+            .replace(/\?.*/, "")
+            .replace(/\.ifc$/, "")
+            .replace(/_/g, " ")
 
           setLoadingProgress((prev) => ({
             ...prev,
-            currentFileIndex: totalFiles,
-            progress: 100,
+            currentFile: displayName,
+            currentFileIndex: i,
+            progress: 0,
           }))
 
-          setTimeout(() => {
-            setLoadingProgress((prev) => ({
-              ...prev,
-              isVisible: false,
-            }))
-          }, 1000)
+          try {
+            const progressInterval = setInterval(() => {
+              setLoadingProgress((prev) => ({
+                ...prev,
+                progress: Math.min(prev.progress + Math.random() * 15, 90),
+              }))
+            }, 200)
 
-          setLoadedModels(newModels)
+            const model = await viewer.IFC.loadIfcUrl(url)
 
-          // Configuration de la caméra
-          if (newModels.length > 0) {
-            try {
-              scene.updateMatrixWorld(true)
-              const bbox = new THREE.Box3()
+            clearInterval(progressInterval)
 
-              scene.traverse((object) => {
-                if (object instanceof THREE.Mesh && object.geometry) {
-                  bbox.expandByObject(object)
-                }
+            if (model?.mesh && model.modelID !== undefined) {
+              const cleanName = displayName || `Modèle-${model.modelID}`
+
+              newModels.push({
+                id: String(model.modelID),
+                name: cleanName,
+                url: url,
+                visible: true,
               })
 
-              if (bbox.isEmpty()) {
-                bbox.set(new THREE.Vector3(-5, -5, -5), new THREE.Vector3(5, 5, 5))
-              }
+              loadedModelNames.push(cleanName)
 
-              const center = new THREE.Vector3()
-              const size = new THREE.Vector3()
-              bbox.getCenter(center)
-              bbox.getSize(size)
-              const maxDim = Math.max(size.x, size.y, size.z)
+              setLoadingProgress((prev) => ({
+                ...prev,
+                progress: 100,
+                loadedModels: [...loadedModelNames],
+              }))
 
-              const camera = viewer.context.getCamera()
-              if (camera instanceof THREE.PerspectiveCamera) {
-                camera.near = Math.max(0.1, maxDim * 0.001)
-                camera.far = Math.max(1000, maxDim * 10)
-                camera.updateProjectionMatrix()
-              }
-
-              const cameraOffsetX = center.x + maxDim
-              const cameraOffsetY = center.y + maxDim * 0.5
-              const cameraOffsetZ = center.z + maxDim
-
-              if (
-                isFinite(cameraOffsetX) &&
-                isFinite(cameraOffsetY) &&
-                isFinite(cameraOffsetZ) &&
-                isFinite(center.x) &&
-                isFinite(center.y) &&
-                isFinite(center.z)
-              ) {
-                viewer.context.ifcCamera.cameraControls.setLookAt(
-                  cameraOffsetX,
-                  cameraOffsetY,
-                  cameraOffsetZ,
-                  center.x,
-                  center.y,
-                  center.z,
-                  true,
-                )
-              } else {
-                viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
-              }
-            } catch (cameraError) {
-              console.error("Error setting up camera:", cameraError)
-              viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+              await new Promise((resolve) => setTimeout(resolve, 300))
             }
-          } else {
-            setError("Aucun modèle n'a pu être chargé")
-            setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
+          } catch (loadError) {
+            console.error(`Échec du chargement: ${url}`, loadError)
           }
         }
 
-        viewerRef.current = viewer
-      } catch (initError) {
-        console.error("Erreur d'initialisation:", initError)
-        setError(
-          "Échec de l'initialisation du visualiseur: " +
-            (initError instanceof Error ? initError.message : String(initError)),
-        )
-        initializedRef.current = false
-        setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
-      }
-    }
+        setLoadingProgress((prev) => ({
+          ...prev,
+          currentFileIndex: totalFiles,
+          progress: 100,
+        }))
 
-    initViewer()
+        setTimeout(() => {
+          setLoadingProgress((prev) => ({
+            ...prev,
+            isVisible: false,
+          }))
+        }, 1000)
 
-    return () => {
-      if (viewerRef.current) {
-        try {
-          viewerRef.current.dispose()
-        } catch (cleanupError) {
-          console.error("Erreur lors du nettoyage:", cleanupError)
+        setLoadedModels(newModels)
+
+        // Configuration de la caméra
+        if (newModels.length > 0) {
+          try {
+            scene.updateMatrixWorld(true)
+            const bbox = new THREE.Box3()
+
+            scene.traverse((object) => {
+              if (object instanceof THREE.Mesh && object.geometry) {
+                bbox.expandByObject(object)
+              }
+            })
+
+            if (bbox.isEmpty()) {
+              bbox.set(new THREE.Vector3(-5, -5, -5), new THREE.Vector3(5, 5, 5))
+            }
+
+            const center = new THREE.Vector3()
+            const size = new THREE.Vector3()
+            bbox.getCenter(center)
+            bbox.getSize(size)
+            const maxDim = Math.max(size.x, size.y, size.z)
+
+            const camera = viewer.context.getCamera()
+            if (camera instanceof THREE.PerspectiveCamera) {
+              camera.near = Math.max(0.1, maxDim * 0.001)
+              camera.far = Math.max(1000, maxDim * 10)
+              camera.updateProjectionMatrix()
+            }
+
+            const cameraOffsetX = center.x + maxDim
+            const cameraOffsetY = center.y + maxDim * 0.5
+            const cameraOffsetZ = center.z + maxDim
+
+            if (
+              isFinite(cameraOffsetX) &&
+              isFinite(cameraOffsetY) &&
+              isFinite(cameraOffsetZ) &&
+              isFinite(center.x) &&
+              isFinite(center.y) &&
+              isFinite(center.z)
+            ) {
+              viewer.context.ifcCamera.cameraControls.setLookAt(
+                cameraOffsetX,
+                cameraOffsetY,
+                cameraOffsetZ,
+                center.x,
+                center.y,
+                center.z,
+                true,
+              )
+            } else {
+              viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+            }
+          } catch (cameraError) {
+            console.error("Error setting up camera:", cameraError)
+            viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+          }
+        } else {
+          setError("Aucun modèle n'a pu être chargé")
+          setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
         }
-        viewerRef.current = null
-        initializedRef.current = false
       }
+
+      viewerRef.current = viewer
+    } catch (initError) {
+      console.error("Erreur d'initialisation:", initError)
+      setError(
+        "Échec de l'initialisation du visualiseur: " +
+          (initError instanceof Error ? initError.message : String(initError)),
+      )
+      initializedRef.current = false
+      setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
     }
-  }, [searchParams, isBIMModeleur])
+  }
+
+  initViewer()
+
+  return () => {
+    if (viewerRef.current) {
+      try {
+        viewerRef.current.dispose()
+      } catch (cleanupError) {
+        console.error("Erreur lors du nettoyage:", cleanupError)
+      }
+      viewerRef.current = null
+      initializedRef.current = false
+    }
+  }
+}, [searchParams, isBIMModeleur])
 
   // Configuration des contrôles de caméra
   useEffect(() => {

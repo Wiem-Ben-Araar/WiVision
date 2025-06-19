@@ -1,9 +1,18 @@
 {
   "functions": {
-    "app/api/**/*.js": {
-      "maxDuration": 30
+    "app/**/*": {
+      "includeFiles": "public/wasm/**"
     }
   },
-  "framework": "nextjs",
-  "buildCommand": "npm run build"
+  "headers": [
+    {
+      "source": "/wasm/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/wasm"
+        }
+      ]
+    }
+  ]
 }
