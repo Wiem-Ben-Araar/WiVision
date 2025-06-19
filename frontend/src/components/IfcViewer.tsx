@@ -58,14 +58,8 @@ export default function IFCViewer() {
   
     // IFC Loader setup
     const newIfcLoader = new IFCLoader();
- const loadWasm = async () => {
-    try {
-      // Essai 1: Chemin standard
-      newIfcLoader.ifcManager.setWasmPath("/static/wasm/");
-    } catch (error) {
-      console.warn("Standard WASM path failed. Please check the WASM path and ensure the file exists.");
-    }
-  };
+    newIfcLoader.ifcManager.setWasmPath("/wasm/");;
+  
     setCamera(newCamera);
     setRenderer(newRenderer);
     setControls(newControls);

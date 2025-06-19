@@ -188,16 +188,8 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-    const loadWasm = async () => {
-      try {
-        // Essai 1: Chemin standard
-        await viewer.IFC.setWasmPath("/static/wasm/");
-      } catch (error) {
-        console.warn("Standard WASM path failed. Please ensure the WASM files are available at /static/wasm/");
-      }
-    };
-
-    await loadWasm();
+        await viewer.IFC.setWasmPath("wasm/");
+        //
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
