@@ -33,11 +33,7 @@ const nextConfig: NextConfig = {
   // Configuration des redirections
   async rewrites() {
     return [
-      // Solution WASM pour Vercel
-      {
-        source: "/_next/static/chunks/web-ifc.wasm",
-        destination: "/public/wasm/web-ifc.wasm",
-      },
+     
       // Réécriture API relative
       {
         source: "/api/:path*",
