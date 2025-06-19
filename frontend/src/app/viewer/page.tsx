@@ -24,7 +24,6 @@ import axios from "axios"
 import { LoadingProgress } from "@/components/LoadingProgress"
 import Image from "next/image"
 
-
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
 type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
@@ -102,6 +101,9 @@ function ViewerPageContent() {
     loadedModels: [],
   })
 
+  // 🔍 DEBUGGING: État pour le status WASM
+  const [wasmStatus, setWasmStatus] = useState<string>("Initialisation...")
+
   // Configuration anti-vibration
   useEffect(() => {
     if (!viewerRef.current?.context) return
@@ -163,12 +165,54 @@ function ViewerPageContent() {
       if (!containerRef.current || initializedRef.current) return
 
       try {
+        console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...")
+        setWasmStatus("Initialisation du viewer...")
         initializedRef.current = true
+
+        // 🔍 DEBUGGING: Tester tous les chemins WASM possibles
+        console.log("🔍 [VIEWER-PAGE] Test des chemins WASM disponibles:")
+        setWasmStatus("Vérification des chemins WASM...")
+
+        const wasmPaths = [
+          "/wasm/web-ifc.wasm",
+          "/_next/static/chunks/wasm/web-ifc.wasm",
+          "/_next/static/chunks/app/viewer/wasm/web-ifc.wasm",
+          "/viewer/wasm/web-ifc.wasm",
+        ]
+
+        let workingWasmPath = null
+
+        for (const path of wasmPaths) {
+          try {
+            console.log(`   [VIEWER-PAGE] Tentative: ${path}`)
+            const response = await fetch(path, { method: "HEAD" })
+            if (response.ok) {
+              console.log(`   ✅ [VIEWER-PAGE] TROUVÉ: ${path}`)
+              workingWasmPath = path
+              break
+            } else {
+              console.log(`   ❌ [VIEWER-PAGE] 404: ${path}`)
+            }
+          } catch (e) {
+            console.log(`   ❌ [VIEWER-PAGE] ERREUR: ${path}`)
+          }
+        }
+
+        if (!workingWasmPath) {
+          console.warn("⚠️ [VIEWER-PAGE] Aucun fichier WASM accessible trouvé")
+          setWasmStatus("WASM non trouvé - Continuons...")
+        } else {
+          console.log(`✅ [VIEWER-PAGE] WASM accessible: ${workingWasmPath}`)
+          setWasmStatus(`WASM trouvé: ${workingWasmPath}`)
+        }
+
+        console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...")
         const viewer = new IfcViewerAPI({
           container: containerRef.current,
           backgroundColor: new THREE.Color(0xeeeeee),
         })
 
+        console.log("💡 [VIEWER-PAGE] Configuration de la scène...")
         // Configuration de la scène
         const scene = viewer.context.getScene()
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
@@ -188,7 +232,37 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-viewer.IFC.setWasmPath("/wasm/");
+        // 🔧 DEBUGGING: Configuration WASM avec tests multiples
+        console.log("🔧 [VIEWER-PAGE] Configuration du chemin WASM...")
+        setWasmStatus("Configuration WASM...")
+
+        const wasmConfigs = [
+          "/wasm/", // Chemin absolu standard
+          `${window.location.origin}/wasm/`, // URL complète
+          workingWasmPath ? workingWasmPath.replace("web-ifc.wasm", "") : null, // Basé sur le fichier trouvé
+        ].filter(Boolean) // Enlever les valeurs null
+
+        let wasmConfigured = false
+
+        for (const wasmPath of wasmConfigs) {
+          try {
+            console.log(`🔧 [VIEWER-PAGE] Tentative de configuration WASM: ${wasmPath}`)
+            await viewer.IFC.setWasmPath(wasmPath as string)
+            console.log(`✅ [VIEWER-PAGE] WASM configuré avec succès: ${wasmPath}`)
+            setWasmStatus(`WASM configuré: ${wasmPath}`)
+            wasmConfigured = true
+            break
+          } catch (wasmError) {
+            console.log(`❌ [VIEWER-PAGE] Échec configuration WASM: ${wasmPath}`, wasmError)
+          }
+        }
+
+        if (!wasmConfigured) {
+          console.warn("⚠️ [VIEWER-PAGE] Aucune configuration WASM réussie")
+          setWasmStatus("WASM non configuré - Viewer basique")
+        }
+
+        console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...")
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
@@ -248,8 +322,11 @@ viewer.IFC.setWasmPath("/wasm/");
         // Chargement des fichiers avec progression
         const filesParam = searchParams.get("files")
         if (filesParam) {
+          console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...")
           const fileURLs = JSON.parse(filesParam) as string[]
           const totalFiles = fileURLs.length
+
+          console.log(`📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`, fileURLs)
 
           setLoadingProgress({
             isVisible: true,
@@ -273,6 +350,8 @@ viewer.IFC.setWasmPath("/wasm/");
               .replace(/\?.*/, "")
               .replace(/\.ifc$/, "")
               .replace(/_/g, " ")
+
+            console.log(`📄 [VIEWER-PAGE] Chargement du fichier ${i + 1}/${totalFiles}: ${displayName}`)
 
             setLoadingProgress((prev) => ({
               ...prev,
@@ -304,6 +383,7 @@ viewer.IFC.setWasmPath("/wasm/");
                 })
 
                 loadedModelNames.push(cleanName)
+                console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName} (ID: ${model.modelID})`)
 
                 setLoadingProgress((prev) => ({
                   ...prev,
@@ -314,7 +394,7 @@ viewer.IFC.setWasmPath("/wasm/");
                 await new Promise((resolve) => setTimeout(resolve, 300))
               }
             } catch (loadError) {
-              console.error(`Échec du chargement: ${url}`, loadError)
+              console.error(`❌ [VIEWER-PAGE] Échec du chargement: ${url}`, loadError)
             }
           }
 
@@ -332,9 +412,11 @@ viewer.IFC.setWasmPath("/wasm/");
           }, 1000)
 
           setLoadedModels(newModels)
+          console.log(`✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`)
 
           // Configuration de la caméra
           if (newModels.length > 0) {
+            console.log("📷 [VIEWER-PAGE] Configuration de la caméra...")
             try {
               scene.updateMatrixWorld(true)
               const bbox = new THREE.Box3()
@@ -383,11 +465,13 @@ viewer.IFC.setWasmPath("/wasm/");
                   center.z,
                   true,
                 )
+                console.log("✅ [VIEWER-PAGE] Caméra configurée avec succès")
               } else {
                 viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
+                console.log("⚠️ [VIEWER-PAGE] Caméra configurée avec valeurs par défaut")
               }
             } catch (cameraError) {
-              console.error("Error setting up camera:", cameraError)
+              console.error("❌ [VIEWER-PAGE] Erreur configuration caméra:", cameraError)
               viewer.context.ifcCamera.cameraControls.setLookAt(10, 10, 10, 0, 0, 0, true)
             }
           } else {
@@ -397,12 +481,15 @@ viewer.IFC.setWasmPath("/wasm/");
         }
 
         viewerRef.current = viewer
+        setWasmStatus("Viewer actif")
+        console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!")
       } catch (initError) {
-        console.error("Erreur d'initialisation:", initError)
+        console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError)
         setError(
           "Échec de l'initialisation du visualiseur: " +
             (initError instanceof Error ? initError.message : String(initError)),
         )
+        setWasmStatus("Erreur d'initialisation")
         initializedRef.current = false
         setLoadingProgress((prev) => ({ ...prev, isVisible: false }))
       }
@@ -413,9 +500,10 @@ viewer.IFC.setWasmPath("/wasm/");
     return () => {
       if (viewerRef.current) {
         try {
+          console.log("🧹 [VIEWER-PAGE] Nettoyage du viewer...")
           viewerRef.current.dispose()
         } catch (cleanupError) {
-          console.error("Erreur lors du nettoyage:", cleanupError)
+          console.error("❌ [VIEWER-PAGE] Erreur lors du nettoyage:", cleanupError)
         }
         viewerRef.current = null
         initializedRef.current = false
@@ -759,6 +847,11 @@ viewer.IFC.setWasmPath("/wasm/");
 
   return (
     <div className="flex h-screen dark:bg-gray-900 pt-20">
+      {/* 🔍 DEBUGGING: Status WASM affiché en haut */}
+      <div className="absolute top-20 left-4 z-50 bg-white/90 backdrop-blur px-3 py-1 rounded-lg shadow-md">
+        <p className="text-xs text-gray-600">[VIEWER-PAGE] {wasmStatus}</p>
+      </div>
+
       {/* Barre latérale gauche */}
       <div className="w-16 bg-white dark:bg-gray-800 shadow-lg flex flex-col items-center py-4 gap-4 border-r border-gray-200 dark:border-gray-700">
         <Button
@@ -1084,6 +1177,7 @@ viewer.IFC.setWasmPath("/wasm/");
     </div>
   )
 }
+
 export default function ViewerPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Chargement...</div>}>
