@@ -1,9 +1,6 @@
-// @ts-check
+import type { NextConfig } from "next";
 
-/**
- * @type {import('next').NextConfig}
- **/
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 300,
   images: {
@@ -12,10 +9,9 @@ const nextConfig = {
   },
   output: "standalone",
 
-  // Configuration Webpack critique pour WASM
-  webpack: (config, { isServer }) => {
-    // Activation des fonctionnalités expérimentales
-    config.experiments = {
+  webpack: (config) => {
+    // Configuration expérimentale pour WASM
+    config.experiments = { 
       asyncWebAssembly: true,
       layers: true,
       topLevelAwait: true,
@@ -29,22 +25,28 @@ const nextConfig = {
       crypto: false,
     };
 
-    // Traitement des fichiers WASM
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: 'asset/resource',
-      generator: {
-        filename: 'static/wasm/[name][ext]'
+    // Règles pour les fichiers WASM
+    config.module.rules.push(
+      {
+        test: /\.wasm$/,
+        type: 'webassembly/async',
+      },
+      {
+        test: /\.wasm$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'static/wasm/[name][ext]'
+        }
       }
-    });
+    );
 
     return config;
   },
 
-  // Configuration des en-têtes HTTP
+  // Configuration pour servir les fichiers WASM correctement
   async headers() {
     return [
-      // En-têtes pour les fichiers WASM
+      // Headers pour les fichiers WASM
       {
         source: '/static/wasm/:path*',
         headers: [
@@ -62,7 +64,7 @@ const nextConfig = {
           },
         ],
       },
-      // En-têtes CSP généraux
+      // Headers CSP généraux
       {
         source: '/(.*)',
         headers: [
@@ -100,4 +102,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
