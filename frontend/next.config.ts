@@ -1,6 +1,9 @@
-import type { NextConfig } from "next";
+// @ts-check
 
-const nextConfig: NextConfig = {
+/**
+ * @type {import('next').NextConfig}
+ **/
+const nextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 300,
   images: {
@@ -11,6 +14,7 @@ const nextConfig: NextConfig = {
 
   // Configuration Webpack critique pour WASM
   webpack: (config, { isServer }) => {
+    // Activation des fonctionnalités expérimentales
     config.experiments = {
       asyncWebAssembly: true,
       layers: true,
@@ -25,43 +29,24 @@ const nextConfig: NextConfig = {
       crypto: false,
     };
 
-    // IMPORTANT: Prevent Next.js from processing WASM files
+    // Traitement des fichiers WASM
     config.module.rules.push({
       test: /\.wasm$/,
-      type: 'webassembly/async',
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/wasm/[name][ext]'
+      }
     });
-
-    // Ignore WASM files in static processing
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-      };
-      
-      // Exclude WASM from being processed by Next.js bundler
-      config.module.rules.push({
-        test: /\.wasm$/,
-        use: {
-          loader: 'file-loader',
-          options: {
-            publicPath: '/wasm/',
-            outputPath: 'static/wasm/',
-          },
-        },
-      });
-    }
 
     return config;
   },
 
-  // Empêcher Next.js de traiter les fichiers WASM comme des assets statiques
-  assetPrefix: '',
-  
-  // Configuration pour servir les fichiers WASM correctement
+  // Configuration des en-têtes HTTP
   async headers() {
     return [
-      // Headers pour les fichiers WASM
+      // En-têtes pour les fichiers WASM
       {
-        source: '/wasm/:path*',
+        source: '/static/wasm/:path*',
         headers: [
           {
             key: 'Content-Type',
@@ -77,7 +62,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      // Headers CSP généraux
+      // En-têtes CSP généraux
       {
         source: '/(.*)',
         headers: [
@@ -115,4 +100,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

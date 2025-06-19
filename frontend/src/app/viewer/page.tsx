@@ -188,8 +188,8 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/");
-        //
+        const wasmPath = window.location.origin + '/wasm/';
+await viewer.IFC.setWasmPath(wasmPath);
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
