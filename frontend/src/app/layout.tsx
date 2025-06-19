@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/use-auth";
 import ClientLayout from  "@/components/ClientLayout";
-import WasmChecker from '@/components/WasmChecker';
+
 
 export const metadata: Metadata = {
   title: 'Votre App',
@@ -38,7 +38,7 @@ export default function RootLayout({
         suppressHydrationWarning={true}
       >
         <ClientLayout>
-          <WasmChecker />
+        
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             <AuthProvider>
               <Navbar />
