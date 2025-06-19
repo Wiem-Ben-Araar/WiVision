@@ -39,11 +39,24 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
-      // SOLUTION: Rediriger les requêtes WASM vers le bon chemin
+      // 🎯 SOLUTION: Couvrir TOUS les chemins WASM possibles
       {
         source: "/_next/static/chunks/wasm/:path*",
         destination: "/wasm/:path*",
       },
+      {
+        source: "/_next/static/chunks/app/viewer/wasm/:path*",
+        destination: "/wasm/:path*",
+      },
+      {
+        source: "/_next/static/wasm/:path*",
+        destination: "/wasm/:path*",
+      },
+      {
+        source: "/static/wasm/:path*",
+        destination: "/wasm/:path*",
+      },
+      // Rewrite API existant
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
@@ -63,6 +76,14 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
+          },
+          {
+            key: "Cross-Origin-Embedder-Policy",
+            value: "require-corp",
+          },
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
           },
         ],
       },
