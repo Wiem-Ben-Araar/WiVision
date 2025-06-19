@@ -25,42 +25,59 @@ const nextConfig: NextConfig = {
       crypto: false,
     };
 
-    // Configuration pour les fichiers WASM
+    // IMPORTANT: Prevent Next.js from processing WASM files
     config.module.rules.push({
       test: /\.wasm$/,
       type: 'webassembly/async',
     });
 
-    // Assurer que les fichiers WASM sont copiés correctement
+    // Ignore WASM files in static processing
     if (!isServer) {
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@wasm': 'public/wasm',
       };
+      
+      // Exclude WASM from being processed by Next.js bundler
+      config.module.rules.push({
+        test: /\.wasm$/,
+        use: {
+          loader: 'file-loader',
+          options: {
+            publicPath: '/wasm/',
+            outputPath: 'static/wasm/',
+          },
+        },
+      });
     }
 
     return config;
   },
 
-  // Réécritures pour WASM et API
-  async rewrites() {
-    return [
-      // Réécritures pour les fichiers WASM
-      {
-        source: '/wasm/:path*',
-        destination: '/wasm/:path*',
-      },
-      // Réécritures pour l'API
-      {
-        source: "/api/:path*",
-        destination: "https://wivision.onrender.com/api/:path*",
-      },
-    ];
-  },
-
-  // Headers CSP modifiés avec wasm-unsafe-eval
+  // Empêcher Next.js de traiter les fichiers WASM comme des assets statiques
+  assetPrefix: '',
+  
+  // Configuration pour servir les fichiers WASM correctement
   async headers() {
     return [
+      // Headers pour les fichiers WASM
+      {
+        source: '/wasm/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/wasm',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+      // Headers CSP généraux
       {
         source: '/(.*)',
         headers: [
@@ -68,11 +85,11 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app",
+              "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel.app https://unpkg.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              "connect-src 'self' https: wss: https://*.vercel.app",
+              "connect-src 'self' https: wss: https://*.vercel.app https://unpkg.com",
               "media-src 'self'",
               "object-src 'none'",
               "child-src 'self' blob:",
@@ -84,6 +101,16 @@ const nextConfig: NextConfig = {
           }
         ]
       }
+    ];
+  },
+
+  // Réécritures pour API seulement
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "https://wivision.onrender.com/api/:path*",
+      },
     ];
   },
 };

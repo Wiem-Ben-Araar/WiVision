@@ -1,9 +1,15 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  
   "functions": {
-    "app/**/*": {
-      "includeFiles": "public/wasm/**"
+    "app/**/*.js": {
+      "includeFiles": "public/**"
     }
   },
+  
   "headers": [
     {
       "source": "/wasm/(.*)",
@@ -11,8 +17,30 @@
         {
           "key": "Content-Type",
           "value": "application/wasm"
+        },
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "require-corp"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy", 
+          "value": "same-origin"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
+    }
+  ],
+  
+  "routes": [
+    {
+      "src": "/wasm/(.*)",
+      "dest": "/wasm/$1",
+      "headers": {
+        "Content-Type": "application/wasm"
+      }
     }
   ]
 }
