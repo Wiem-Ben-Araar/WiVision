@@ -187,11 +187,7 @@ function ViewerPageContent() {
         renderer.outputColorSpace = THREE.SRGBColorSpace
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
-const originalSetWasmPath = viewer.IFC.setWasmPath;
-viewer.IFC.setWasmPath = function(path) {
-  console.log("[DEBUG] Overridden setWasmPath called with:", path);
-  return originalSetWasmPath.call(this, path);
-};
+
 viewer.IFC.setWasmPath("wasm/");
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
