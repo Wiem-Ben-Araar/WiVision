@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   output: "standalone",
 
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     // Configuration expérimentale pour WASM
     config.experiments = { 
       asyncWebAssembly: true,
@@ -25,20 +25,14 @@ const nextConfig: NextConfig = {
       crypto: false,
     };
 
-    // Règles pour les fichiers WASM
-    config.module.rules.push(
-      {
-        test: /\.wasm$/,
-        type: 'webassembly/async',
-      },
-      {
-        test: /\.wasm$/,
-        type: 'asset/resource',
-        generator: {
-          filename: 'static/wasm/[name][ext]'
-        }
+    // Règle unique pour les fichiers WASM
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/wasm/[name][ext]'
       }
-    );
+    });
 
     return config;
   },
