@@ -31,7 +31,10 @@ const nextConfig: NextConfig = {
   // Réécritures uniquement pour l'API
   async rewrites() {
     return [
-          
+            {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
       {
         source: "/api/:path*",
         destination: "https://wivision.onrender.com/api/:path*",
