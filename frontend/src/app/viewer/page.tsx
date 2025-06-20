@@ -203,12 +203,13 @@ function ViewerPageContent() {
           USE_FAST_BOOLS: false,
         })
        const ifcManager = viewer.IFC.loader.ifcManager as unknown as ExtendedIFCManager;
+       
 const wasmModule = ifcManager.wasmModule;
 
-if (wasmModule?.OpenModel) {
-  console.log("✅ OpenModel is available.");
+if (wasmModule && wasmModule.OpenModel) {
+    wasmModule.OpenModel();
 } else {
-  console.error("❌ OpenModel is NOT available in wasmModule.");
+    console.error("OpenModel is not available yet. Try delaying the call.");
 }
 
 viewer.clipper.active = true
