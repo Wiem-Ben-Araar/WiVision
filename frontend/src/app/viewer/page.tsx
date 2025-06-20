@@ -195,15 +195,7 @@ function ViewerPageContent() {
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-       const wasmModule = (viewer.IFC.loader.ifcManager as any).wasmModule;
-console.log("🧩 wasmModule:", wasmModule);
-
-if (wasmModule?.OpenModel) {
-  console.log("✅ OpenModel is available.");
-} else {
-  console.error("❌ OpenModel is NOT available in wasmModule.");
-}
-
+        
 viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
