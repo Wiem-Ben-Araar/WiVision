@@ -1,99 +1,50 @@
-import type { NextConfig } from "next"
+
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 300,
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  staticPageGenerationTimeout: 120, // Augmentez le timeout pour les gros builds
   images: {
-    domains: ["lh3.googleusercontent.com"],
-    unoptimized: true,
+    domains: ["lh3.googleusercontent.com"], 
+    unoptimized: true, // Important pour Vercel
   },
+  // Ajoutez la configuration de sortie standalone
   output: "standalone",
-
-  webpack: (config, { isServer }) => {
-    config.experiments = {
-      asyncWebAssembly: true,
-      layers: true,
-      topLevelAwait: true,
-    }
-
-    // Configuration WASM optimisée
-    config.output.webassemblyModuleFilename = isServer
-      ? "../static/wasm/[modulehash].wasm"
-      : "static/wasm/[modulehash].wasm"
-
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      path: false,
-      crypto: false,
-    }
-
-    return config
-  },
-
-  async rewrites() {
-    return [
-      // 🎯 SOLUTION SPÉCIFIQUE: Capturer le chemin exact utilisé par web-ifc
-      {
-        source: "/_next/static/chunks/wasm/web-ifc.wasm",
-        destination: "/wasm/web-ifc.wasm",
-      },
-      {
-        source: "/_next/static/chunks/wasm/web-ifc-mt.wasm",
-        destination: "/wasm/web-ifc-mt.wasm",
-      },
-      // Patterns génériques pour d'autres cas
-      {
-        source: "/_next/static/chunks/:path*wasm/:file*.wasm",
-        destination: "/wasm/:file*.wasm",
-      },
-      {
-        source: "/_next/static/wasm/:path*",
-        destination: "/wasm/:path*",
-      },
-      {
-        source: "/static/wasm/:path*",
-        destination: "/wasm/:path*",
-      },
-      // Rewrite API existant
-      {
-        source: "/api/:path*",
-        destination: "https://wivision.onrender.com/api/:path*",
-      },
-    ]
-  },
-
+  
+  // Utilisez async headers() pour les en-têtes de sécurité
   async headers() {
     return [
       {
-        source: "/wasm/:path*",
+        source: "/(.*)",
         headers: [
           {
-            key: "Content-Type",
-            value: "application/wasm",
+            key: "Content-Security-Policy",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
           },
           {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-          {
-            key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
-          },
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
-          },
-        ],
-      },
-    ]
+            key: "X-Frame-Options",
+            value: "DENY"
+          }
+        ]
+      }
+    ];
   },
-}
+  
+  // Configuration des redirections
+  async rewrites() {
+    return [
+      // Solution WASM pour Vercel
+      {
+        source: "/_next/static/chunks/web-ifc.wasm",
+        destination: "/web-ifc.wasm",
+      },
+      // Réécriture API relative
+      {
+        source: "/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+      },
+    ];
+  },
+};
 
-export default nextConfig
+export default nextConfig;
