@@ -1,59 +1,50 @@
-import type { NextConfig } from 'next';
+// next.config.js
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Critical Webpack configuration for WASM
-  webpack: (config, { isServer }) => {
-    config.experiments = {
-      ...config.experiments,
-      asyncWebAssembly: true,
-      layers: true,
-    };
-
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: 'webassembly/async',
-    });
-
-    // Fix for "Module not found" errors in browser
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        path: false,
-        crypto: false,
-      };
-    }
-
-    // Important: Enable top-level await
-    config.output.ecmaVersion = 2022;
-
-    return config;
+  reactStrictMode: true,
+  staticPageGenerationTimeout: 120, // Augmentez le timeout pour les gros builds
+  images: {
+    domains: ["lh3.googleusercontent.com"], 
+    unoptimized: true, // Important pour Vercel
   },
-
-  // Simplified headers configuration
+  // Ajoutez la configuration de sortie standalone
+  output: "standalone",
+  
+  // Utilisez async headers() pour les en-têtes de sécurité
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: "/(.*)",
         headers: [
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            key: "Content-Security-Policy",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
           },
           {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-        ],
+            key: "X-Frame-Options",
+            value: "DENY"
+          }
+        ]
+      }
+    ];
+  },
+  
+  // Configuration des redirections
+  async rewrites() {
+    return [
+      // Solution WASM pour Vercel
+      {
+        source: "/_next/static/chunks/web-ifc.wasm",
+        destination: "/web-ifc.wasm",
+      },
+      // Réécriture API relative
+      {
+        source: "/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
       },
     ];
   },
-
-  // Remove Turbopack config if not used
-  // experimental: { ... },
-
-  // Add asset prefix for production
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/_next' : undefined,
 };
 
 export default nextConfig;
