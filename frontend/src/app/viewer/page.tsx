@@ -188,13 +188,14 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("wasm/")
-        viewer.clipper.active = true
+        await viewer.IFC.setWasmPath("/wasm/")
+        
+        
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-
+viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
