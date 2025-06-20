@@ -173,17 +173,17 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        // 🔧 CONFIGURATION WASM FINALE - VERSION 0.0.44 GARANTIE
-        console.log("🔧 [VIEWER-PAGE] Configuration WASM version 0.0.44...")
+        // 🔧 CONFIGURATION WASM FINALE - VERSION LOCALE GARANTIE
+        console.log("🔧 [VIEWER-PAGE] Configuration WASM version locale...")
 
         try {
-          // 1. Forcer la version exacte 0.0.44 compatible
-          console.log("🔧 [VIEWER-PAGE] Utilisation forcée de web-ifc@0.0.44...")
-          await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/")
+          // 1. Utiliser les fichiers WASM locaux
+          console.log("🔧 [VIEWER-PAGE] Utilisation des fichiers WASM locaux...")
+          await viewer.IFC.setWasmPath("/wasm/")
 
           // 2. Attendre l'initialisation WASM complète
           console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...")
-          await new Promise((resolve) => setTimeout(resolve, 3000))
+          await new Promise((resolve) => setTimeout(resolve, 2000))
 
           // 3. Configuration des options IFC compatibles
           console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...")
@@ -195,10 +195,10 @@ function ViewerPageContent() {
             USE_FAST_BOOLS: false,
           })
 
-          console.log("✅ [VIEWER-PAGE] WASM 0.0.44 configuré avec succès")
+          console.log("✅ [VIEWER-PAGE] WASM local configuré avec succès")
         } catch (wasmError) {
           console.error("❌ [VIEWER-PAGE] Erreur WASM:", wasmError)
-          throw new Error("Impossible de charger le module WASM compatible")
+          throw new Error("Impossible de charger le module WASM local")
         }
 
         // Gestionnaire de clic
