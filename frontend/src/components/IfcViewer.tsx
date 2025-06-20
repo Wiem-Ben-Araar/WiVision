@@ -64,10 +64,11 @@ export default function IFCViewer() {
     const grid = new THREE.GridHelper(50, 50);
     newScene.add(grid);
   
-    // IFC Loader setup
-const newIfcLoader = new IFCLoader();
-  
-   const isProduction = typeof window !== 'undefined' 
+
+  console.log("[IFCViewer] Setting up IFC loader...");
+    const newIfcLoader = new IFCLoader();
+    
+    const isProduction = typeof window !== 'undefined' 
       ? window.process?.env?.NODE_ENV === 'production' 
       : process.env.NODE_ENV === 'production';
     
@@ -75,8 +76,10 @@ const newIfcLoader = new IFCLoader();
       ? 'https://wi-vision.vercel.app/wasm/' 
       : '/wasm/';
     
+    console.log(`[IFCViewer] Setting WASM path to: ${wasmPath}`);
+    
     newIfcLoader.ifcManager.setWasmPath(wasmPath);
-  
+    console.log("[IFCViewer] WASM path set successfully");
     setCamera(newCamera);
     setRenderer(newRenderer);
     setControls(newControls);
