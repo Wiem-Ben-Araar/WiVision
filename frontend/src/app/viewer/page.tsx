@@ -23,18 +23,11 @@ import ClashButton from "@/components/ClashButton"
 import axios from "axios"
 import { LoadingProgress } from "@/components/LoadingProgress"
 import Image from "next/image"
-import { IFCManager } from "web-ifc-three/IFC/components/IFCManager"
 
 
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
 type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
-interface ExtendedIFCManager extends IFCManager {
-  wasmModule: {
-    OpenModel?: (...args: unknown[]) => unknown;
-    [key: string]: unknown;
-  };
-}
 
 interface LoadedModel {
   id: string
@@ -195,21 +188,20 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("/wasm/")
+        await viewer.IFC.setWasmPath("wasm/")
         
-        console.log("✅ WASM path set to /wasm/");
+        
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-       const ifcManager = viewer.IFC.loader.ifcManager as unknown as ExtendedIFCManager;
-       
-const wasmModule = ifcManager.wasmModule;
+       const wasmModule = (viewer.IFC.loader.ifcManager as any).wasmModule;
+console.log("🧩 wasmModule:", wasmModule);
 
-if (wasmModule && wasmModule.OpenModel) {
-    wasmModule.OpenModel();
+if (wasmModule?.OpenModel) {
+  console.log("✅ OpenModel is available.");
 } else {
-    console.error("OpenModel is not available yet. Try delaying the call.");
+  console.error("❌ OpenModel is NOT available in wasmModule.");
 }
 
 viewer.clipper.active = true
