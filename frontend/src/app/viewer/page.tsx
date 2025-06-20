@@ -23,12 +23,18 @@ import ClashButton from "@/components/ClashButton"
 import axios from "axios"
 import { LoadingProgress } from "@/components/LoadingProgress"
 import Image from "next/image"
+import { IFCManager } from "web-ifc-three/IFC/components/IFCManager"
 
 
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
 type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
-
+interface ExtendedIFCManager extends IFCManager {
+  wasmModule: {
+    OpenModel?: Function;
+    [key: string]: any;
+  };
+}
 interface LoadedModel {
   id: string
   name: string
@@ -195,8 +201,8 @@ function ViewerPageContent() {
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-       const wasmModule = (viewer.IFC.loader.ifcManager as any).wasmModule;
-console.log("🧩 wasmModule:", wasmModule);
+       const ifcManager = viewer.IFC.loader.ifcManager as unknown as ExtendedIFCManager;
+const wasmModule = ifcManager.wasmModule;
 
 if (wasmModule?.OpenModel) {
   console.log("✅ OpenModel is available.");
