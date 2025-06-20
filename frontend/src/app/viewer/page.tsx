@@ -188,17 +188,13 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
- const isProduction = process.env.NODE_ENV === 'production';
-    const wasmPath = isProduction 
-      ? 'https://wi-vision.vercel.app/wasm/' 
-      : '/wasm/';
-    
-    await viewer.IFC.setWasmPath(wasmPath);
-    
-    viewer.IFC.loader.ifcManager.applyWebIfcConfig({
-      COORDINATE_TO_ORIGIN: true,
-      USE_FAST_BOOLS: false,
-    });
+        await viewer.IFC.setWasmPath("/wasm/")
+        
+        
+        viewer.IFC.loader.ifcManager.applyWebIfcConfig({
+          COORDINATE_TO_ORIGIN: true,
+          USE_FAST_BOOLS: false,
+        })
 viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
