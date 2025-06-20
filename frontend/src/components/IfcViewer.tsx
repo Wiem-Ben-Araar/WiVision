@@ -2,256 +2,253 @@
 
 import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { IFCLoader } from "web-ifc-three/IFCLoader"
 import { Button } from "@/components/ui/button"
-import { ZoomIn, ZoomOut, RotateCw, Home, AlertCircle } from "lucide-react"
+import { ArrowLeft, Home } from "lucide-react"
+import { useRouter } from "next/navigation"
 
-export default function IFCViewer() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null)
-  const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null)
-  const [controls, setControls] = useState<OrbitControls | null>(null)
-  const [isAutoRotating, setIsAutoRotating] = useState(false)
-  const [wasmStatus, setWasmStatus] = useState<string>("Initialisation...")
+interface IFCViewerProps {
+  files: string[]
+  projectId: string
+}
+
+export function IFCViewer({ files, projectId }: IFCViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null!)
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const controlsRef = useRef<any>(null)
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadingStatus, setLoadingStatus] = useState("Initialisation...")
+  const [loadedModels, setLoadedModels] = useState<THREE.Object3D[]>([])
   const [error, setError] = useState<string | null>(null)
-  const animationFrameId = useRef<number | null>(null)
+
+  const router = useRouter()
 
   useEffect(() => {
     const initViewer = async () => {
-      const currentContainer = containerRef.current
-
-      if (!currentContainer) return
+      if (!containerRef.current) return
 
       try {
-        console.log("🚀 Initialisation du viewer IFC...")
-        setWasmStatus("Vérification des chemins WASM...")
+        console.log("🚀 [IFC-ALTERNATIVE] Initialisation avec web-ifc-three...")
+        setLoadingStatus("Création de la scène 3D...")
 
-        // 🔍 DEBUGGING: Tester tous les chemins WASM possibles
-        const wasmPaths = [
-          "/wasm/web-ifc.wasm",
-          "/_next/static/chunks/wasm/web-ifc.wasm",
-          "/_next/static/chunks/app/viewer/wasm/web-ifc.wasm",
-          "/viewer/wasm/web-ifc.wasm",
-        ]
+        // Créer la scène
+        const scene = new THREE.Scene()
+        scene.background = new THREE.Color(0xf5f5f5)
+        sceneRef.current = scene
 
-        console.log("🔍 Test des chemins WASM disponibles:")
-        let workingPath = null
-
-        for (const path of wasmPaths) {
-          try {
-            console.log(`   Tentative: ${path}`)
-            const response = await fetch(path, { method: "HEAD" })
-            if (response.ok) {
-              console.log(`   ✅ TROUVÉ: ${path}`)
-              workingPath = path
-              break
-            } else {
-              console.log(`   ❌ 404: ${path}`)
-            }
-          } catch (e) {
-            console.log(`   ❌ ERREUR: ${path}`)
-          }
-        }
-
-        if (!workingPath) {
-          throw new Error("Aucun fichier WASM accessible trouvé")
-        }
-
-        setWasmStatus(`WASM trouvé: ${workingPath}`)
-
-        // Scene setup
-        console.log("🎬 Configuration de la scène...")
-        const newScene = new THREE.Scene()
-        newScene.background = new THREE.Color(0xf0f0f0)
-
-        // Camera setup
-        const newCamera = new THREE.PerspectiveCamera(
+        // Créer la caméra
+        const camera = new THREE.PerspectiveCamera(
           75,
-          currentContainer.clientWidth / currentContainer.clientHeight,
+          containerRef.current.clientWidth / containerRef.current.clientHeight,
           0.1,
           1000,
         )
-        newCamera.position.set(5, 5, 5)
+        camera.position.set(10, 10, 10)
+        cameraRef.current = camera
 
-        // Renderer setup
-        const newRenderer = new THREE.WebGLRenderer({ antialias: true })
-        newRenderer.setSize(currentContainer.clientWidth, currentContainer.clientHeight)
-        newRenderer.setPixelRatio(window.devicePixelRatio)
-        currentContainer.appendChild(newRenderer.domElement)
+        // Créer le renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true })
+        renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
+        renderer.shadowMap.enabled = true
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap
+        containerRef.current.appendChild(renderer.domElement)
+        rendererRef.current = renderer
 
-        // Controls setup
-        const newControls = new OrbitControls(newCamera, newRenderer.domElement)
-        newControls.enableDamping = true
-        newControls.dampingFactor = 0.05
+        // Éclairage
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+        directionalLight.position.set(10, 10, 10)
+        directionalLight.castShadow = true
+        scene.add(ambientLight, directionalLight)
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-        directionalLight.position.set(5, 10, 7.5)
-        newScene.add(ambientLight, directionalLight)
+        // Contrôles de caméra (OrbitControls)
+        const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js")
+        const controls = new OrbitControls(camera, renderer.domElement)
+        controls.enableDamping = true
+        controls.dampingFactor = 0.25
+        controlsRef.current = controls
 
-        // Grid helper
-        const grid = new THREE.GridHelper(50, 50)
-        newScene.add(grid)
+        // Chargement des fichiers IFC
+        if (files.length > 0) {
+          setLoadingStatus("Chargement des fichiers IFC...")
+          const loader = new IFCLoader()
 
-        // 🔧 IFC Loader setup avec debugging avancé
-        console.log("🔧 Configuration de l'IFC Loader...")
-        setWasmStatus("Configuration IFC Loader...")
+          // Configuration du chemin WASM
+          await loader.ifcManager.setWasmPath("/wasm/")
 
-        const newIfcLoader = new IFCLoader()
+          const models: THREE.Object3D[] = []
 
-        // 🎯 SOLUTION: Essayer plusieurs configurations WASM
-        const wasmConfigs = [
-          "/wasm/", // Chemin absolu standard
-          `${window.location.origin}/wasm/`, // URL complète
-          workingPath.replace("web-ifc.wasm", ""), // Chemin basé sur le fichier trouvé
-        ]
+          for (let i = 0; i < files.length; i++) {
+            const url = files[i]
+            const fileName =
+              url
+                .split("/")
+                .pop()
+                ?.replace(/\.ifc$/, "") || `Modèle-${i}`
 
-        let wasmConfigured = false
+            setLoadingStatus(`Chargement: ${fileName} (${i + 1}/${files.length})`)
+            console.log(`📄 [IFC-ALTERNATIVE] Chargement: ${fileName}`)
 
-        for (const wasmPath of wasmConfigs) {
-          try {
-            console.log(`🔧 Tentative de configuration WASM: ${wasmPath}`)
-            await newIfcLoader.ifcManager.setWasmPath(wasmPath)
-            console.log(`✅ WASM configuré avec succès: ${wasmPath}`)
-            setWasmStatus(`WASM configuré: ${wasmPath}`)
-            wasmConfigured = true
-            break
-          } catch (wasmError) {
-            console.log(`❌ Échec configuration WASM: ${wasmPath}`, wasmError)
+            try {
+              const model = await new Promise<THREE.Object3D>((resolve, reject) => {
+                loader.load(
+                  url,
+                  (geometry) => {
+                    console.log(`✅ [IFC-ALTERNATIVE] Modèle chargé: ${fileName}`)
+                    resolve(geometry)
+                  },
+                  (progress) => {
+                    console.log(`📊 [IFC-ALTERNATIVE] Progression: ${(progress.loaded / progress.total) * 100}%`)
+                  },
+                  (error) => {
+                    console.error(`❌ [IFC-ALTERNATIVE] Erreur: ${fileName}`, error)
+                    reject(error)
+                  },
+                )
+              })
+
+              scene.add(model)
+              models.push(model)
+            } catch (loadError) {
+              console.error(`❌ [IFC-ALTERNATIVE] Échec du chargement: ${fileName}`, loadError)
+            }
+          }
+
+          setLoadedModels(models)
+
+          // Ajuster la caméra pour voir tous les modèles
+          if (models.length > 0) {
+            setLoadingStatus("Configuration de la vue...")
+            const box = new THREE.Box3()
+            models.forEach((model) => box.expandByObject(model))
+
+            if (!box.isEmpty()) {
+              const center = box.getCenter(new THREE.Vector3())
+              const size = box.getSize(new THREE.Vector3())
+              const maxDim = Math.max(size.x, size.y, size.z)
+
+              camera.position.set(center.x + maxDim, center.y + maxDim, center.z + maxDim)
+              controls.target.copy(center)
+              controls.update()
+            }
           }
         }
 
-        if (!wasmConfigured) {
-          console.warn("⚠️ Aucune configuration WASM réussie, continuons sans IFC...")
-          setWasmStatus("WASM non configuré - Viewer basique actif")
-        }
-
-        setCamera(newCamera)
-        setRenderer(newRenderer)
-        setControls(newControls)
-
-        // Animation loop
+        // Boucle de rendu
         const animate = () => {
-          animationFrameId.current = requestAnimationFrame(animate)
-          newControls.update()
-          newRenderer.render(newScene, newCamera)
+          requestAnimationFrame(animate)
+          controls.update()
+          renderer.render(scene, camera)
         }
         animate()
 
-        console.log("✅ Viewer IFC initialisé avec succès!")
-        setWasmStatus("Viewer actif")
+        // Gestion du redimensionnement
+        const handleResize = () => {
+          if (!containerRef.current || !camera || !renderer) return
+          camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight
+          camera.updateProjectionMatrix()
+          renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
+        }
+        window.addEventListener("resize", handleResize)
+
+        setIsLoading(false)
+        setLoadingStatus("Terminé")
+        console.log("✅ [IFC-ALTERNATIVE] Visualiseur initialisé avec succès!")
+
+        return () => {
+          window.removeEventListener("resize", handleResize)
+        }
       } catch (initError) {
-        console.error("❌ Erreur d'initialisation:", initError)
+        console.error("❌ [IFC-ALTERNATIVE] Erreur d'initialisation:", initError)
         setError(initError instanceof Error ? initError.message : "Erreur inconnue")
-        setWasmStatus("Erreur d'initialisation")
+        setIsLoading(false)
       }
     }
 
     initViewer()
 
-    // Cleanup
     return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-      }
-      if (renderer && containerRef.current) {
-        renderer.dispose()
-        containerRef.current.removeChild(renderer.domElement)
+      // Nettoyage
+      if (rendererRef.current && containerRef.current) {
+        containerRef.current.removeChild(rendererRef.current.domElement)
+        rendererRef.current.dispose()
       }
     }
-  }, [])
+  }, [files])
 
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (!containerRef.current || !camera || !renderer) return
-
-      const width = containerRef.current.clientWidth
-      const height = containerRef.current.clientHeight
-
-      camera.aspect = width / height
-      camera.updateProjectionMatrix()
-      renderer.setSize(width, height)
-    }
-
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [camera, renderer])
-
-  const toggleAutoRotate = () => {
-    if (controls) {
-      const newAutoRotate = !isAutoRotating
-      controls.autoRotate = newAutoRotate
-      controls.autoRotateSpeed = 2.0
-      setIsAutoRotating(newAutoRotate)
-    }
+  const handleGoBack = () => {
+    router.back()
   }
 
-  const resetCamera = () => {
-    if (camera && controls) {
-      camera.position.set(5, 5, 5)
-      controls.target.set(0, 0, 0)
-      controls.update()
-    }
-  }
+  const handleIsoView = () => {
+    if (!cameraRef.current || !controlsRef.current || loadedModels.length === 0) return
 
-  const zoomIn = () => {
-    if (camera) {
-      camera.position.multiplyScalar(0.9)
-      if (controls) controls.update()
-    }
-  }
+    const box = new THREE.Box3()
+    loadedModels.forEach((model) => box.expandByObject(model))
 
-  const zoomOut = () => {
-    if (camera) {
-      camera.position.multiplyScalar(1.1)
-      if (controls) controls.update()
-    }
-  }
+    if (!box.isEmpty()) {
+      const center = box.getCenter(new THREE.Vector3())
+      const size = box.getSize(new THREE.Vector3())
+      const maxDim = Math.max(size.x, size.y, size.z)
 
-  if (error) {
-    return (
-      <div className="relative w-full h-full min-h-[600px] bg-red-50 rounded-lg shadow-lg flex items-center justify-center">
-        <div className="text-center p-6">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-700 mb-2">Erreur du viewer</h3>
-          <p className="text-red-600 text-sm mb-4">{error}</p>
-          <p className="text-xs text-gray-600">Status: {wasmStatus}</p>
-        </div>
-      </div>
-    )
+      cameraRef.current.position.set(center.x + maxDim * 0.7, center.y + maxDim * 0.7, center.z + maxDim * 0.7)
+      controlsRef.current.target.copy(center)
+      controlsRef.current.update()
+    }
   }
 
   return (
-    <div className="relative w-full h-full">
-      {/* Status WASM en haut à gauche */}
-      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-3 py-1 rounded-lg shadow-md">
-        <p className="text-xs text-gray-600">{wasmStatus}</p>
+    <div className="flex h-screen pt-20">
+      {/* Barre latérale */}
+      <div className="w-16 bg-white shadow-lg flex flex-col items-center py-4 gap-4 border-r">
+        <Button variant="ghost" size="sm" onClick={handleGoBack} className="w-full flex items-center justify-center">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="absolute left-4 top-16 z-10 flex flex-col gap-2">
-        <Button variant="secondary" size="icon" onClick={zoomIn} title="Zoom avant">
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={zoomOut} title="Zoom arrière">
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="secondary"
-          size="icon"
-          onClick={toggleAutoRotate}
-          title="Rotation automatique"
-          className={isAutoRotating ? "bg-primary text-primary-foreground" : ""}
-        >
-          <RotateCw className="h-4 w-4" />
-        </Button>
-        <Button variant="secondary" size="icon" onClick={resetCamera} title="Réinitialiser la vue">
-          <Home className="h-4 w-4" />
-        </Button>
+      {/* Zone principale */}
+      <div className="flex-1 relative">
+        <div ref={containerRef} className="absolute inset-0 bg-gray-50" />
+
+        <div className="absolute top-4 right-4 z-20">
+          <Button variant="outline" size="sm" onClick={handleIsoView} className="bg-white/90 backdrop-blur">
+            <Home className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/95 flex items-center justify-center z-30">
+            <div className="text-center max-w-md">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#005CA9] mx-auto mb-6"></div>
+              <h3 className="text-xl font-semibold mb-2">Chargement du visualiseur IFC</h3>
+              <p className="text-gray-600 mb-4">{loadingStatus}</p>
+              <div className="bg-gray-200 rounded-full h-2 w-full">
+                <div
+                  className="bg-[#005CA9] h-2 rounded-full transition-all duration-300"
+                  style={{ width: isLoading ? "75%" : "100%" }}
+                ></div>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Architecture: web-ifc-three (stable)</p>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="absolute bottom-4 left-4 bg-red-50 border border-red-200 rounded-lg p-4 z-10">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        {loadedModels.length > 0 && !isLoading && (
+          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur p-3 rounded-lg shadow-md z-20">
+            <p className="text-sm font-medium text-[#005CA9]">✅ {loadedModels.length} modèle(s) chargé(s)</p>
+            <p className="text-xs text-gray-500">Architecture: web-ifc-three</p>
+          </div>
+        )}
       </div>
-      <div ref={containerRef} className="w-full h-full min-h-[600px] bg-white rounded-lg shadow-lg" />
     </div>
   )
 }
