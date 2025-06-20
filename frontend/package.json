@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-        "postbuild": "mkdir -p .next/static/chunks/wasm && cp public/wasm/web-ifc.wasm .next/static/chunks/wasm/"
+    "postbuild": "mkdir -p .next/static/chunks/wasm && cp public/wasm/web-ifc.wasm .next/static/chunks/wasm/"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",
@@ -51,7 +51,9 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.160.0",
     "uuid": "^11.1.0",
-     "web-ifc": "0.0.39"
+    "web-ifc": "^0.0.56",
+    "web-ifc-three": "^0.0.126",
+    "web-ifc-viewer": "^1.0.218"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -67,7 +69,6 @@
     "postcss": "^8",
     "rollup": "^4.32.0",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5",
-    "web-ifc-viewer": "^1.0.218"
+    "typescript": "^5"
   }
 }
