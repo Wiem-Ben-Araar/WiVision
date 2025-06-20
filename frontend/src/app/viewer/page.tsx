@@ -196,7 +196,7 @@ function ViewerPageContent() {
           USE_FAST_BOOLS: false,
         })
         console.log("🧠 IFC Manager:", viewer.IFC.loader.ifcManager);
-console.log("🧩 wasmModule:", viewer.IFC.loader.ifcManager.wasmModule);
+//console.log("🧩 wasmModule:", viewer.IFC.loader.ifcManager.wasmModule);
 viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
