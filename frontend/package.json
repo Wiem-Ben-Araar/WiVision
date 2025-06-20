@@ -6,9 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "mkdir -p public/wasm && cp node_modules/web-ifc/web-ifc.wasm public/wasm/",
-    "prebuild": "npm run postinstall"
+    "lint": "next lint"
+  
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.11",
