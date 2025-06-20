@@ -9,11 +9,11 @@ export function WasmInterceptor() {
 
     // Intercepter toutes les requêtes fetch
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
-      let url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
 
       // Intercepter TOUTES les requêtes web-ifc et forcer la version 0.0.44
       if (url.includes("web-ifc") && url.includes(".wasm")) {
-        // Option 1: FORCER la version locale 0.0.44 (votre solution actuelle)
+        // FORCER la version 0.0.44 qui est 100% compatible
         const newUrl = "/wasm/web-ifc.wasm"
 
         console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
@@ -31,12 +31,6 @@ export function WasmInterceptor() {
         }
 
         return originalFetch.call(this, newUrl, newInit)
-      }
-
-      // Option 2: Nettoyer les doubles slashes dans les URLs (alternative)
-      if (url.includes("//") && !url.startsWith("http")) {
-        url = url.replace(/\/+/g, "/") // Remplace les multiples slashes par un seul
-        console.log(`🧹 [URL-CLEAN] Double slash nettoyé: ${url}`)
       }
 
       // Requête normale

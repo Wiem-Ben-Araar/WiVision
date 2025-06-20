@@ -179,7 +179,7 @@ function ViewerPageContent() {
         try {
           // 1. Utiliser les fichiers WASM locaux
           console.log("🔧 [VIEWER-PAGE] Utilisation des fichiers WASM locaux...")
-          await viewer.IFC.setWasmPath("/wasm/")
+          await viewer.IFC.setWasmPath("wasm/")
 
           // 2. Attendre l'initialisation WASM complète
           console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...")
