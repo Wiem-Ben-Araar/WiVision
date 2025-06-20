@@ -188,7 +188,12 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("/wasm/")
+       const isProduction = process.env.NODE_ENV === 'production';
+    const wasmPath = isProduction 
+      ? 'https://wi-vision.vercel.app/wasm/' 
+      : '/wasm/';
+    
+    await viewer.IFC.setWasmPath(wasmPath);
         
         
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({

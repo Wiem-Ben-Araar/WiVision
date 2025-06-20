@@ -57,8 +57,15 @@ export default function IFCViewer() {
     newScene.add(grid);
   
     // IFC Loader setup
-    const newIfcLoader = new IFCLoader();
-    newIfcLoader.ifcManager.setWasmPath("/wasm/");
+const newIfcLoader = new IFCLoader();
+  
+  // Déterminer dynamiquement le chemin WASM
+  const isProduction = process.env.NODE_ENV === 'production';
+  const wasmPath = isProduction 
+    ? 'https://wi-vision.vercel.app/wasm/' 
+    : '/wasm/';
+  
+  newIfcLoader.ifcManager.setWasmPath(wasmPath);
   
     setCamera(newCamera);
     setRenderer(newRenderer);
