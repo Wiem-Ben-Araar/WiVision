@@ -1,49 +1,91 @@
-
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  staticPageGenerationTimeout: 120, // Augmentez le timeout pour les gros builds
-  images: {
-    domains: ["lh3.googleusercontent.com"], 
-    unoptimized: true, // Important pour Vercel
+  webpack: (config, { isServer }) => {
+    // Configuration pour les fichiers WASM
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+
+    // Règle pour les fichiers WASM
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
+
+    // Headers CORS pour WASM - uniquement côté client
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
+
+    return config;
   },
-  // Ajoutez la configuration de sortie standalone
-  output: "standalone",
   
-  // Utilisez async headers() pour les en-têtes de sécurité
-  async headers() {
+  // Redirection pour servir le WASM depuis public
+  async rewrites() {
     return [
       {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
-          },
-          {
-            key: "X-Frame-Options",
-            value: "DENY"
-          }
-        ]
+        source: '/_next/static/chunks/wasm/:path*',
+        destination: '/wasm/:path*'
       }
     ];
   },
-  
-  // Configuration des redirections
-  async rewrites() {
+
+  // Headers pour WASM
+  async headers() {
     return [
-      // Solution WASM pour Vercel
       {
-        source: "/_next/static/chunks/web-ifc.wasm",
-        destination: "/web-ifc.wasm",
+        source: '/wasm/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
       },
-      // Réécriture API relative
       {
-        source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+        source: '/_next/static/chunks/wasm/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
       },
     ];
+  },
+
+  // Configuration pour Turbopack (si vous l'utilisez)
+  experimental: {
+    turbo: {
+      rules: {
+        '*.wasm': {
+          loaders: ['file-loader'],
+          as: '*.wasm',
+        },
+      },
+    },
   },
 };
 
