@@ -4,21 +4,15 @@ import { useEffect } from "react"
 
 export function WasmInterceptor() {
   useEffect(() => {
-    // Sauvegarder la fonction fetch originale
     const originalFetch = window.fetch
 
-    // Intercepter toutes les requêtes fetch
     window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url
 
-      // Intercepter TOUTES les requêtes web-ifc et forcer la version 0.0.44
       if (url.includes("web-ifc") && url.includes(".wasm")) {
-        // FORCER la version 0.0.44 qui est 100% compatible
         const newUrl = "/wasm/web-ifc.wasm"
-
         console.log(`🔄 [WASM-INTERCEPT] ${url} -> ${newUrl}`)
 
-        // Headers optimisés pour WASM local
         const newInit = {
           ...init,
           headers: {
@@ -30,14 +24,37 @@ export function WasmInterceptor() {
           credentials: "omit" as RequestCredentials,
         }
 
-        return originalFetch.call(this, newUrl, newInit)
+        // Intercepter la réponse pour déboguer
+        return originalFetch.call(this, newUrl, newInit).then(async (response) => {
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer()
+            console.log(`✅ [WASM-DEBUG] Fichier WASM chargé:`, {
+              size: arrayBuffer.byteLength,
+              url: newUrl
+            })
+
+            // Essayer d'instancier le module pour voir les fonctions disponibles
+            try {
+              const module = await WebAssembly.instantiate(arrayBuffer)
+              console.log(`🔍 [WASM-DEBUG] Fonctions exportées:`, Object.keys(module.instance.exports))
+            } catch (e) {
+              console.error(`❌ [WASM-DEBUG] Erreur instantiation:`, e)
+            }
+
+            // Retourner une nouvelle Response avec le même contenu
+            return new Response(arrayBuffer, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers
+            })
+          }
+          return response
+        })
       }
 
-      // Requête normale
       return originalFetch.call(this, input, init)
     }
 
-    // Cleanup au démontage
     return () => {
       window.fetch = originalFetch
     }
