@@ -31,10 +31,11 @@ type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "i
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
 interface ExtendedIFCManager extends IFCManager {
   wasmModule: {
-    OpenModel?: Function;
-    [key: string]: any;
+    OpenModel?: (...args: unknown[]) => unknown;
+    [key: string]: unknown;
   };
 }
+
 interface LoadedModel {
   id: string
   name: string
