@@ -23,6 +23,7 @@ import ClashButton from "@/components/ClashButton"
 import axios from "axios"
 import { LoadingProgress } from "@/components/LoadingProgress"
 import Image from "next/image"
+import { WasmInterceptor } from "@/components/wasm-interceptor"
 
 
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
@@ -102,26 +103,6 @@ function ViewerPageContent() {
     loadedModels: [],
   })
 
-  // Configuration anti-vibration
-  useEffect(() => {
-    if (!viewerRef.current?.context) return
-
-    const viewer = viewerRef.current
-    const controls = viewer.context.ifcCamera.cameraControls
-
-    controls.dampingFactor = 0.25
-    controls.draggingDampingFactor = 0.25
-    controls.azimuthRotateSpeed = 0.5
-    controls.polarRotateSpeed = 0.5
-    controls.truckSpeed = 1.0
-    controls.maxDistance = 1000
-    controls.minDistance = 0.1
-
-    const renderer = viewer.context.getRenderer()
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
-    renderer.outputColorSpace = THREE.SRGBColorSpace
-  }, [])
-
   // Configuration d'Axios
   useEffect(() => {
     axios.defaults.withCredentials = true
@@ -157,18 +138,22 @@ function ViewerPageContent() {
     activeToolRef.current = activeTool
   }, [activeTool])
 
-  // Initialisation du visualiseur
+  // Initialisation du visualiseur - VERSION FINALE CORRIGÉE
   useEffect(() => {
     const initViewer = async () => {
       if (!containerRef.current || initializedRef.current) return
 
       try {
+        console.log("🚀 [VIEWER-PAGE] Initialisation du visualiseur IFC...")
         initializedRef.current = true
+
+        console.log("🎬 [VIEWER-PAGE] Création de l'instance IfcViewerAPI...")
         const viewer = new IfcViewerAPI({
           container: containerRef.current,
           backgroundColor: new THREE.Color(0xeeeeee),
         })
 
+        console.log("💡 [VIEWER-PAGE] Configuration de la scène...")
         // Configuration de la scène
         const scene = viewer.context.getScene()
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
@@ -188,12 +173,33 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-viewer.IFC.setWasmPath("/wasm/");
-        viewer.clipper.active = true
-        viewer.IFC.loader.ifcManager.applyWebIfcConfig({
-          COORDINATE_TO_ORIGIN: true,
-          USE_FAST_BOOLS: false,
-        })
+        // 🔧 CONFIGURATION WASM FINALE - FORCER VERSION 0.0.44
+        console.log("🔧 [VIEWER-PAGE] Configuration WASM version 0.0.44...")
+
+        try {
+          // 1. Forcer directement la version 0.0.44
+          console.log("🔧 [VIEWER-PAGE] Utilisation forcée de web-ifc@0.0.44...")
+          await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/")
+
+          // 2. Attendre plus longtemps pour l'initialisation
+          console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM (5 secondes)...")
+          await new Promise((resolve) => setTimeout(resolve, 5000))
+
+          // 3. Configuration des options IFC
+          console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...")
+          viewer.clipper.active = true
+
+          // 4. Configuration simple et compatible
+          viewer.IFC.loader.ifcManager.applyWebIfcConfig({
+            COORDINATE_TO_ORIGIN: true,
+            USE_FAST_BOOLS: false,
+          })
+
+          console.log("✅ [VIEWER-PAGE] WASM 0.0.44 configuré avec succès")
+        } catch (wasmError) {
+          console.error("❌ [VIEWER-PAGE] Erreur WASM:", wasmError)
+          throw new Error("Impossible de charger le module WASM compatible")
+        }
 
         // Gestionnaire de clic
         if (containerRef.current) {
@@ -226,7 +232,7 @@ viewer.IFC.setWasmPath("/wasm/");
                 return
               }
 
-              const model = ifcManager.state.models[modelID] as IfcModel
+              const model = ifcManager.state.models[modelID]
 
               if (model && model.mesh && model.mesh.visible) {
                 setSelectedElement(result.id)
@@ -245,11 +251,13 @@ viewer.IFC.setWasmPath("/wasm/");
           }
         }
 
-        // Chargement des fichiers avec progression
+        // Chargement des fichiers avec délais optimisés
+        console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...")
         const filesParam = searchParams.get("files")
         if (filesParam) {
-          const fileURLs = JSON.parse(filesParam) as string[]
+          const fileURLs = JSON.parse(filesParam)
           const totalFiles = fileURLs.length
+          console.log(`📁 [VIEWER-PAGE] ${totalFiles} fichiers à charger:`, fileURLs)
 
           setLoadingProgress({
             isVisible: true,
@@ -274,6 +282,8 @@ viewer.IFC.setWasmPath("/wasm/");
               .replace(/\.ifc$/, "")
               .replace(/_/g, " ")
 
+            console.log(`📄 [VIEWER-PAGE] Chargement du fichier ${i + 1}/${totalFiles}: ${displayName}`)
+
             setLoadingProgress((prev) => ({
               ...prev,
               currentFile: displayName,
@@ -289,12 +299,38 @@ viewer.IFC.setWasmPath("/wasm/");
                 }))
               }, 200)
 
-              const model = await viewer.IFC.loadIfcUrl(url)
+              // Chargement avec délais plus longs
+              let model = null
+              let retryCount = 0
+              const maxRetries = 2
+
+              while (retryCount < maxRetries && !model) {
+                try {
+                  console.log(`📄 [VIEWER-PAGE] Tentative ${retryCount + 1}/${maxRetries} pour ${displayName}`)
+
+                  // Attendre que WASM soit vraiment prêt
+                  if (retryCount === 0) {
+                    await new Promise((resolve) => setTimeout(resolve, 2000))
+                  } else {
+                    await new Promise((resolve) => setTimeout(resolve, 4000))
+                  }
+
+                  model = await viewer.IFC.loadIfcUrl(url)
+                  break
+                } catch (loadError) {
+                  retryCount++
+                  console.warn(`⚠️ [VIEWER-PAGE] Échec tentative ${retryCount}:`, loadError)
+                  if (retryCount < maxRetries) {
+                    await new Promise((resolve) => setTimeout(resolve, 3000))
+                  }
+                }
+              }
 
               clearInterval(progressInterval)
 
               if (model?.mesh && model.modelID !== undefined) {
                 const cleanName = displayName || `Modèle-${model.modelID}`
+                console.log(`✅ [VIEWER-PAGE] Modèle chargé: ${cleanName}`)
 
                 newModels.push({
                   id: String(model.modelID),
@@ -312,9 +348,11 @@ viewer.IFC.setWasmPath("/wasm/");
                 }))
 
                 await new Promise((resolve) => setTimeout(resolve, 300))
+              } else {
+                console.error(`❌ [VIEWER-PAGE] Échec du chargement après ${maxRetries} tentatives: ${url}`)
               }
             } catch (loadError) {
-              console.error(`Échec du chargement: ${url}`, loadError)
+              console.error(`❌ [VIEWER-PAGE] Erreur critique lors du chargement: ${url}`, loadError)
             }
           }
 
@@ -332,6 +370,7 @@ viewer.IFC.setWasmPath("/wasm/");
           }, 1000)
 
           setLoadedModels(newModels)
+          console.log(`✅ [VIEWER-PAGE] Tous les modèles chargés: ${newModels.length} modèles`)
 
           // Configuration de la caméra
           if (newModels.length > 0) {
@@ -397,8 +436,9 @@ viewer.IFC.setWasmPath("/wasm/");
         }
 
         viewerRef.current = viewer
+        console.log("✅ [VIEWER-PAGE] Visualiseur initialisé avec succès!")
       } catch (initError) {
-        console.error("Erreur d'initialisation:", initError)
+        console.error("❌ [VIEWER-PAGE] Erreur d'initialisation:", initError)
         setError(
           "Échec de l'initialisation du visualiseur: " +
             (initError instanceof Error ? initError.message : String(initError)),
@@ -413,6 +453,7 @@ viewer.IFC.setWasmPath("/wasm/");
     return () => {
       if (viewerRef.current) {
         try {
+          console.log("🧹 [VIEWER-PAGE] Nettoyage du visualiseur...")
           viewerRef.current.dispose()
         } catch (cleanupError) {
           console.error("Erreur lors du nettoyage:", cleanupError)
@@ -475,6 +516,26 @@ viewer.IFC.setWasmPath("/wasm/");
       cameraControls.mouseButtons.left = CameraControls.ACTION.TRUCK
       cameraControls.mouseButtons.right = CameraControls.ACTION.ROTATE
     }
+  }, [])
+
+  // Configuration anti-vibration
+  useEffect(() => {
+    if (!viewerRef.current?.context) return
+
+    const viewer = viewerRef.current
+    const controls = viewer.context.ifcCamera.cameraControls
+
+    controls.dampingFactor = 0.25
+    controls.draggingDampingFactor = 0.25
+    controls.azimuthRotateSpeed = 0.5
+    controls.polarRotateSpeed = 0.5
+    controls.truckSpeed = 1.0
+    controls.maxDistance = 1000
+    controls.minDistance = 0.1
+
+    const renderer = viewer.context.getRenderer()
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
   }, [])
 
   // Réinitialisation des mesures quand l'outil change
@@ -759,6 +820,7 @@ viewer.IFC.setWasmPath("/wasm/");
 
   return (
     <div className="flex h-screen dark:bg-gray-900 pt-20">
+      <WasmInterceptor />
       {/* Barre latérale gauche */}
       <div className="w-16 bg-white dark:bg-gray-800 shadow-lg flex flex-col items-center py-4 gap-4 border-r border-gray-200 dark:border-gray-700">
         <Button
@@ -931,7 +993,7 @@ viewer.IFC.setWasmPath("/wasm/");
             size="icon"
             disabled={isBIMModeleur}
             onClick={resetIsolation}
-            title="Réinitialiser l&apos;isolation"
+            title="Réinitialiser l'isolation"
             className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
           >
             <EyeOff className="h-5 w-5" />
@@ -1084,6 +1146,7 @@ viewer.IFC.setWasmPath("/wasm/");
     </div>
   )
 }
+
 export default function ViewerPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Chargement...</div>}>
