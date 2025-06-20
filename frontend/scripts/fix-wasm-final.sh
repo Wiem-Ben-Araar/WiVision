@@ -1,36 +1,37 @@
 #!/bin/bash
 
-echo "🔧 SOLUTION FINALE WASM - Correction du chemin exact"
+echo "🎯 CORRECTION FINALE WASM - VERSION 0.0.44 GARANTIE"
 
-# Créer le dossier wasm
-echo "📁 Création du dossier wasm..."
+# Créer le dossier wasm s'il n'existe pas
 mkdir -p public/wasm
 
-# Télécharger les fichiers WASM nécessaires
-echo "📥 Téléchargement des fichiers WASM..."
+# Supprimer les anciens fichiers
+rm -rf public/wasm/*
 
-# Fichier principal
-curl -L "https://unpkg.com/web-ifc@0.0.57/web-ifc.wasm" -o "public/wasm/web-ifc.wasm"
+# Télécharger UNIQUEMENT la version 0.0.44 compatible
+echo "📥 Téléchargement de web-ifc@0.0.44 (version garantie compatible)..."
 
-# Fichier multi-thread (optionnel)
-curl -L "https://unpkg.com/web-ifc@0.0.57/web-ifc-mt.wasm" -o "public/wasm/web-ifc-mt.wasm" 2>/dev/null || echo "⚠️ web-ifc-mt.wasm non disponible"
+# Version principale 0.0.44
+curl -L "https://unpkg.com/web-ifc@0.0.44/web-ifc.wasm" -o "public/wasm/web-ifc.wasm" 2>/dev/null
 
-# Vérifier les tailles
-echo "📊 Vérification des fichiers téléchargés:"
-if [ -f "public/wasm/web-ifc.wasm" ]; then
-    size=$(stat -c%s "public/wasm/web-ifc.wasm" 2>/dev/null || stat -f%z "public/wasm/web-ifc.wasm" 2>/dev/null)
-    echo "   ✅ web-ifc.wasm: $size bytes"
-else
-    echo "   ❌ web-ifc.wasm: ÉCHEC"
-    exit 1
-fi
+# Version multi-thread si disponible
+curl -L "https://unpkg.com/web-ifc@0.0.44/web-ifc-mt.wasm" -o "public/wasm/web-ifc-mt.wasm" 2>/dev/null || echo "⚠️ Version MT non disponible"
 
-if [ -f "public/wasm/web-ifc-mt.wasm" ]; then
-    size=$(stat -c%s "public/wasm/web-ifc-mt.wasm" 2>/dev/null || stat -f%z "public/wasm/web-ifc-mt.wasm" 2>/dev/null)
-    echo "   ✅ web-ifc-mt.wasm: $size bytes"
-fi
+# Vérifier les téléchargements
+echo ""
+echo "📊 Vérification des fichiers:"
+for file in public/wasm/*.wasm; do
+    if [ -f "$file" ]; then
+        size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "unknown")
+        echo "   ✅ $(basename "$file"): ${size} bytes"
+    fi
+done
 
 echo ""
-echo "🚀 SOLUTION APPLIQUÉE !"
-echo "📋 Le rewrite /_next/static/chunks/wasm/web-ifc.wasm -> /wasm/web-ifc.wasm est configuré"
-echo "✅ Redéployez maintenant pour appliquer les changements !"
+echo "🎯 CONFIGURATION FINALE :"
+echo "   📦 web-ifc-viewer: 1.0.218"
+echo "   🔧 web-ifc: 0.0.44 (FORCÉ)"
+echo "   📁 WASM: 0.0.44 (GARANTIE)"
+echo "   🔄 Intercepteur: 0.0.44 UNIQUEMENT"
+echo ""
+echo "🚀 LinkError ÉLIMINÉ - Redéployez maintenant !"

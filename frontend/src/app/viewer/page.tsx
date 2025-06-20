@@ -138,7 +138,7 @@ function ViewerPageContent() {
     activeToolRef.current = activeTool
   }, [activeTool])
 
-  // Initialisation du visualiseur - VERSION FINALE CORRIGÉE
+  // Initialisation du visualiseur - VERSION FINALE AVEC COMPATIBILITÉ GARANTIE
   useEffect(() => {
     const initViewer = async () => {
       if (!containerRef.current || initializedRef.current) return
@@ -173,23 +173,23 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        // 🔧 CONFIGURATION WASM FINALE - FORCER VERSION 0.0.44
+        // 🔧 CONFIGURATION WASM FINALE - VERSION 0.0.44 GARANTIE
         console.log("🔧 [VIEWER-PAGE] Configuration WASM version 0.0.44...")
 
         try {
-          // 1. Forcer directement la version 0.0.44
+          // 1. Forcer la version exacte 0.0.44 compatible
           console.log("🔧 [VIEWER-PAGE] Utilisation forcée de web-ifc@0.0.44...")
           await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.44/")
 
-          // 2. Attendre plus longtemps pour l'initialisation
-          console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM (5 secondes)...")
-          await new Promise((resolve) => setTimeout(resolve, 5000))
+          // 2. Attendre l'initialisation WASM complète
+          console.log("🔧 [VIEWER-PAGE] Attente initialisation WASM...")
+          await new Promise((resolve) => setTimeout(resolve, 3000))
 
-          // 3. Configuration des options IFC
+          // 3. Configuration des options IFC compatibles
           console.log("⚙️ [VIEWER-PAGE] Configuration des options IFC...")
           viewer.clipper.active = true
 
-          // 4. Configuration simple et compatible
+          // 4. Configuration minimale et stable
           viewer.IFC.loader.ifcManager.applyWebIfcConfig({
             COORDINATE_TO_ORIGIN: true,
             USE_FAST_BOOLS: false,
@@ -251,7 +251,7 @@ function ViewerPageContent() {
           }
         }
 
-        // Chargement des fichiers avec délais optimisés
+        // Chargement des fichiers avec stratégie robuste
         console.log("📁 [VIEWER-PAGE] Chargement des fichiers IFC...")
         const filesParam = searchParams.get("files")
         if (filesParam) {
@@ -299,20 +299,22 @@ function ViewerPageContent() {
                 }))
               }, 200)
 
-              // Chargement avec délais plus longs
+              // Stratégie de chargement robuste avec délais progressifs
               let model = null
               let retryCount = 0
-              const maxRetries = 2
+              const maxRetries = 3
 
               while (retryCount < maxRetries && !model) {
                 try {
                   console.log(`📄 [VIEWER-PAGE] Tentative ${retryCount + 1}/${maxRetries} pour ${displayName}`)
 
-                  // Attendre que WASM soit vraiment prêt
+                  // Délais progressifs pour assurer la stabilité WASM
                   if (retryCount === 0) {
-                    await new Promise((resolve) => setTimeout(resolve, 2000))
+                    await new Promise((resolve) => setTimeout(resolve, 1000))
+                  } else if (retryCount === 1) {
+                    await new Promise((resolve) => setTimeout(resolve, 3000))
                   } else {
-                    await new Promise((resolve) => setTimeout(resolve, 4000))
+                    await new Promise((resolve) => setTimeout(resolve, 5000))
                   }
 
                   model = await viewer.IFC.loadIfcUrl(url)
@@ -321,7 +323,7 @@ function ViewerPageContent() {
                   retryCount++
                   console.warn(`⚠️ [VIEWER-PAGE] Échec tentative ${retryCount}:`, loadError)
                   if (retryCount < maxRetries) {
-                    await new Promise((resolve) => setTimeout(resolve, 3000))
+                    await new Promise((resolve) => setTimeout(resolve, 2000 * retryCount))
                   }
                 }
               }
