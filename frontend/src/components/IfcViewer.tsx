@@ -6,7 +6,15 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { IFCLoader } from "web-ifc-three/IFCLoader";
 import { Button } from "@/components/ui/button";
 import {ZoomIn, ZoomOut, RotateCw, Home } from "lucide-react";
-
+declare global {
+  interface Window {
+    process?: {
+      env?: {
+        NODE_ENV?: string;
+      };
+    };
+  }
+}
 export default function IFCViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
  
@@ -59,13 +67,15 @@ export default function IFCViewer() {
     // IFC Loader setup
 const newIfcLoader = new IFCLoader();
   
-  // Déterminer dynamiquement le chemin WASM
-  const isProduction = process.env.NODE_ENV === 'production';
-  const wasmPath = isProduction 
-    ? 'https://wi-vision.vercel.app/wasm/' 
-    : '/wasm/';
-  
-  newIfcLoader.ifcManager.setWasmPath(wasmPath);
+   const isProduction = typeof window !== 'undefined' 
+      ? window.process?.env?.NODE_ENV === 'production' 
+      : process.env.NODE_ENV === 'production';
+    
+    const wasmPath = isProduction 
+      ? 'https://wi-vision.vercel.app/wasm/' 
+      : '/wasm/';
+    
+    newIfcLoader.ifcManager.setWasmPath(wasmPath);
   
     setCamera(newCamera);
     setRenderer(newRenderer);
