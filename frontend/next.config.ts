@@ -1,13 +1,17 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   experimental: {
     esmExternals: false,
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
+      config.resolve = {
+        ...config.resolve,
+        fallback: {
+          ...config.resolve?.fallback,
+          fs: false,
+        },
       };
     }
 
@@ -26,7 +30,6 @@ const nextConfig = {
 
     return config;
   },
-  // Ensure static files are properly served
   async headers() {
     return [
       {
@@ -50,4 +53,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
