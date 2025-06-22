@@ -188,20 +188,23 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-          const wasmPath = "/wasm/"
-    console.log("Setting WASM path to:", wasmPath)
-    
-    await viewer.IFC.setWasmPath(wasmPath)
-    
-    // Test if WASM is accessible
-    const response = await fetch(`${wasmPath}web-ifc.wasm`)
-    console.log("WASM file accessible:", response.ok)
+         const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+const wasmPath = `${baseUrl}/wasm/`;
+console.log("Using WASM path:", wasmPath);
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-
+try {
+  const testResponse = await fetch(`${wasmPath}web-ifc.wasm`);
+  console.log("WASM access test:", testResponse.ok);
+  if (!testResponse.ok) {
+    console.error("WASM file not accessible");
+  }
+} catch (error) {
+  console.error("WASM access test failed:", error);
+}
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
