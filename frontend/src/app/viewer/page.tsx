@@ -188,7 +188,14 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("https://wi-vision.vercel.app/wasm/")
+          const wasmPath = "/wasm/"
+    console.log("Setting WASM path to:", wasmPath)
+    
+    await viewer.IFC.setWasmPath(wasmPath)
+    
+    // Test if WASM is accessible
+    const response = await fetch(`${wasmPath}web-ifc.wasm`)
+    console.log("WASM file accessible:", response.ok)
         viewer.clipper.active = true
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
