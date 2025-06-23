@@ -6,7 +6,7 @@
   },
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/wasm/(.*)",
       "headers": [
         {
           "key": "Cross-Origin-Opener-Policy",
@@ -32,7 +32,7 @@
       ]
     },
     {
-      "source": "/api/(.*)",
+      "source": "/api/wasm/(.*)",
       "headers": [
         {
           "key": "Cross-Origin-Resource-Policy",
