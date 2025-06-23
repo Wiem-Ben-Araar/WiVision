@@ -190,7 +190,7 @@ function ViewerPageContent() {
 
         await viewer.IFC.setWasmPath("wasm/")
         
-        
+     
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
