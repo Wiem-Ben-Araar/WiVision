@@ -1,54 +1,54 @@
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 60,
+  staticPageGenerationTimeout: 300,
   images: {
-    domains: ["lh3.googleusercontent.com"], 
+    domains: ["lh3.googleusercontent.com"],
   },
-  // Ajouter cette configuration pour WASM
   webpack: (config, { isServer }) => {
+    // Configuration pour les fichiers WASM
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    // Configuration spécifique pour web-ifc
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "webassembly/async",
+    });
+
+    // Fallback pour Node.js modules
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
         path: false,
+        crypto: false,
       };
     }
-    
-    // Configuration spécifique pour web-ifc
-    config.experiments = {
-      ...config.experiments,
-      asyncWebAssembly: true,
-    };
 
     return config;
   },
-  async rewrites() {
-    return [
-      {
-        source: "/_next/static/chunks/wasm/web-ifc.wasm",
-        destination: "/wasm/web-ifc.wasm",
-      },
-      {
-        source: "/api/:path*",
-        destination: "https://wivision.onrender.com/api/:path*",
-      },
-    ];
-  },
-  // Ajouter cette configuration pour les headers
   async headers() {
     return [
       {
-        source: '/wasm/:path*',
+        source: "/wasm/:path*",
         headers: [
-          {
-            key: 'Content-Type',
-            value: 'application/wasm',
-          },
+          { key: "Content-Type", value: "application/wasm" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
     ];
+  },
+  experimental: {
+    // Optimisation pour WASM
+    optimizePackageImports: ["web-ifc"],
   },
 };
 
