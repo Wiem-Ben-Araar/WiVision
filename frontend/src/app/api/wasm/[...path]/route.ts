@@ -1,8 +1,11 @@
 // src/app/api/wasm/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { stat } from 'fs/promises';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic'; // Change this for Vercel
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
@@ -12,35 +15,45 @@ export async function GET(
     const resolvedParams = await params;
     const fileName = resolvedParams.path.join('/');
     
-    // Map of WASM files - add your actual WASM files here
-    const wasmFiles: { [key: string]: string } = {
-      'web-ifc.wasm': '/wasm/web-ifc.wasm',
-      'web-ifc-mt.wasm': '/wasm/web-ifc-mt.wasm',
-      // Add other WASM files as needed
-    };
+    console.log('WASM file requested:', fileName);
     
-    const publicPath = wasmFiles[fileName];
+    // Chemin vers le fichier WASM
+    const filePath = join(process.cwd(), 'public', 'wasm', fileName);
     
-    if (!publicPath) {
-      return new NextResponse('WASM file not found', { status: 404 });
+    console.log('Looking for file at:', filePath);
+    
+    // Vérifier si le fichier existe
+    try {
+      await stat(filePath);
+      console.log('File exists');
+    } catch (error) {
+      console.log('File does not exist:', error);
+      return new NextResponse(`WASM file not found: ${fileName}`, { 
+        status: 404,
+        headers: {
+          'Content-Type': 'text/plain'
+        }
+      });
     }
     
-    // For Vercel, we need to fetch from the public URL
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : request.nextUrl.origin;
+    // Lire le fichier
+    const fileBuffer = await readFile(filePath);
+    console.log('File read successfully, size:', fileBuffer.length);
     
-    const wasmUrl = `${baseUrl}${publicPath}`;
+    // Vérifier que c'est bien un fichier WASM
+    const wasmMagic = new Uint8Array(fileBuffer.slice(0, 4));
+    const expectedMagic = new Uint8Array([0x00, 0x61, 0x73, 0x6d]);
     
-    const response = await fetch(wasmUrl);
+    const isValidWasm = wasmMagic.every((byte, index) => byte === expectedMagic[index]);
     
-    if (!response.ok) {
-      return new NextResponse('WASM file not found', { status: 404 });
+    if (!isValidWasm) {
+      console.error('Invalid WASM file - wrong magic number');
+      return new NextResponse('Invalid WASM file', { status: 400 });
     }
     
-    const wasmBuffer = await response.arrayBuffer();
+    console.log('Valid WASM file confirmed');
     
-    return new NextResponse(wasmBuffer, {
+    return new NextResponse(fileBuffer, {
       headers: {
         'Content-Type': 'application/wasm',
         'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -49,11 +62,38 @@ export async function GET(
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET',
         'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Length': fileBuffer.length.toString(),
       }
     });
     
   } catch (error) {
     console.error('Error serving WASM file:', error);
-    return new NextResponse('Internal server error', { status: 500 });
+    return new NextResponse(`Internal server error: ${error}`, { 
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    });
+  }
+}
+
+// Ajouter une route pour lister les fichiers WASM disponibles (debug)
+export async function POST(request: NextRequest) {
+  try {
+    const wasmDir = join(process.cwd(), 'public', 'wasm');
+    const fs = await import('fs/promises');
+    
+    const files = await fs.readdir(wasmDir);
+    const wasmFiles = files.filter(file => file.endsWith('.wasm'));
+    
+    return NextResponse.json({
+      available_files: wasmFiles,
+      directory: wasmDir
+    });
+  } catch (error) {
+    return NextResponse.json({
+      error: 'Could not list WASM files',
+      details: error
+    }, { status: 500 });
   }
 }
