@@ -83,7 +83,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/wasm/:path*',
-        destination: '/api/wasm/:path*',
+        destination: '/wasm/:path*',
       },
     ];
   },
