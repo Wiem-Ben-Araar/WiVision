@@ -8,29 +8,14 @@ const nextConfig: NextConfig = {
     domains: ["lh3.googleusercontent.com"],
   },
   
-  // Nouvelle position pour outputFileTracingIncludes
-  outputFileTracingIncludes: {
-    "/*": ["./node_modules/web-ifc/**/*.wasm"],
-  },
-
   webpack: (config, { isServer }) => {
-    // Configuration pour les fichiers WASM
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
-      layers: true,
     };
 
-    // Configuration spécifique pour web-ifc
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "webassembly/async",
-    });
-
-    // Fallback pour Node.js modules
     if (!isServer) {
       config.resolve.fallback = {
-        ...config.resolve.fallback,
         fs: false,
         path: false,
         crypto: false,
@@ -40,23 +25,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   
-  async headers() {
-    return [
-      {
-        source: "/wasm/:path*",
-        headers: [
-          { key: "Content-Type", value: "application/wasm" },
-          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
-    ];
-  },
-  
-  experimental: {
-    optimizePackageImports: ["web-ifc"],
-  },
+  // Suppression de la configuration headers, gérée par le proxy
 };
 
 export default nextConfig;
