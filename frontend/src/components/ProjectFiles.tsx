@@ -148,6 +148,9 @@ export default function ProjectFiles({
       const urlStr = JSON.stringify(validUrls)
       const newViewAllUrl = `/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`
       setViewAllUrl(newViewAllUrl)
+      console.log("Valid URLs:", validUrls)
+console.log("Generated viewAllUrl:", newViewAllUrl)
+
     } else {
       setViewAllUrl("#")
       sessionStorage.removeItem(`valid_urls_${projectId}`)
