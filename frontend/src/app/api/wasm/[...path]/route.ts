@@ -1,5 +1,5 @@
 // src/app/api/wasm/[...path]/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { stat } from 'fs/promises';
@@ -7,8 +7,16 @@ import { stat } from 'fs/promises';
 export const dynamic = 'force-static';
 export const runtime = 'nodejs';
 
-export async function GET({ params }: { params: { path: string[] } }) {
-  const filePath = join(process.cwd(), 'public', 'wasm', ...params.path);
+export async function GET(request: NextRequest) {
+  // Extraire le chemin des paramètres de l'URL
+  const path = request.nextUrl.pathname.replace('/api/wasm/', '').split('/').filter(Boolean);
+  
+  // Vérifier qu'on a bien un nom de fichier
+  if (path.length === 0) {
+    return new NextResponse('File name required', { status: 400 });
+  }
+  
+  const filePath = join(process.cwd(), 'public', 'wasm', ...path);
   
   try {
     await stat(filePath);
