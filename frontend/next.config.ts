@@ -5,39 +5,31 @@ const nextConfig: NextConfig = {
   staticPageGenerationTimeout: 300,
   images: {
     domains: ["lh3.googleusercontent.com"],
-    unoptimized: true, // Updated code here
+    unoptimized: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 
-  // Enhanced WASM support for Vercel
-  experimental: {
-    serverComponentsExternalPackages: [],
-    esmExternals: "loose",
-  },
-
+  // Critical: Configure webpack to handle WASM files properly
   webpack: (config, { isServer, dev }) => {
-    // Enhanced WASM configuration
+    // Enable WASM support
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
       syncWebAssembly: true,
-      layers: true,
     }
 
-    // WASM file handling
+    // Handle .wasm files
     config.module.rules.push({
       test: /\.wasm$/,
       type: "webassembly/async",
     })
 
-    // Additional rule for WASM files in node_modules
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: "asset/resource",
-      generator: {
-        filename: "static/wasm/[name].[hash][ext]",
-      },
-    })
-
+    // Copy WASM files to the correct location
     if (!isServer) {
       config.resolve.fallback = {
         fs: false,
@@ -47,19 +39,18 @@ const nextConfig: NextConfig = {
         buffer: false,
       }
 
-      // Ensure proper WASM loading in browser
+      // Ensure WASM files are copied to the static directory
       config.output.webassemblyModuleFilename = "static/wasm/[modulehash].wasm"
     }
 
-    // Fix for dynamic imports in production
-    if (!dev && !isServer) {
-      config.optimization.splitChunks.cacheGroups.wasm = {
-        name: "wasm",
-        test: /\.wasm$/,
-        chunks: "all",
-        enforce: true,
-      }
-    }
+    // Handle web-ifc specifically
+    config.module.rules.push({
+      test: /web-ifc.*\.wasm$/,
+      type: "asset/resource",
+      generator: {
+        filename: "static/chunks/wasm/[name][ext]",
+      },
+    })
 
     return config
   },
@@ -67,34 +58,22 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // More specific WASM file matching
-        source: "/_next/static/wasm/:path*",
+        source: "/_next/static/chunks/wasm/:path*",
         headers: [
           { key: "Content-Type", value: "application/wasm" },
           { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
         ],
       },
       {
-        source: "/(.*\\.wasm)",
+        source: "/wasm/:path*",
         headers: [
           { key: "Content-Type", value: "application/wasm" },
           { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
         ],
       },
       {
-        source: "/api/wasm/(.*)",
-        headers: [
-          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
-        ],
-      },
-      {
-        // Add headers for the main page to support WASM
         source: "/(.*)",
         headers: [
           { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
@@ -111,13 +90,6 @@ const nextConfig: NextConfig = {
         destination: "/api/wasm/:path*",
       },
     ]
-  },
-
-  eslint: {
-    ignoreDuringBuilds: true, // Updated code here
-  },
-  typescript: {
-    ignoreBuildErrors: true, // Updated code here
   },
 }
 
