@@ -189,12 +189,14 @@ function ViewerPageContent() {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
         await viewer.IFC.setWasmPath("wasm/")
-        viewer.clipper.active = true
+        
+        
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: false,
         })
-
+        
+viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
@@ -266,7 +268,7 @@ function ViewerPageContent() {
           for (let i = 0; i < fileURLs.length; i++) {
             const url = fileURLs[i]
 
-            const decodedUrl = decodeURIComponent(decodeURIComponent(url))
+            const decodedUrl = decodeURIComponent(url);
             const filenamePart = decodedUrl.split("/").pop() || ""
             const displayName = filenamePart
               .replace(/(\d+_)/, "")
