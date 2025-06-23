@@ -19,24 +19,7 @@
       ]
     },
     {
-      "source": "/wasm/(.*)",
-      "headers": [
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin"
-        },
-        {
-          "key": "Cross-Origin-Embedder-Policy",
-          "value": "require-corp"
-        },
-        {
-          "key": "Cross-Origin-Resource-Policy",
-          "value": "cross-origin"
-        }
-      ]
-    },
-    {
-      "source": "/(.*\\.wasm)",
+      "source": "/_next/static/chunks/wasm/(.*)",
       "headers": [
         {
           "key": "Content-Type",
@@ -45,28 +28,11 @@
         {
           "key": "Cross-Origin-Resource-Policy",
           "value": "cross-origin"
-        },
-        {
-          "key": "Cross-Origin-Embedder-Policy",
-          "value": "require-corp"
         }
       ]
     },
     {
-      "source": "/api/wasm/(.*)",
-      "headers": [
-        {
-          "key": "Cross-Origin-Resource-Policy",
-          "value": "cross-origin"
-        },
-        {
-          "key": "Cross-Origin-Embedder-Policy",
-          "value": "require-corp"
-        }
-      ]
-    },
-    {
-      "source": "/_next/static/wasm/(.*)",
+      "source": "/wasm/(.*)",
       "headers": [
         {
           "key": "Content-Type",
