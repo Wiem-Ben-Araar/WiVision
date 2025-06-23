@@ -1,13 +1,10 @@
-// next.config.ts
-import type { NextConfig } from 'next';
+import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   experimental: {
     esmExternals: false,
   },
-  
   webpack: (config, { isServer }) => {
-    // Configuration spécifique côté client
     if (!isServer) {
       config.resolve = {
         ...config.resolve,
@@ -18,14 +15,14 @@ const nextConfig: NextConfig = {
       };
     }
 
-    // Activation du support WebAssembly
+    // Handle WASM files
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
       layers: true,
     };
 
-    // Règle pour les fichiers WASM
+    // Add rule for WASM files
     config.module.rules.push({
       test: /\.wasm$/,
       type: 'webassembly/async',
@@ -33,7 +30,6 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-
   async headers() {
     return [
       {
