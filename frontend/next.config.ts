@@ -38,7 +38,14 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
-      
+{
+      source: '/(.*)',  // ✅ s'applique à toutes les routes
+      headers: [
+        { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+      ],
+    },
+
       {
         source: '/(.*\\.wasm)',
         headers: [
@@ -47,13 +54,7 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
-          {
-      source: '/(.*)',
-      headers: [
-        { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-        { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-      ],
-    },
+      
       {
         source: '/api/wasm/(.*)',
         headers: [
@@ -61,6 +62,7 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
+      
     ];
   },
 
