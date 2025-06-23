@@ -6,7 +6,7 @@
   },
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/wasm/(.*)",
       "headers": [
         {
           "key": "Cross-Origin-Opener-Policy",
@@ -19,7 +19,7 @@
       ]
     },
     {
-      "source": "/_next/static/chunks/wasm/(.*)",
+      "source": "/(.*\\.wasm)",
       "headers": [
         {
           "key": "Content-Type",
@@ -32,12 +32,8 @@
       ]
     },
     {
-      "source": "/wasm/(.*)",
+      "source": "/api/wasm/(.*)",
       "headers": [
-        {
-          "key": "Content-Type",
-          "value": "application/wasm"
-        },
         {
           "key": "Cross-Origin-Resource-Policy",
           "value": "cross-origin"
