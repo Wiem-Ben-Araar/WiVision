@@ -1,27 +1,21 @@
-// app/wasm-proxy/route.ts
+// app/api/wasm/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { join } from 'path';
+import { readFile } from 'fs/promises';
+import { stat } from 'fs/promises';
 
 export const dynamic = 'force-static';
-export const runtime = 'edge'; // Utilisez le runtime Edge
+export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
-  // Récupère le chemin du fichier WASM demandé
-  const url = new URL(request.nextUrl);
-  const path = url.pathname.replace('/wasm-proxy/', '');
-  
-  // URL de base pour les fichiers WASM (peut être ajusté si nécessaire)
-  const wasmBaseUrl = 'https://wi-vision.vercel.app/wasm/';
+export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+  // Chemin correct vers les fichiers WASM
+  const filePath = join(process.cwd(), 'public', 'wasm', ...params.path);
   
   try {
-    const response = await fetch(`${wasmBaseUrl}${path}`);
+    await stat(filePath);
+    const file = await readFile(filePath);
     
-    if (!response.ok) {
-      return new NextResponse('WASM file not found', { status: 404 });
-    }
-    
-    const wasmFile = await response.arrayBuffer();
-    
-    return new NextResponse(wasmFile, {
+    return new NextResponse(file, {
       headers: {
         'Content-Type': 'application/wasm',
         'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -30,7 +24,7 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Proxy error:', error);
-    return new NextResponse('Internal server error', { status: 500 });
+    console.error('Error serving WASM file:', error);
+    return new NextResponse('WASM file not found', { status: 404 });
   }
 }

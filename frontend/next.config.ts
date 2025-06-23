@@ -8,11 +8,23 @@ const nextConfig: NextConfig = {
     domains: ["lh3.googleusercontent.com"],
   },
   
+  // Important for Vercel WASM support
+  experimental: {
+    serverComponentsExternalPackages: [],
+  },
+  
   webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
+      syncWebAssembly: true,
     };
+
+    // WASM support
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
 
     if (!isServer) {
       config.resolve.fallback = {
@@ -24,8 +36,54 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  
-  // Suppression de la configuration headers, gérée par le proxy
+
+  async headers() {
+    return [
+      {
+        source: '/wasm/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/wasm',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/api/wasm/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+    ];
+  },
+
+  async rewrites() {
+    return [
+      {
+        source: '/wasm/:path*',
+        destination: '/api/wasm/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;
