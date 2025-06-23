@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  
+  _request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
@@ -78,7 +78,7 @@ export async function GET(
 }
 
 // Ajouter une route pour lister les fichiers WASM disponibles (debug)
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const wasmDir = join(process.cwd(), 'public', 'wasm');
     const fs = await import('fs/promises');
