@@ -5,10 +5,11 @@ import fs from 'fs';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const filePath = params.path.join('/');
+    const resolvedParams = await params;
+    const filePath = resolvedParams.path.join('/');
     
     // Adjust this path to where your WASM files are located
     const wasmFilePath = path.join(process.cwd(), 'public', 'wasm', filePath);
