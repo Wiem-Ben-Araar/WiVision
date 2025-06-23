@@ -188,7 +188,7 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("/wasm/")
+        await viewer.IFC.setWasmPath("/wasm")
         
      
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
