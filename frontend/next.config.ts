@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["lh3.googleusercontent.com"],
   },
+  
+  // Nouvelle position pour outputFileTracingIncludes
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/web-ifc/**/*.wasm"],
+  },
+
   webpack: (config, { isServer }) => {
     // Configuration pour les fichiers WASM
     config.experiments = {
@@ -33,6 +39,7 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  
   async headers() {
     return [
       {
@@ -46,8 +53,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  
   experimental: {
-    // Optimisation pour WASM
     optimizePackageImports: ["web-ifc"],
   },
 };
