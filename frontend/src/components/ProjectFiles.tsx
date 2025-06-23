@@ -134,30 +134,25 @@ export default function ProjectFiles({
       uploadedByEmail: file.uploadedByEmail,
     }))
   }
-const updateViewAllUrl = useCallback(() => {
-  const validFiles = projectFiles.filter((file) => isValidFileUrl(file.file_url));
-  const valid = validFiles.length > 0;
-  setHasValidFiles(valid);
 
-  if (valid) {
-    const validUrls = validFiles.map((file) => {
-      const baseUrl = "https://lkovebvhjbaobpfnwosw.supabase.co/storage/v1/object/public/ifc-files/";
-      const path = file.file_url.replace(baseUrl, "");
-      return `https://wivision.functions.supabase.co/get-ifc?path=${encodeURIComponent(path)}`;
-    });
+  const updateViewAllUrl = useCallback(() => {
+    const validFiles = projectFiles.filter((file) => isValidFileUrl(file.file_url))
+    const valid = validFiles.length > 0
+    setHasValidFiles(valid)
 
-    sessionStorage.setItem(`valid_urls_${projectId}`, JSON.stringify(validUrls));
-    sessionStorage.setItem(`current_project_id`, projectId);
+    if (valid) {
+      const validUrls = validFiles.map((file) => file.file_url)
+      sessionStorage.setItem(`valid_urls_${projectId}`, JSON.stringify(validUrls))
+      sessionStorage.setItem(`current_project_id`, projectId)
 
-    const urlStr = JSON.stringify(validUrls);
-    const newViewAllUrl = `/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`;
-    setViewAllUrl(newViewAllUrl);
-  } else {
-    setViewAllUrl("#");
-    sessionStorage.removeItem(`valid_urls_${projectId}`);
-  }
-}, [projectFiles, projectId]);
-
+      const urlStr = JSON.stringify(validUrls)
+      const newViewAllUrl = `/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`
+      setViewAllUrl(newViewAllUrl)
+    } else {
+      setViewAllUrl("#")
+      sessionStorage.removeItem(`valid_urls_${projectId}`)
+    }
+  }, [projectFiles, projectId])
 
   const handleVisualizerClick = () => {
     if (!hasValidFiles) return
