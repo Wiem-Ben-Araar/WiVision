@@ -1,19 +1,19 @@
 // app/wasm/[...path]/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { stat } from 'fs/promises';
 
 export const dynamic = 'force-static';
 
-export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
   const filePath = join(process.cwd(), 'public', 'wasm', ...params.path);
   
   try {
     await stat(filePath);
     const file = await readFile(filePath);
     
-    return new NextResponse(file, {
+    return new Response(file, {
       headers: {
         'Content-Type': 'application/wasm',
         'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -22,6 +22,6 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
       }
     });
   } catch {
-    return new NextResponse('WASM file not found', { status: 404 });
+    return new Response('WASM file not found', { status: 404 });
   }
 }
