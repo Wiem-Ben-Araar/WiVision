@@ -1,5 +1,5 @@
 // app/wasm/[...path]/route.ts
-import { NextResponse } from 'next/server';
+
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { stat } from 'fs/promises';
