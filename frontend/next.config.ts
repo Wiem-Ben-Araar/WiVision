@@ -1,35 +1,42 @@
-import { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    esmExternals: false,
+  reactStrictMode: true,
+  staticPageGenerationTimeout: 60,
+  images: {
+    domains: ["lh3.googleusercontent.com"], 
   },
+  // Ajouter cette configuration pour WASM
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      config.resolve = {
-        ...config.resolve,
-        fallback: {
-          ...config.resolve?.fallback,
-          fs: false,
-        },
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
       };
     }
-
-    // Handle WASM files
+    
+    // Configuration spécifique pour web-ifc
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
-      layers: true,
     };
-
-    // Add rule for WASM files
-    config.module.rules.push({
-      test: /\.wasm$/,
-      type: 'webassembly/async',
-    });
 
     return config;
   },
+  async rewrites() {
+    return [
+      {
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
+      {
+        source: "/api/:path*",
+        destination: "https://wivision.onrender.com/api/:path*",
+      },
+    ];
+  },
+  // Ajouter cette configuration pour les headers
   async headers() {
     return [
       {
@@ -38,14 +45,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Type',
             value: 'application/wasm',
-          },
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
-          },
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
           },
         ],
       },
