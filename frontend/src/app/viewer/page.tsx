@@ -191,7 +191,23 @@ function ViewerPageContent() {
   // Remplacez tous vos setWasmPath par :
 const wasmPath = process.env.NODE_ENV === 'production' ? '/api/wasm/' : '/wasm/';
 await viewer.IFC.setWasmPath(wasmPath);
-        
+        // Intercepter TOUTES les requêtes WASM
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch;
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input.toString();
+    
+    // Rediriger toutes les requêtes WASM vers notre API
+    if (url.includes('.wasm') || url.includes('wasm')) {
+      const wasmFile = url.split('/').pop();
+      const newUrl = `/api/wasm/${wasmFile}`;
+      console.log(`🔄 Redirection WASM: ${url} → ${newUrl}`);
+      return originalFetch(newUrl, init);
+    }
+    
+    return originalFetch(input, init);
+  };
+}
      
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
           COORDINATE_TO_ORIGIN: true,

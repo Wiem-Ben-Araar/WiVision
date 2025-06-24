@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/use-auth";
 
 export default function RootLayout({
+  
   children,
 }: {
   children: React.ReactNode;
