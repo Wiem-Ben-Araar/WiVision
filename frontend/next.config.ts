@@ -2,67 +2,65 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 60,
+  staticPageGenerationTimeout: 300,
   images: {
     domains: ["lh3.googleusercontent.com"],
   },
-  webpack: (config) => {
-    // WebAssembly configuration
+  
+  // Important for Vercel WASM support
+  experimental: {
+    serverComponentsExternalPackages: [],
+  },
+  
+  webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
-      layers: true,
+      syncWebAssembly: true,
     };
-   
-    // WASM file handling
+
+    // WASM support
     config.module.rules.push({
       test: /\.wasm$/,
-      type: 'asset/resource',
-      generator: {
-        filename: 'static/wasm/[name][ext]'
-      }
+      type: 'webassembly/async',
     });
-   
+
+    if (!isServer) {
+      config.resolve.fallback = {
+        fs: false,
+        path: false,
+        crypto: false,
+      };
+    }
+
     return config;
   },
+
   async headers() {
     return [
       {
-        source: "/(.*)",
+        source: '/(.*\\.wasm)',
         headers: [
-          {
-            key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: ws:; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
-          }
-        ]
+          { key: 'Content-Type', value: 'application/wasm' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
       },
       {
-        // Serve WASM files with correct MIME type
-        source: "/wasm/:path*.wasm",
+        source: '/api/wasm/(.*)',
         headers: [
-          {
-            key: "Content-Type",
-            value: "application/wasm"
-          }
-        ]
-      }
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
     ];
   },
+
   async rewrites() {
     return [
-      // Redirect all WASM requests to public/wasm directory
       {
-        source: "/_next/static/chunks/wasm/:path*",
-        destination: "/wasm/:path*",
-      },
-      {
-        source: "/_next/static/chunks/app/viewer/wasm/:path*",
-        destination: "/wasm/:path*",
-      },
-      // API rewrites
-      {
-        source: "/api/:path*",
-        destination: "https://wivision.onrender.com/api/:path*",
+        source: '/wasm/:path*',
+        destination: '/api/wasm/:path*',
       },
     ];
   },
