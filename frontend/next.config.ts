@@ -100,6 +100,10 @@ const nextConfig: NextConfig = {
         destination: '/api/wasm/:path*',
       },
       {
+        source: '/_next/static/chunks/api/wasm/:path*',
+        destination: '/api/wasm/:path*',
+      },
+      {
         source: '/wasm/:path*',
         destination: '/api/wasm/:path*',
       },

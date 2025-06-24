@@ -1,4 +1,3 @@
-// app/api/wasm/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
