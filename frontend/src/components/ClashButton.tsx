@@ -105,7 +105,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
       setPollingStatus('Analyse des conflits en cours...');
       
       const { data } = await axios.post<IntraClashResponse>(
-        `${API_BASE_URL}/api/clash/detect_intra_ultra`, 
+        `${API_BASE_URL}/clash/detect_intra_ultra`, 
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -157,7 +157,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         setPollingStatus(`Analyse en cours... ${progress}%`);
         
         const { data } = await axios.get<StatusResponse>(
-          `${API_BASE_URL}/api/clash/status_ultra/${sessionId}`,
+          `${API_BASE_URL}/clash/status_ultra/${sessionId}`,
           { timeout: 10000 }
         );
         

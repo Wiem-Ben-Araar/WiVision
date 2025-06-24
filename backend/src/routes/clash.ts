@@ -313,7 +313,7 @@ router.get("/report/pdf/:sessionId", async (req: Request, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename="rapport-clash-${sessionId}.pdf"`);
     
     // Pour l'instant, rediriger vers le HTML (à adapter selon vos besoins)
-    res.redirect(`/api/clash/report/html/${sessionId}`);
+    res.redirect(`/clash/report/html/${sessionId}`);
     
   } catch (error: any) {
     console.error(`❌ Erreur génération rapport PDF:`, error.message);
