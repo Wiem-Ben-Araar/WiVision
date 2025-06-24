@@ -812,7 +812,7 @@ const cleanupExistingAnnotations = useCallback((scene: THREE.Scene, annotations:
     }
 
     fetchComments()
-}, [projectId, activeTool, getSafeScene, createAnnotationObject, annotationObjects, cleanupExistingAnnotations])
+}, [projectId, activeTool, getSafeScene, createAnnotationObject, cleanupExistingAnnotations])
 
   // GESTION DES CLICS avec recherche d'ancrage IFC
   useEffect(() => {
