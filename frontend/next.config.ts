@@ -2,65 +2,64 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  staticPageGenerationTimeout: 300,
+  staticPageGenerationTimeout: 60,
   images: {
-    domains: ["lh3.googleusercontent.com"],
+    domains: ["lh3.googleusercontent.com"], 
   },
-  
-  // Important for Vercel WASM support
-  experimental: {
-    serverComponentsExternalPackages: [],
-  },
-  
-  webpack: (config, { isServer }) => {
-    config.experiments = {
+  webpack: (config) => {
+    // Ajouter la configuration WebAssembly
+    config.experiments = { 
       ...config.experiments,
       asyncWebAssembly: true,
-      syncWebAssembly: true,
+      layers: true,
     };
-
-    // WASM support
+    
+    // Règle pour les fichiers WASM
     config.module.rules.push({
       test: /\.wasm$/,
-      type: 'webassembly/async',
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/wasm/[name][ext]'
+      }
     });
-
-    if (!isServer) {
-      config.resolve.fallback = {
-        fs: false,
-        path: false,
-        crypto: false,
-      };
-    }
-
+    
     return config;
   },
-
   async headers() {
     return [
       {
-        source: '/(.*\\.wasm)',
+        source: "/wasm/web-ifc.wasm",
         headers: [
-          { key: 'Content-Type', value: 'application/wasm' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-        ],
+          { 
+            key: "Content-Type", 
+            value: "application/wasm" 
+          }
+        ]
       },
       {
-        source: '/api/wasm/(.*)',
+        source: "/_next/static/chunks/app/viewer/wasm/web-ifc.wasm",
         headers: [
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-        ],
-      },
+          { 
+            key: "Content-Type", 
+            value: "application/wasm" 
+          }
+        ]
+      }
     ];
   },
-
   async rewrites() {
     return [
       {
-        source: '/wasm/:path*',
-        destination: '/api/wasm/:path*',
+        source: "/_next/static/chunks/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
+      {
+        source: "/_next/static/chunks/app/viewer/wasm/web-ifc.wasm",
+        destination: "/wasm/web-ifc.wasm",
+      },
+      {
+        source: "/api/:path*",
+        destination: "https://wivision.onrender.com/api/:path*",
       },
     ];
   },
