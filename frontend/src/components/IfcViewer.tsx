@@ -9,7 +9,7 @@ import {ZoomIn, ZoomOut, RotateCw, Home } from "lucide-react";
 
 export default function IFCViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
- 
+  
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
   const [controls, setControls] = useState<OrbitControls | null>(null);
@@ -56,9 +56,9 @@ export default function IFCViewer() {
     const grid = new THREE.GridHelper(50, 50);
     newScene.add(grid);
   
-    // IFC Loader setup
-    const newIfcLoader = new IFCLoader();
-    newIfcLoader.ifcManager.setWasmPath("wasm/");
+ const newIfcLoader = new IFCLoader();
+  newIfcLoader.ifcManager.setWasmPath("/wasm/");
+
 
     setCamera(newCamera);
     setRenderer(newRenderer);
@@ -71,7 +71,9 @@ export default function IFCViewer() {
       newRenderer.render(newScene, newCamera);
     };
     animate();
-  
+
+
+
     // Cleanup
     return () => {
       if (animationFrameId.current) {
