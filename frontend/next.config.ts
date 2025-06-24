@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-    compress: false,
   staticPageGenerationTimeout: 300,
   images: {
     domains: ["lh3.googleusercontent.com"],
@@ -39,8 +38,6 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
-
-
       {
         source: '/(.*\\.wasm)',
         headers: [
@@ -49,7 +46,6 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
-      
       {
         source: '/api/wasm/(.*)',
         headers: [
@@ -57,7 +53,6 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
-      
     ];
   },
 
