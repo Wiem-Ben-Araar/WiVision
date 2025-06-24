@@ -59,14 +59,18 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  async rewrites() {
-    return [
-      {
-        source: '/wasm/:path*',
-        destination: '/api/wasm/:path*',
-      },
-    ];
-  },
+ async rewrites() {
+  return [
+    {
+      source: '/_next/static/chunks/wasm/:path*',
+      destination: '/wasm/:path*',
+    },
+    {
+      source: '/wasm/:path*',
+      destination: '/api/wasm/:path*',
+    },
+  ];
+},
 };
 
 export default nextConfig;
