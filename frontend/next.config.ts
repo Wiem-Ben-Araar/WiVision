@@ -12,17 +12,20 @@ const nextConfig: NextConfig = {
     serverComponentsExternalPackages: [],
   },
   
-  webpack: (config, { isServer }) => {
+ webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
       syncWebAssembly: true,
     };
 
-    // WASM support
+    // Copier les fichiers WASM vers le dossier public
     config.module.rules.push({
       test: /\.wasm$/,
-      type: 'webassembly/async',
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/wasm/[name][ext]'
+      }
     });
 
     if (!isServer) {
