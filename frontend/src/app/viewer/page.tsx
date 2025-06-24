@@ -188,7 +188,9 @@ function ViewerPageContent() {
         renderer.shadowMap.enabled = true
         renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
-        await viewer.IFC.setWasmPath("wasm/")
+  // Remplacez tous vos setWasmPath par :
+const wasmPath = process.env.NODE_ENV === 'production' ? '/api/wasm/' : '/wasm/';
+await viewer.IFC.setWasmPath(wasmPath);
         
      
         viewer.IFC.loader.ifcManager.applyWebIfcConfig({
