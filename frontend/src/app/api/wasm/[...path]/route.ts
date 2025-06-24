@@ -1,12 +1,18 @@
+// app/api/wasm/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+interface RouteParams {
+  params: Promise<{ path: string[] }>;
+}
+
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { path: string[] } }
+
+  context: RouteParams
 ) {
   try {
+    const params = await context.params;
     const path = params.path.join('/');
     const filePath = join(process.cwd(), 'public', 'wasm', path);
     
