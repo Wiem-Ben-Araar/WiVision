@@ -474,26 +474,23 @@ export function AnnotationSystem({
     }
   }, [viewerRef])
 
-// NOUVEAU CODE - CORRIGÉ
 const getSafeCamera = useCallback((): THREE.Camera | null => {
   try {
-    // 1. Fallback sur la caméra du viewer EN PREMIER
+    // 1. Essayer d'obtenir la caméra via le viewerRef
     const viewerCamera = viewerRef.current?.context?.getCamera?.();
-    if (viewerCamera) {
-      return viewerCamera;
-    }
+    if (viewerCamera) return viewerCamera;
     
-    // 2. Utiliser la caméra passée en prop seulement si viewer non disponible
-    if (camera) {
-      return camera;
-    }
+    // 2. Utiliser la caméra passée en prop
+    if (camera) return camera;
     
-    return null;
+    // 3. Créer une caméra par défaut si nécessaire
+    console.warn("Aucune caméra disponible, création d'une caméra par défaut");
+    return new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   } catch (e) {
-    console.error("Erreur lors de l'accès à la caméra:", e)
-    return null
+    console.error("Erreur lors de l'accès à la caméra:", e);
+    return null;
   }
-}, [viewerRef, camera]) // Changer l'ordre des dépendances aussi
+}, [viewerRef, camera]);
 
   // Initialiser le gestionnaire d'ancrage
   useEffect(() => {
@@ -750,75 +747,72 @@ const cleanupExistingAnnotations = useCallback((scene: THREE.Scene, annotations:
   })
 }, [])
 
-useEffect(() => {
-  const fetchComments = async () => {
-    if (!projectId || activeTool !== "comment") return
+  // CHARGEMENT INITIAL avec support de l'ancrage - CORRIGÉ
+  useEffect(() => {
+    const fetchComments = async () => {
+      if (!projectId || activeTool !== "comment") return
 
-    try {
-      console.log("Chargement des annotations pour le projet:", projectId)
+      try {
+        console.log("Chargement des annotations pour le projet:", projectId)
 
-      const response = await api.get(`${apiUrl}/annotations`, {
-        params: { projectId },
-      })
+        // 1. Récupérer depuis la DB avec axios
+        const response = await api.get(`${apiUrl}/annotations`, {
+          params: { projectId },
+        })
 
-      const data = response.data
-      console.log("Annotations chargées depuis la DB:", data)
+        const data = response.data
+        console.log("Annotations chargées depuis la DB:", data)
 
-      const scene = getSafeScene()
-      if (scene) {
-        // PROBLÈME 2: On nettoie avant de vérifier s'il y a de nouvelles données
-        // Créer une copie des objets actuels pour le nettoyage
-        const currentAnnotations = [...annotationObjects]
-        
-        // Reset du gestionnaire d'ancrage
-        anchorManagerRef.current?.clearAll()
+        // 2. NETTOYER LA SCÈNE ET CRÉER LES NOUVEAUX OBJETS
+        const scene = getSafeScene()
+        if (scene) {
+          // Créer une copie des objets actuels pour le nettoyage
+          const currentAnnotations = [...annotationObjects]
+          cleanupExistingAnnotations(scene, currentAnnotations)
 
-        // Créer les objets 3D avec ancrage
-        if (Array.isArray(data) && data.length > 0) {
-          const newAnnotationObjects = []
+          // Reset du gestionnaire d'ancrage
+          anchorManagerRef.current?.clearAll()
 
-          for (const comment of data) {
-            if (!comment || !comment.position) continue
+          // 3. Créer les objets 3D avec ancrage
+          if (Array.isArray(data) && data.length > 0) {
+            const newAnnotationObjects = []
 
-            const annotation = createAnnotationObject(comment)
-            scene.add(annotation)
-            newAnnotationObjects.push(annotation)
+            for (const comment of data) {
+              if (!comment || !comment.position) continue
 
-            // Si l'annotation a des données d'ancrage, les restaurer
-            if (comment.ifcAnchor && anchorManagerRef.current) {
-              anchorManagerRef.current.registerAnchor(comment.id, {
-                localPosition: new THREE.Vector3(
-                  comment.ifcAnchor.localPosition.x,
-                  comment.ifcAnchor.localPosition.y,
-                  comment.ifcAnchor.localPosition.z,
-                ),
-                modelId: comment.ifcAnchor.modelId,
-                annotationObject: annotation,
-              })
+              const annotation = createAnnotationObject(comment)
+              scene.add(annotation)
+              newAnnotationObjects.push(annotation)
+
+              // Si l'annotation a des données d'ancrage, les restaurer
+              if (comment.ifcAnchor && anchorManagerRef.current) {
+                anchorManagerRef.current.registerAnchor(comment.id, {
+                  localPosition: new THREE.Vector3(
+                    comment.ifcAnchor.localPosition.x,
+                    comment.ifcAnchor.localPosition.y,
+                    comment.ifcAnchor.localPosition.z,
+                  ),
+                  modelId: comment.ifcAnchor.modelId,
+                  annotationObject: annotation,
+                })
+              }
             }
+
+            setAnnotationObjects(newAnnotationObjects)
+            console.log("Objets 3D créés:", newAnnotationObjects.length)
+          } else {
+            setAnnotationObjects([])
+            console.log("Aucune annotation à afficher")
           }
-
-          // NETTOYAGE SEULEMENT APRÈS AVOIR CRÉÉ LES NOUVEAUX
-          cleanupExistingAnnotations(scene, currentAnnotations)
-          setAnnotationObjects(newAnnotationObjects)
-          console.log("Objets 3D créés:", newAnnotationObjects.length)
-        } else {
-          // Nettoyer seulement s'il n'y a vraiment aucune annotation
-          cleanupExistingAnnotations(scene, currentAnnotations)
-          setAnnotationObjects([])
-          console.log("Aucune annotation à afficher")
         }
+      } catch (error) {
+        console.error("Erreur de chargement des annotations:", error)
+        setAnnotationObjects([])
       }
-    } catch (error) {
-      console.error("Erreur de chargement des annotations:", error)
-      setAnnotationObjects([])
     }
-  }
 
-  fetchComments()
-// CORRECTION PRINCIPALE: Retirer annotationObjects des dépendances
-}, [projectId, activeTool, getSafeScene, createAnnotationObject, cleanupExistingAnnotations])
-
+    fetchComments()
+}, [projectId, activeTool, getSafeScene, createAnnotationObject, annotationObjects, cleanupExistingAnnotations])
 
   // GESTION DES CLICS avec recherche d'ancrage IFC
   useEffect(() => {
@@ -922,175 +916,144 @@ useEffect(() => {
     }
   }, [commentPosition, selectedAnnotationType, commentText, getSafeScene, createCloudMarker, createArrowMarker, createTextMarker])
 
-const handleCommentSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {
-  event.preventDefault()
+  // SOUMISSION avec ancrage IFC - CORRIGÉ POUR LES DONNÉES MANQUANTES
+  const handleCommentSubmit = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
 
-  const currentCamera = getSafeCamera();
-  if (!projectId || !user?.userId || !currentCamera || !commentPosition || !viewerRef.current) {
-    console.error("Données manquantes:", {
-      projectId,
-      userId: user?.userId,
-      camera: currentCamera,
-      commentPosition,
-      viewer: viewerRef.current
-    })
-    return
-  }
-
-  try {
-    const scene = getSafeScene()
-    if (!scene) {
-      console.error("Scène non disponible")
-      return
-    }
-
-    // 1. SUPPRIMER LE PREVIEW D'ABORD
-    if (previewRef.current) {
-      scene.remove(previewRef.current)
-      if (previewRef.current.userData?.cleanup) {
-        previewRef.current.userData.cleanup()
-      }
-      previewRef.current = null
-    }
-
-    const position = {
-      x: commentPosition.x || 0,
-      y: commentPosition.y || 0,
-      z: commentPosition.z || 0,
-    }
-
-    const cameraDirection = getCameraDirection(currentCamera, controls)
-
-    const generateGUID = () => {
-      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0
-        const v = c === "x" ? r : (r & 0x3) | 0x8
-        return v.toString(16)
-      })
-    }
-
-    const viewpointData = {
-      guid: generateGUID(),
-      camera_view_point: {
-        x: currentCamera.position.x,
-        y: currentCamera.position.y,
-        z: currentCamera.position.z,
-      },
-      camera_direction: {
-        x: cameraDirection.x,
-        y: cameraDirection.y,
-        z: cameraDirection.z,
-      },
-      camera_up_vector: {
-        x: currentCamera.up.x,
-        y: currentCamera.up.y,
-        z: currentCamera.up.z,
-      },
-      field_of_view: (currentCamera as THREE.PerspectiveCamera).fov || 75,
-    }
-
-    const author = user.name || user.email || `User-${user.userId}`
-
-    const payload: AnnotationPayload = {
-      title: commentText || "Nouvelle annotation",
-      type: selectedAnnotationType,
-      position,
-      projectId,
-      viewpoint: viewpointData,
-      author: author,
-    }
-
-    // Récupération des données IFC si disponibles
-    if (commentPosition && anchorManagerRef.current) {
-      const nearestElement = await anchorManagerRef.current.findNearestIFCElement(commentPosition);
-      if (nearestElement) {
-        const localPosition = anchorManagerRef.current.calculateLocalPosition(
-          commentPosition,
-          nearestElement.element
-        );
-
-        payload.ifcAnchor = {
-          modelId: nearestElement.modelId,
-          expressId: nearestElement.expressId,
-          localPosition: {
-            x: localPosition.x,
-            y: localPosition.y,
-            z: localPosition.z
-          },
-          worldPosition: {
-            x: commentPosition.x,
-            y: commentPosition.y,
-            z: commentPosition.z
-          }
-        };
-      }
-    }
-
-    console.log("Envoi de l'annotation vers la DB...", payload)
-    
-    // 2. CRÉER L'ANNOTATION LOCALEMENT D'ABORD
-    const tempComment: Comment = {
-      id: `temp-${Date.now()}`, // ID temporaire
-      title: payload.title,
-      type: payload.type,
-      position: new THREE.Vector3(position.x, position.y, position.z),
-      text: payload.title,
-      date: new Date(),
-      author: payload.author,
-      createdAt: new Date(),
-      modifiedAt: new Date(),
-      viewpoint: {
-        position: [currentCamera.position.x, currentCamera.position.y, currentCamera.position.z],
-        target: [0, 0, 0], // Valeur par défaut
-        up: [currentCamera.up.x, currentCamera.up.y, currentCamera.up.z]
-      }
-    }
-
-    // Créer et ajouter l'objet immédiatement à la scène
-    const newAnnotationObject = createAnnotationObject(tempComment)
-    scene.add(newAnnotationObject)
-    setAnnotationObjects(prev => [...prev, newAnnotationObject])
-
-    // 3. ENVOYER À LA DB EN ARRIÈRE-PLAN
-    const response = await api.post(`${apiUrl}/annotations`, payload)
-    
-    // 4. OPTIONNEL: Mettre à jour avec l'ID réel de la DB
-    if (response.data && response.data.id) {
-      newAnnotationObject.userData.commentId = response.data.id
-      // Mettre à jour l'ID dans tempComment si nécessaire
-    }
-
-    // 5. NETTOYER L'INTERFACE
-    setCommentText("")
-    setCommentPosition(null)
-
-    console.log("Annotation créée avec succès")
-
-  } catch (error) {
-    console.error("Erreur d'envoi de l'annotation:", error)
-    
-    // En cas d'erreur, supprimer l'annotation temporaire
-    const scene = getSafeScene()
-    if (scene) {
-      setAnnotationObjects(prev => {
-        const updated = prev.filter(obj => !obj.userData.commentId?.toString().startsWith('temp-'))
-        // Supprimer les objets temporaires de la scène
-        prev.forEach(obj => {
-          if (obj.userData.commentId?.toString().startsWith('temp-')) {
-            scene.remove(obj)
-            if (obj.userData?.cleanup) {
-              obj.userData.cleanup()
-            }
-          }
-        })
-        return updated
-      })
-    }
-    
-    alert(`Erreur lors de la création de l'annotation: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
-  }
+// NOUVEAU CODE - CORRIGÉ
+const currentCamera = getSafeCamera();
+if (!projectId || !user?.userId || !currentCamera || !commentPosition || !viewerRef.current) {
+  console.error("Données manquantes:", {
+    projectId,
+    userId: user?.userId,
+    camera: currentCamera,
+    commentPosition,
+    viewer: viewerRef.current
+  })
+  return
 }
 
+    try {
+      const scene = getSafeScene()
+      if (!scene) {
+        console.error("Scène non disponible")
+        return
+      }
+
+      // 1. SUPPRIMER LE PREVIEW D'ABORD
+      if (previewRef.current) {
+        scene.remove(previewRef.current)
+        if (previewRef.current.userData?.cleanup) {
+          previewRef.current.userData.cleanup()
+        }
+        previewRef.current = null
+      }
+
+      const position = {
+        x: commentPosition.x || 0,
+        y: commentPosition.y || 0,
+        z: commentPosition.z || 0,
+      }
+
+      const cameraDirection = getCameraDirection(currentCamera, controls)
+
+      const generateGUID = () => {
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0
+          const v = c === "x" ? r : (r & 0x3) | 0x8
+          return v.toString(16)
+        })
+      }
+const viewpointData = {
+  guid: generateGUID(),
+  camera_view_point: {
+    x: currentCamera.position.x,
+    y: currentCamera.position.y,
+    z: currentCamera.position.z,
+  },
+  camera_direction: {
+    x: cameraDirection.x,
+    y: cameraDirection.y,
+    z: cameraDirection.z,
+  },
+  camera_up_vector: {
+    x: currentCamera.up.x,
+    y: currentCamera.up.y,
+    z: currentCamera.up.z,
+  },
+  field_of_view: (currentCamera as THREE.PerspectiveCamera).fov || 75,
+};
+
+      const author = user.name || user.email || `User-${user.userId}`
+
+      // Construction du payload avec données IFC
+   const payload: AnnotationPayload = {
+  title: commentText || "Nouvelle annotation",
+  type: selectedAnnotationType,
+  position,
+  projectId,
+  viewpoint: viewpointData,
+  author: author,
+}
+
+      // Récupération des données IFC si disponibles
+      if (commentPosition && anchorManagerRef.current) {
+        const nearestElement = await anchorManagerRef.current.findNearestIFCElement(commentPosition);
+        if (nearestElement) {
+          const localPosition = anchorManagerRef.current.calculateLocalPosition(
+            commentPosition,
+            nearestElement.element
+          );
+
+          payload.ifcAnchor = {
+            modelId: nearestElement.modelId,
+            expressId: nearestElement.expressId,
+            localPosition: {
+              x: localPosition.x,
+              y: localPosition.y,
+              z: localPosition.z
+            },
+            worldPosition: {
+              x: commentPosition.x,
+              y: commentPosition.y,
+              z: commentPosition.z
+            }
+          };
+        }
+      }
+
+      console.log("Envoi de l'annotation vers la DB...", payload)
+      await api.post(`${apiUrl}/annotations`, payload)
+
+      // 3. RECHARGER LES COMMENTAIRES APRES SUCCES
+      if (projectId && activeTool === "comment") {
+        const response = await api.get(`${apiUrl}/annotations`, {
+          params: { projectId },
+        })
+
+        const data = response.data
+        const scene = getSafeScene()
+        
+        if (scene && Array.isArray(data) && data.length > 0) {
+          const newAnnotationObjects = data.map(comment => createAnnotationObject(comment))
+          
+          // Supprimer les anciennes annotations
+          cleanupExistingAnnotations(scene, annotationObjects)
+          
+          // Ajouter les nouvelles
+          newAnnotationObjects.forEach(obj => scene.add(obj))
+          setAnnotationObjects(newAnnotationObjects)
+        }
+      }
+
+      // 4. NETTOYER L'INTERFACE
+      setCommentText("")
+      setCommentPosition(null)
+    } catch (error) {
+      console.error("Erreur d'envoi de l'annotation:", error)
+      alert(`Erreur lors de la création de l'annotation: ${error instanceof Error ? error.message : "Erreur inconnue"}`)
+    }
+  }
 
   // SUPPRESSION avec axios
   const handleDeleteAll = async () => {
