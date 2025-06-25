@@ -260,7 +260,7 @@ viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
-            if (isBIMModeleur) return
+          if (projectUserRole === "BIM Modeleur") return
             if (
               activeToolRef.current === "section" ||
               activeToolRef.current === "hide" ||
@@ -836,15 +836,15 @@ viewer.clipper.active = true
         <Button
           variant={activeTool === "section" ? "default" : "ghost"}
           size="icon"
-          disabled={isBIMModeleur}
+         disabled={projectUserRole === "BIM Modeleur"}
           onClick={() => {
-            if (!isBIMModeleur) {
+            if (projectUserRole !== "BIM Modeleur") {
               setActiveTool(activeTool === "section" ? null : "section")
             }
           }}
           title="Plan de coupe"
           className={
-            isBIMModeleur
+          projectUserRole === "BIM Modeleur"
               ? "text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50"
               : activeTool === "section"
                 ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
@@ -968,7 +968,7 @@ viewer.clipper.active = true
         <Button
           variant="outline"
           size="icon"
-          disabled={isBIMModeleur}
+         disabled={projectUserRole === "BIM Modeleur"}
           onClick={() => {
             if (
               typeof window !== "undefined" &&
@@ -991,7 +991,7 @@ viewer.clipper.active = true
           <Button
             variant="destructive"
             size="icon"
-            disabled={isBIMModeleur}
+       disabled={projectUserRole === "BIM Modeleur"}
             onClick={resetIsolation}
             title="Réinitialiser l&apos;isolation"
             className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
