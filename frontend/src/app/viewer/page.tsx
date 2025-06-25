@@ -1114,26 +1114,27 @@ viewer.clipper.active = true
           />
         )}
 
-{!isBIMModeleur && (
-  <TodoManager 
-    viewerRef={viewerRef} 
-    toast={toast} 
-    activeTool={activeTool} 
-    setActiveTool={setActiveTool} 
-  />
-)}
+        <TodoManager viewerRef={viewerRef} toast={toast} activeTool={activeTool} setActiveTool={setActiveTool} />
 
-
-     {!isBIMModeleur && (
-  <AnnotationSystem
-    viewerRef={viewerRef}
-    containerRef={containerRef as React.RefObject<HTMLDivElement>}
-    activeTool={activeTool ?? ""}
-    camera={camera ?? undefined}
-    controls={controls as any}
-    projectId={projectId}
-  />
-)}
+        <AnnotationSystem
+          viewerRef={viewerRef}
+          containerRef={containerRef as React.RefObject<HTMLDivElement>}
+          activeTool={activeTool ?? ""}
+          camera={camera ?? undefined}
+          controls={
+            controls as
+              | {
+                  target?: THREE.Vector3
+                  target0?: THREE.Vector3
+                  center?: THREE.Vector3
+                  object?: { target?: THREE.Vector3 }
+                  _target?: THREE.Vector3
+                  getTarget?: () => THREE.Vector3
+                }
+              | undefined
+          }
+          projectId={projectId}
+        />
 
         {/* Panneau Masquer/Afficher pour les modèles chargés */}
         {activeTool === "hide" && <ModelList />}
