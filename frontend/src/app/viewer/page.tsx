@@ -28,7 +28,17 @@ import Image from "next/image"
 type ViewStyle = "shaded" | "wireframe" | "hidden-line"
 type ViewDirection = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso"
 type MeasurementMode = "none" | "distance" | "perpendicular" | "angle"
-
+interface ProjectMember {
+  id: string
+  userId: string
+  projectId: string
+  role: string
+  user: {
+    id: string
+    name: string
+    email: string
+  }
+}
 interface LoadedModel {
   id: string
   name: string
@@ -56,13 +66,13 @@ function ViewerPageContent() {
   const [selectedElement, setSelectedElement] = useState<number | null>(null)
   const [selectedModelID, setSelectedModelID] = useState<number | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
-
+const [projectUserRole, setProjectUserRole] = useState<string | null>(null)
   // États pour les outils
   const [activeTool, setActiveTool] = useState<string | null>(null)
   const activeToolRef = useRef(activeTool)
   const { user } = useAuth()
-  const userRole = user?.role
-  const isBIMModeleur = userRole === "BIM Modeleur"
+const userRole = projectUserRole || user?.role
+const isBIMModeleur = userRole === "BIM Modeleur"
 
   // États pour les styles et modèles
   const [activeStyle, setActiveStyle] = useState<ViewStyle | null>(null)
@@ -101,7 +111,38 @@ function ViewerPageContent() {
     progress: 0,
     loadedModels: [],
   })
+const fetchProjectUserRole = useCallback(async (projectId: string) => {
+  if (!user?.id) return
 
+  try {
+    const response = await axios.get(`/api/projects/${projectId}/members`)
+    const members: ProjectMember[] = response.data
+
+    // Trouvez le membre correspondant à l'utilisateur actuel
+    const currentUserMember = members.find(member => member.userId === user.id)
+    
+    if (currentUserMember) {
+      setProjectUserRole(currentUserMember.role)
+      console.log(`Rôle de l'utilisateur dans le projet: ${currentUserMember.role}`)
+    } else {
+      console.warn("Utilisateur non trouvé dans les membres du projet")
+      // Fallback sur le rôle global de l'utilisateur
+      setProjectUserRole(user.role)
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération du rôle de l'utilisateur:", error)
+    // Fallback sur le rôle global de l'utilisateur en cas d'erreur
+    setProjectUserRole(user.role)
+  }
+}, [user])
+
+// Ajoutez cet useEffect pour déclencher la récupération du rôle au chargement
+useEffect(() => {
+  const projectId = searchParams.get("projectId")
+  if (projectId && user?.id) {
+    fetchProjectUserRole(projectId)
+  }
+}, [searchParams, user, fetchProjectUserRole])
   // Configuration anti-vibration
   useEffect(() => {
     if (!viewerRef.current?.context) return
@@ -141,16 +182,17 @@ function ViewerPageContent() {
   }, [router])
 
   // Surveillance des modifications du TodoManager
-  useEffect(() => {
-    if (isBIMModeleur) return
+useEffect(() => {
+  // Utilisez projectUserRole au lieu de userRole pour la vérification
+  if (projectUserRole === "BIM Modeleur") return
 
-    const interval = setInterval(() => {
-      const count = getTodosCount()
-      setTodosCount(count)
-    }, 500)
+  const interval = setInterval(() => {
+    const count = getTodosCount()
+    setTodosCount(count)
+  }, 500)
 
-    return () => clearInterval(interval)
-  }, [isBIMModeleur])
+  return () => clearInterval(interval)
+}, [projectUserRole])
 
   // Mise à jour de la référence de l'outil actif
   useEffect(() => {
