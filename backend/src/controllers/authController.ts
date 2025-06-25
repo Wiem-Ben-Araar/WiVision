@@ -275,7 +275,7 @@ export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Res
       // Vérifier que nous avons bien un utilisateur de Passport (local ou OAuth)
       if (!req.user || typeof req.user !== 'object') {
         console.error('OAuth callback: Aucun utilisateur trouvé dans req.user');
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=authentication_failed`);
+        return res.redirect(`${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=authentication_failed`);
       }
       
       let userId, email, role, name, image;
@@ -306,12 +306,12 @@ export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Res
         image = user.image;
       } else {
         console.error('OAuth callback: Format utilisateur non reconnu', req.user);
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=invalid_user_format`);
+        return res.redirect(`${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=invalid_user_format`);
       }
       
       if (!userId || !email) {
         console.error('OAuth callback: Données utilisateur incomplètes', req.user);
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=incomplete_user_data`);
+        return res.redirect(`${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=incomplete_user_data`);
       }
       
       console.log('OAuth success - User ID:', userId, 'Email:', email);
@@ -342,10 +342,10 @@ export const oauthSuccess = async (req: Request & { user?: OAuthUser }, res: Res
       });
       
       // Rediriger vers le client (important: utiliser la variable d'environnement correcte)
-      console.log('Redirection vers:', process.env.CLIENT_URL || 'http://localhost:3000');
-      return res.redirect(process.env.CLIENT_URL || 'http://localhost:3000');
+      console.log('Redirection vers:', process.env.CLIENT_URL || 'https://wi-vision.vercel.app');
+      return res.redirect(process.env.CLIENT_URL || 'https://wi-vision.vercel.app');
     } catch (error: any) {
       console.error('Erreur dans oauthSuccess:', error);
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=${encodeURIComponent(error.message || 'unknown_error')}`);
+      res.redirect(`${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=${encodeURIComponent(error.message || 'unknown_error')}`);
     }
   };

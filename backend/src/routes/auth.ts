@@ -32,7 +32,7 @@ router.get('/auth/google/callback', (req: Request, res: Response, next: Function
   console.log('Google OAuth callback reçu');
   passport.authenticate('google', { 
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=google_auth_failed`
+    failureRedirect: `${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=google_auth_failed`
   })(req, res, next);
 }, oauthSuccess as any);
 
@@ -49,7 +49,7 @@ router.get('/auth/github/callback', (req: Request, res: Response, next: import('
   console.log('GitHub OAuth callback reçu');
   passport.authenticate('github', { 
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/sign-in?error=github_auth_failed`
+    failureRedirect: `${process.env.CLIENT_URL || 'https://wi-vision.vercel.app'}/sign-in?error=github_auth_failed`
   })(req, res, next);
 }, oauthSuccess as any);
 router.get('/auth/status', (req: Request, res: Response) => {

@@ -220,7 +220,7 @@ export const inviteMembers = async (
        res.status(403).json({ error: "Rôle utilisateur non défini" });
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXTAUTH_URL || "https://wi-vision.vercel.app";
     const invitations = [];
 
     for (const email of emails) {
