@@ -1041,7 +1041,7 @@ viewer.clipper.active = true
         )}
 
         {/* Panneau Section */}
-        {userRole !== "BIM Modeleur" && viewerRef.current && (
+        {projectUserRole !== "BIM Modeleur" && viewerRef.current && (
           <SectionTool
             viewer={viewerRef.current}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
