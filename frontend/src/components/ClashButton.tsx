@@ -68,7 +68,13 @@ interface StatusResponse {
   from_cache?: boolean;
 }
 
-export default function ClashButton({ loadedModels }: { loadedModels: LoadedModel[] }) {
+export default function ClashButton({ 
+  loadedModels, 
+  isBIMModeleur 
+}: { 
+  loadedModels: LoadedModel[];
+  isBIMModeleur: boolean;
+}) {
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ClashResult[] | null>(null);
@@ -229,7 +235,7 @@ export default function ClashButton({ loadedModels }: { loadedModels: LoadedMode
         variant="ghost"
         size="icon"
         onClick={() => setModalOpen(true)}
-        disabled={loadedModels.length === 0 || loading}
+        disabled={loadedModels.length === 0 || loading || isBIMModeleur}
         title="Détecter les conflits"
         className="relative group"
       >

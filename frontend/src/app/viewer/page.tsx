@@ -987,7 +987,10 @@ viewer.clipper.active = true
           <Download className="h-4 w-4" />
         </Button>
 
-        <ClashButton loadedModels={loadedModels} />
+    <ClashButton 
+  loadedModels={loadedModels} 
+  isBIMModeleur={isBIMModeleur} 
+/>
 
         {isIsolationActive && (
           <Button
