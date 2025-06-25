@@ -483,7 +483,7 @@ viewer.clipper.active = true
         initializedRef.current = false
       }
     }
-  }, [searchParams, isBIMModeleur])
+  }, [searchParams, projectUserRole])
 
   // Configuration des contrôles de caméra
   useEffect(() => {
