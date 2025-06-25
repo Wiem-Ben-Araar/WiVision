@@ -43,7 +43,7 @@ interface ProjectFile {
   uploadedByEmail?: string
 }
 
-// Ajouter l'interface Member
+// Interface pour les membres du projet
 interface Member {
   id: string
   name?: string
@@ -98,14 +98,18 @@ export default function ProjectFiles({
   const [fileToDelete, setFileToDelete] = useState<ProjectFile | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [visualizerLoading, setVisualizerLoading] = useState(false)
- const [members, setMembers] = useState<Member[]>([])
-  const [isLoadingMembers, setIsLoadingMembers] = useState(true)
-  const [membersError, setMembersError] = useState<string | null>(null)
-
+  
+  // Ajouter l'état pour les membres du projet
+  const [projectMembers, setProjectMembers] = useState<Member[]>([])
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const currentUserEmail = user?.email
   const currentUserId = user?.id
+
+  // Récupérer le rôle réel de l'utilisateur depuis les membres du projet
+  const currentUserMember = projectMembers.find(member => member.email === user?.email)
+  const actualUserRole = currentUserMember?.role || userRole
+  const isBIMModeleur = actualUserRole === "BIM Modeleur"
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
@@ -119,31 +123,27 @@ export default function ProjectFiles({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [showSuccessNotification, setShowSuccessNotification] = useState(false)
-useEffect(() => {
-    const fetchMembers = async () => {
-      if (!apiUrl) return
-      
-      try {
-        const { data } = await axios.get(`${apiUrl}/projects/${projectId}/members`, {
-          withCredentials: true
-        })
-        setMembers(data.members)
-      } catch (err) {
-        setMembersError("Échec du chargement des membres")
-      } finally {
-        setIsLoadingMembers(false)
-      }
-    }
 
-    fetchMembers()
-  }, [projectId, apiUrl])
-   const currentUserMember = members.find(member => 
-    member.email === user?.email || member.id === user?.id
-  )
-  
-  // Utiliser le rôle du membre ou le rôle par défaut
-  const actualUserRole = currentUserMember?.role || userRole
-  const isBIMModeleur = actualUserRole === "BIM Modeleur"
+  // Fonction pour récupérer les membres du projet
+  const fetchProjectMembers = useCallback(async () => {
+    if (!apiUrl || !projectId) return
+
+    try {
+      const response = await axios.get(`${apiUrl}/projects/${projectId}/members`, {
+        withCredentials: true
+      })
+      setProjectMembers(response.data.members || [])
+    } catch (error) {
+      console.error("Erreur lors de la récupération des membres:", error)
+      // En cas d'erreur, on garde les membres vides, le rôle de props sera utilisé
+    }
+  }, [apiUrl, projectId])
+
+  // Récupérer les membres au montage du composant
+  useEffect(() => {
+    fetchProjectMembers()
+  }, [fetchProjectMembers])
+
   useEffect(() => {
     const uploadTrigger = document.getElementById("upload-file-trigger")
     if (uploadTrigger) {
@@ -183,7 +183,7 @@ useEffect(() => {
       const newViewAllUrl = `/viewer?files=${encodeURIComponent(urlStr)}&projectId=${encodeURIComponent(projectId)}`
       setViewAllUrl(newViewAllUrl)
       console.log("Valid URLs:", validUrls)
-console.log("Generated viewAllUrl:", newViewAllUrl)
+      console.log("Generated viewAllUrl:", newViewAllUrl)
 
     } else {
       setViewAllUrl("#")
@@ -197,7 +197,8 @@ console.log("Generated viewAllUrl:", newViewAllUrl)
     window.location.href = viewAllUrl
   }
 
-const canDeleteFile = (file: ProjectFile) => {
+  const canDeleteFile = (file: ProjectFile) => {
+    // Utiliser le rôle réel au lieu du rôle de props
     if (actualUserRole === "BIM Manager") return true
     const isUploader = file.uploadedBy === currentUserId || file.uploadedByEmail === currentUserEmail
     return isUploader
