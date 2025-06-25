@@ -43,6 +43,15 @@ interface ProjectFile {
   uploadedByEmail?: string
 }
 
+// Ajouter l'interface Member
+interface Member {
+  id: string
+  name?: string
+  email?: string
+  role?: string
+  image?: string
+}
+
 interface ProjectFilesProps {
   projectId: string
   files: ProjectFile[]
@@ -89,9 +98,10 @@ export default function ProjectFiles({
   const [fileToDelete, setFileToDelete] = useState<ProjectFile | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [visualizerLoading, setVisualizerLoading] = useState(false)
+ const [members, setMembers] = useState<Member[]>([])
+  const [isLoadingMembers, setIsLoadingMembers] = useState(true)
+  const [membersError, setMembersError] = useState<string | null>(null)
 
-  const actualUserRole = user?.role || userRole
-  const isBIMModeleur = actualUserRole === "BIM Modeleur"
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const currentUserEmail = user?.email
@@ -109,7 +119,31 @@ export default function ProjectFiles({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [showSuccessNotification, setShowSuccessNotification] = useState(false)
+useEffect(() => {
+    const fetchMembers = async () => {
+      if (!apiUrl) return
+      
+      try {
+        const { data } = await axios.get(`${apiUrl}/projects/${projectId}/members`, {
+          withCredentials: true
+        })
+        setMembers(data.members)
+      } catch (err) {
+        setMembersError("Échec du chargement des membres")
+      } finally {
+        setIsLoadingMembers(false)
+      }
+    }
 
+    fetchMembers()
+  }, [projectId, apiUrl])
+   const currentUserMember = members.find(member => 
+    member.email === user?.email || member.id === user?.id
+  )
+  
+  // Utiliser le rôle du membre ou le rôle par défaut
+  const actualUserRole = currentUserMember?.role || userRole
+  const isBIMModeleur = actualUserRole === "BIM Modeleur"
   useEffect(() => {
     const uploadTrigger = document.getElementById("upload-file-trigger")
     if (uploadTrigger) {
@@ -163,8 +197,8 @@ console.log("Generated viewAllUrl:", newViewAllUrl)
     window.location.href = viewAllUrl
   }
 
-  const canDeleteFile = (file: ProjectFile) => {
-    if (userRole === "BIM Manager") return true
+const canDeleteFile = (file: ProjectFile) => {
+    if (actualUserRole === "BIM Manager") return true
     const isUploader = file.uploadedBy === currentUserId || file.uploadedByEmail === currentUserEmail
     return isUploader
   }
