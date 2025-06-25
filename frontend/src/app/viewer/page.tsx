@@ -260,7 +260,7 @@ viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
           containerRef.current.onclick = async () => {
-          if (projectUserRole === "BIM Modeleur") return
+        if (isBIMModeleur) return
             if (
               activeToolRef.current === "section" ||
               activeToolRef.current === "hide" ||
@@ -836,7 +836,7 @@ viewer.clipper.active = true
         <Button
           variant={activeTool === "section" ? "default" : "ghost"}
           size="icon"
-         disabled={projectUserRole === "BIM Modeleur"}
+         disabled={isBIMModeleur}
           onClick={() => {
             if (projectUserRole !== "BIM Modeleur") {
               setActiveTool(activeTool === "section" ? null : "section")
@@ -895,6 +895,7 @@ viewer.clipper.active = true
           size="icon"
           onClick={() => toggleTool("notes")}
           title="Notes"
+           disabled={isBIMModeleur}
           className={`relative ${
             activeTool === "notes"
               ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
@@ -914,6 +915,7 @@ viewer.clipper.active = true
           size="icon"
           onClick={() => toggleTool("comment")}
           title="Commentaire"
+           disabled={isBIMModeleur}
           className={
             activeTool === "comment"
               ? "bg-[#005CA9] dark:bg-[#3b82f6] text-white"
@@ -968,7 +970,7 @@ viewer.clipper.active = true
         <Button
           variant="outline"
           size="icon"
-         disabled={projectUserRole === "BIM Modeleur"}
+        disabled={isBIMModeleur}
           onClick={() => {
             if (
               typeof window !== "undefined" &&
@@ -1041,7 +1043,7 @@ viewer.clipper.active = true
         )}
 
         {/* Panneau Section */}
-        {projectUserRole !== "BIM Modeleur" && viewerRef.current && (
+        {!isBIMModeleur && viewerRef.current && (
           <SectionTool
             viewer={viewerRef.current}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
@@ -1112,27 +1114,26 @@ viewer.clipper.active = true
           />
         )}
 
-        <TodoManager viewerRef={viewerRef} toast={toast} activeTool={activeTool} setActiveTool={setActiveTool} />
+{!isBIMModeleur && (
+  <TodoManager 
+    viewerRef={viewerRef} 
+    toast={toast} 
+    activeTool={activeTool} 
+    setActiveTool={setActiveTool} 
+  />
+)}
 
-        <AnnotationSystem
-          viewerRef={viewerRef}
-          containerRef={containerRef as React.RefObject<HTMLDivElement>}
-          activeTool={activeTool ?? ""}
-          camera={camera ?? undefined}
-          controls={
-            controls as
-              | {
-                  target?: THREE.Vector3
-                  target0?: THREE.Vector3
-                  center?: THREE.Vector3
-                  object?: { target?: THREE.Vector3 }
-                  _target?: THREE.Vector3
-                  getTarget?: () => THREE.Vector3
-                }
-              | undefined
-          }
-          projectId={projectId}
-        />
+
+     {!isBIMModeleur && (
+  <AnnotationSystem
+    viewerRef={viewerRef}
+    containerRef={containerRef as React.RefObject<HTMLDivElement>}
+    activeTool={activeTool ?? ""}
+    camera={camera ?? undefined}
+    controls={controls as any}
+    projectId={projectId}
+  />
+)}
 
         {/* Panneau Masquer/Afficher pour les modèles chargés */}
         {activeTool === "hide" && <ModelList />}
