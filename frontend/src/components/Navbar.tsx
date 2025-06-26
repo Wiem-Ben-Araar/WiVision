@@ -123,7 +123,7 @@ export default function Navbar() {
             <div className="flex items-center flex-shrink-0">
               <Link href="/" className="flex items-center space-x-2 group">
                 <WiVisionLogo className="h-7 w-7 sm:h-8 sm:w-8 text-blue-600 dark:text-blue-400 transition-transform group-hover:scale-105" />
-                <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 hidden xs:block">
+                <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
                   WiVision
                 </span>
               </Link>
@@ -302,19 +302,7 @@ export default function Navbar() {
                     </motion.div>
                   )}
 
-                  {/* Brand name for very small screens */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3, duration: 0.3 }}
-                    className="xs:hidden pt-4 border-t border-gray-200 dark:border-gray-800"
-                  >
-                    <div className="text-center">
-                      <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                        WiVision
-                      </span>
-                    </div>
-                  </motion.div>
+                  {/* Brand name section removed since it's always visible now */}
                 </div>
               </div>
             </motion.div>
@@ -322,17 +310,7 @@ export default function Navbar() {
         )}
       </AnimatePresence>
 
-      {/* Add custom CSS for xs breakpoint */}
-      <style jsx>{`
-        @media (min-width: 475px) {
-          .xs\\:block {
-            display: block !important;
-          }
-          .xs\\:hidden {
-            display: none !important;
-          }
-        }
-      `}</style>
+      {/* Custom CSS removed since xs breakpoint no longer needed */}
     </>
   )
 }
