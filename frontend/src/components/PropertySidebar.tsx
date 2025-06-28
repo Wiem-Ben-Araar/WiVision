@@ -502,7 +502,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
 
   if (!selectedElement) {
     return (
-      <div className="w-80 bg-gradient-to-br from-slate-50 to-slate-100 h-full flex flex-col border-l border-slate-200 shadow-lg">
+        <div className="w-96 bg-white h-full flex flex-col border-l border-slate-200 shadow-lg">
         <div className="p-6 text-center flex flex-col items-center justify-center h-full">
           <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-4">
             <Package className="h-8 w-8 text-slate-400" />
