@@ -259,7 +259,7 @@ if (typeof window !== 'undefined') {
 viewer.clipper.active = true
         // Gestionnaire de clic
         if (containerRef.current) {
-          containerRef.current.onclick = async () => {
+          containerRef.current.ondblclick  = async () => {
         if (isBIMModeleur) return
             if (
               activeToolRef.current === "section" ||
