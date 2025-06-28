@@ -285,7 +285,7 @@ export default function ClashButton({
                     onChange={(e) => setTolerance(Number(e.target.value))}
                     className="w-full p-2 border border-gray-300 rounded-md"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Valeur recommandée: 0.005 - 0.02 m</p>
+                
                 </div>
               </div>
               
