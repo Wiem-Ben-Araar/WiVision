@@ -42,7 +42,7 @@ export const UserButton = () => {
       toast.success("Déconnecté avec succès");
       router.push("/sign-in");
     } catch (error) {
-      console.error("Logout error:", error); 
+      console.error("Logout error:", error);
       toast.error("Erreur lors de la déconnexion");
     } finally {
       setLoading(false);
@@ -56,17 +56,17 @@ export const UserButton = () => {
         .join("")
         .toUpperCase()
     : "?";
-    console.log("User:", user);
-    console.log("image",user.image)
+
+  console.log("User:", user);
+  console.log("image", user.image);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-   <Avatar className="cursor-pointer">
-  <AvatarImage src={user.image} alt={user.name} className="object-cover" />
-  <AvatarFallback>{userInitials}</AvatarFallback>
-</Avatar>
-
+        <Avatar className="cursor-pointer">
+          <AvatarImage src={user.image} alt={user.name} className="object-cover" />
+          <AvatarFallback>{userInitials}</AvatarFallback>
+        </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <div className="flex flex-col space-y-1 p-2">
