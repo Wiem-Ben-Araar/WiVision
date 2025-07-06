@@ -59,25 +59,9 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Mon Profil</h1>
-            <p className="text-muted-foreground">Gérez vos informations personnelles</p>
+          
           </div>
-          <Button
-            onClick={() => setIsEditing(!isEditing)}
-            variant={isEditing ? "outline" : "default"}
-            className="gap-2"
-          >
-            {isEditing ? (
-              <>
-                <X className="h-4 w-4" />
-                Annuler
-              </>
-            ) : (
-              <>
-                <Edit2 className="h-4 w-4" />
-                Modifier
-              </>
-            )}
-          </Button>
+    
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -94,9 +78,7 @@ export default function ProfilePage() {
                 <AvatarImage src={user.image} alt={user.name} className="object-cover" />
                 <AvatarFallback className="text-2xl">{userInitials}</AvatarFallback>
               </Avatar>
-              <Button variant="outline" size="sm" disabled>
-                Changer la photo
-              </Button>
+             
             </CardContent>
           </Card>
 
@@ -172,32 +154,7 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* Account Statistics */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Statistiques du compte</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">0</div>
-                <div className="text-sm text-muted-foreground">Projets</div>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-green-600">0</div>
-                <div className="text-sm text-muted-foreground">Complétés</div>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">0</div>
-                <div className="text-sm text-muted-foreground">En cours</div>
-              </div>
-              <div className="text-center p-4 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">0</div>
-                <div className="text-sm text-muted-foreground">Favoris</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  
       </div>
     </div>
   );
