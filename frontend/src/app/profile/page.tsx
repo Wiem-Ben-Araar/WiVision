@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { User, Mail, Calendar, Edit2, Save, X } from "lucide-react";
+import { User, Mail, Calendar,  Save} from "lucide-react";
 import { toast } from "sonner";
 
 export default function ProfilePage() {

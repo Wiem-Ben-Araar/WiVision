@@ -6,61 +6,28 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
+
+
 import { 
   Settings, 
   Moon, 
   Sun, 
-  Bell, 
-  Shield, 
-  Trash2, 
-  Download,
-  AlertTriangle
+
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const [notifications, setNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [projectVisibility, setProjectVisibility] = useState(true);
+
 
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
     toast.success(`Thème ${newTheme === 'dark' ? 'sombre' : 'clair'} activé`);
   };
 
-  const handleNotificationToggle = (type: string, value: boolean) => {
-    if (type === 'general') {
-      setNotifications(value);
-      toast.success(`Notifications ${value ? 'activées' : 'désactivées'}`);
-    } else if (type === 'email') {
-      setEmailNotifications(value);
-      toast.success(`Notifications email ${value ? 'activées' : 'désactivées'}`);
-    }
-  };
 
-  const handleExportData = () => {
-    toast.success("Export des données en cours...");
-    // Ici vous pouvez ajouter la logique d'export
-  };
-
-  const handleDeleteAccount = () => {
-    toast.error("Suppression du compte en cours...");
-  };
 
   if (!user) {
     return (
