@@ -16,8 +16,6 @@ import {
   Shield, 
   Trash2, 
   Download,
-  Eye,
-  EyeOff,
   AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
@@ -39,7 +37,6 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [projectVisibility, setProjectVisibility] = useState(true);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
@@ -63,8 +60,6 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = () => {
     toast.error("Suppression du compte en cours...");
-    // Ici vous pouvez ajouter la logique de suppression
-    setShowDeleteDialog(false);
   };
 
   if (!user) {
@@ -98,7 +93,7 @@ export default function SettingsPage() {
               Apparence
             </CardTitle>
             <CardDescription>
-              Personnalisez l'apparence de l'application
+              Personnalisez l&apos;apparence de l&apos;application
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
