@@ -60,7 +60,7 @@ export default function Home() {
     {
       icon: Users,
       title: "Collaboration en équipe",
-      description: "Travaillez en équipe sur vos projets avec des outils de partage et d&apos;annotation en temps réel.",
+      description: "Travaillez en équipe sur vos projets avec des outils de partage et d'annotation en temps réel.",
     },
     {
       icon: FileBox,

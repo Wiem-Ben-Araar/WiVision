@@ -181,7 +181,7 @@ export default function PropertySidebar({ viewer, selectedElement, modelID, onCl
     if (props.GlobalId?.value) basicProps['Global ID'] = props.GlobalId.value;
     if (props.type?.value) basicProps['Type IFC'] = props.type.value;
     if (props.Name?.value) basicProps['Nom'] = props.Name.value;
-    if (props.ObjectType?.value) basicProps['Type d&apos;objet'] = props.ObjectType.value;
+    if (props.ObjectType?.value) basicProps['Type d"objet'] = props.ObjectType.value;
     if (props.Description?.value) basicProps['Description'] = props.Description.value;
     if (props.Tag?.value) basicProps['Tag'] = props.Tag.value;
     
