@@ -279,7 +279,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <Label>Dernière connexion</Label>
-                <p className="text-muted-foreground">Aujourd'hui</p>
+                <p className="text-muted-foreground">Aujourd&apos;hui</p>
               </div>
               <div>
                 <Label>Statut du compte</Label>
