@@ -147,7 +147,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Date d'inscription</Label>
+                <Label>Date d&apos;inscription</Label>
                 <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>{new Date().toLocaleDateString('fr-FR')}</span>
